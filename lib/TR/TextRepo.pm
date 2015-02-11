@@ -48,22 +48,26 @@ sub generate_text_id ($) {
   return sha1_hex (time () . $$ . rand ());
 } # generate_text_id
 
-sub text_id_to_path_and_suffix ($$$) {
+sub text_id_and_suffix_to_path ($$$) {
   my ($self, $id, $suffix) = @_;
   return $self->texts_path->child ((substr $id, 0, 2) . '/' . (substr $id, 2) . '.' . $suffix);
-} # text_id_to_path_and_suffix
+} # text_id_and_suffix_to_path
 
 sub read_file_by_text_id_and_suffix ($$$) {
   my ($self, $id, $suffix) = @_;
   my $path = $self->text_id_and_suffix_to_path ($id, $suffix);
   return Promise->new (sub {
-    $_[0]->($path->slurp_utf8); # or exception # XXX blocking I/O
+    if ($path->is_file) {
+      $_[0]->($path->slurp_utf8); # or exception # XXX blocking I/O
+    } else {
+      $_[0]->(undef);
+    }
   });
 } # read_file_by_text_id_and_suffix
 
 sub write_file_by_text_id_and_suffix ($$$$) {
   my ($self, $id, $suffix, $text) = @_;
-  my $path = $self->text_id_to_path_and_suffix ($id, $suffix);
+  my $path = $self->text_id_and_suffix_to_path ($id, $suffix);
   $path->parent->mkpath;
   $path->spew_utf8 ($text); # or exception # XXX blocking I/O
   return $self->add_by_paths ([$path]);

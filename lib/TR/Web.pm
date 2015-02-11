@@ -2,9 +2,11 @@ package TR::Web;
 use strict;
 use warnings;
 use Path::Tiny;
+use Promise;
 use Wanage::HTTP;
 use TR::AppServer;
 use TR::TextRepo;
+use TR::TextEntry;
 
 sub psgi_app ($$) {
   my ($class, $config) = @_;
@@ -47,19 +49,96 @@ sub main ($$) {
 
   if ($path->[0] eq 'tr' and @$path >= 4) {
     # /tr/{url}/{branch}/{path}
-    if (@$path == 4 and
-        ($path->[3] eq '/' or $path->[3] =~ m{\A(?:/[0-9A-Za-z_.-]+)+\z}) and
+    if (($path->[3] eq '/' or $path->[3] =~ m{\A(?:/[0-9A-Za-z_.-]+)+\z}) and
         not "$path->[3]/" =~ m{/\.\.?/}) {
-      # XXX {url} validation
-      # XXX {branch}
+      #
+    } else {
+      return $app->send_error (404);
+    }
 
-      my $tr = TR::TextRepo->new_from_temp_path (Path::Tiny->tempdir);
-      $tr->texts_dir (substr $path->[3], 1);
+    # XXX {url} validation
+    # XXX {branch}
+    my $tr = TR::TextRepo->new_from_temp_path (Path::Tiny->tempdir);
+    $tr->texts_dir (substr $path->[3], 1);
+
+    if (@$path == 5 and $path->[4] eq '') {
       return $tr->clone_by_url ($path->[1])->then (sub {
         return $tr->text_ids;
       })->then (sub {
-        return $app->temma ('tr.texts.html.tm', {ids => $_[0]});
+        # XXX
+        my $texts = {};
+        my @id = keys %{$_[0]};
+        my @p;
+        my @lang = qw(ja en); # XXX
+        for my $id (@id) {
+          push @p, $tr->read_file_by_text_id_and_suffix ($id, 'txt')->then (sub {
+            $texts->{$id}->{common} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+          }, sub {
+            $texts->{$id}->{common} = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
+            die $_[0]; # XXX
+          });
+          for my $lang (@lang) {
+            push @p, $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
+              $texts->{$id}->{langs}->{$lang} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+            }, sub {
+              $texts->{$id}->{langs}->{$lang} = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
+              die $_[0]; # XXX
+            });
+          }
+        }
+        return Promise->all (\@p)->then (sub {
+          return $app->temma ('tr.texts.html.tm', {texts => $texts, langs => \@lang});
+        });
       })->catch (sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500);
+      })->then (sub {
+        return $tr->discard;
+      });
+    } elsif (@$path == 5 and $path->[4] eq 'add') {
+      $app->requires_request_method ({POST => 1});
+      # XXX CSRF
+
+      # XXX access control
+
+      # XXX
+      my $auth = $app->http->request_auth;
+      unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
+        $app->http->set_response_auth ('basic', realm => $path->[1]);
+        return $app->send_error (401);
+      }
+      my $url = $path->[1];
+      $url =~ s{^https://}{https://$auth->{userid}:$auth->{password}\@}; # XXX percent-encode
+
+      return $tr->clone_by_url ($url)->then (sub {
+        my $id = $tr->generate_text_id;
+        return Promise->all ([
+          Promise->resolve->then (sub {
+            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
+            my $msgid = $app->text_param ('msgid');
+            if (defined $msgid) {
+              # XXX check duplication
+              $te->set (msgid => $msgid);
+            }
+            return $tr->write_file_by_text_id_and_suffix ($id, 'txt' => $te->as_source_text);
+          }),
+          Promise->resolve->then (sub {
+            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
+            my $lang = $app->text_param ('lang'); # XXX validation / normalization
+            return unless defined $lang and length $lang;
+            $te->set (body_o => $app->text_param ('body_o'));
+            return $tr->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
+          }),
+        ]);
+      })->then (sub {
+        my $msg = $app->text_param ('commit_message') // '';
+        $msg = 'Added a message' unless length $msg;
+        return $tr->commit ($msg);
+      })->then (sub {
+        return $tr->push; # XXX failure
+      })->then (sub {
+        return $app->send_error (200); # XXX return JSON?
+      }, sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);
       })->then (sub {

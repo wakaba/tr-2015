@@ -10,7 +10,7 @@ sub new_from_text_id_and_source_text ($$$) {
   for (split /\x0A/, $text) {
     if (/\A([0-9A-Za-z_]+):(.*)\z/) {
       my ($n, $v) = ($1, $2);
-      $n =~ s/\\([nr\\])/{n => "\x0A", r => "\x0D", "\\" => "\\"}->{$1}/ge;
+      $v =~ s/\\([nr\\])/{n => "\x0A", r => "\x0D", "\\" => "\\"}->{$1}/ge;
       $props->{$n} = $v;
     }
   }
@@ -46,3 +46,22 @@ sub as_source_text ($) {
 } # as_source_text
 
 1;
+
+=head1 Q & A
+
+=over 4
+
+=item Why don't you just use JSON?
+
+It could be difficult to manually merge conflicting branches.
+
+=back
+
+=head1 LICENSE
+
+Copyright 2014 Wakaba <wakaba@suikawiki.org>.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+=cut
