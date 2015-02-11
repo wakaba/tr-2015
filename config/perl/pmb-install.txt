@@ -1,10 +1,11 @@
 Test::NoWarnings~1.04
-IO::HTML~1.001
 Encode~2.70
+IO::HTML~1.001
 Stream::Buffered~0.03
 Test::TCP~2.07
 Twiggy::Prefork~0.08
 HTTP::Headers~6.05
+Digest::SHA~5.95
 HTTP::Tiny~0.054
 Time::Local~1.2300
 List::MoreUtils~0.404
