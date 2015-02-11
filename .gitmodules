@@ -25,3 +25,6 @@
 [submodule "modules/web-markup"]
 	path = modules/web-markup
 	url = git://github.com/manakai/perl-web-markup
+[submodule "modules/vcutils"]
+	path = modules/vcutils
+	url = git://github.com/wakaba/perl-vcutils

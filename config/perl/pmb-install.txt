@@ -1,6 +1,6 @@
 Test::NoWarnings~1.04
-Encode~2.70
 IO::HTML~1.001
+Encode~2.70
 Stream::Buffered~0.03
 Test::TCP~2.07
 Twiggy::Prefork~0.08
@@ -38,6 +38,7 @@ Path::Tiny~0.061
 Hash::MultiValue~0.15
 URI~1.65
 Plack~1.0034
+Digest::SHA1~2.13
 Test::Tester~0.114
 Apache::LogFormat::Compiler~0.32
 Exporter~5.70
