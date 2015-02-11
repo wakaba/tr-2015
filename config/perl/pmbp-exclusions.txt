@@ -9,3 +9,4 @@
 - "../../modules/swml-parser" tests build
 - "../../modules/charclass" tests build
 - "../../modules/vcutils" tests viewvc
+- "../../modules/temma" tests

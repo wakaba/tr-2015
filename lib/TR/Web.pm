@@ -38,6 +38,11 @@ sub main ($$) {
   my ($class, $app) = @_;
   my $path = $app->path_segments;
 
+  if (@$path == 1 and $path->[0] eq '') {
+    # /
+    return $app->temma ('index.html.tm');
+  }
+
   if (@$path == 2 and
       {js => 1, css => 1, data => 1, images => 1}->{$path->[0]} and
       $path->[1] =~ /\A[0-9A-Za-z_-]+\.(js|css|jpe?g|gif|png|json)\z/) {
@@ -57,3 +62,12 @@ sub main ($$) {
 } # main
 
 1;
+
+=head1 LICENSE
+
+Copyright 2007-2014 Wakaba <wakaba@suikawiki.org>.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+=cut

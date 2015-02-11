@@ -6,6 +6,9 @@ push our @ISA, qw(Warabe::App);
 use Path::Tiny;
 use AnyEvent::Handle;
 use Promise;
+use Web::DOM::Document;
+use Temma::Parser;
+use Temma::Processor;
 
 sub new_from_http_and_config ($$$) {
   my $self = $_[0]->SUPER::new_from_http ($_[1]);
@@ -57,4 +60,57 @@ sub send_file ($$$) {
   });
 } # send_file
 
+my $TemplatesPath = $RootPath->child ('templates');
+
+sub temma ($$$) {
+  my ($self, $template_path, $args) = @_;
+  $template_path = $TemplatesPath->child ($template_path);
+  die "|$template_path| not found" unless $template_path->is_file;
+
+  my $http = $self->http;
+  $http->set_response_header ('Content-Type' => 'text/html; charset=utf-8');
+  my $fh = TR::AppServer::TemmaPrinter->new_from_http ($http);
+  my $ok;
+  my $p = Promise->new (sub { $ok = $_[0] });
+
+  my $doc = new Web::DOM::Document;
+  my $parser = Temma::Parser->new;
+  $parser->parse_f ($template_path => $doc); # XXX blocking
+  my $processor = Temma::Processor->new;
+  $processor->process_document ($doc => $fh, ondone => sub {
+    $http->close_response_body;
+    $ok->();
+  }, args => $args);
+
+  return $p;
+} # temma
+
+package TR::AppServer::TemmaPrinter;
+
+sub new_from_http ($$) {
+  return bless {http => $_[1]}, $_[0];
+} # new_from_http
+
+sub print ($$) {
+  $_[0]->{value} .= $_[1];
+  if (length $_[0]->{value} > 1024*10 or length $_[1] == 0) {
+    $_[0]->{http}->send_response_body_as_text ($_[0]->{value});
+    $_[0]->{value} = '';
+  }
+} # print
+
+sub DESTROY {
+  $_[0]->{http}->send_response_body_as_text ($_[0]->{value})
+      if length $_[0]->{value};
+} # DESTROY
+
 1;
+
+=head1 LICENSE
+
+Copyright 2007-2014 Wakaba <wakaba@suikawiki.org>.
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself.
+
+=cut

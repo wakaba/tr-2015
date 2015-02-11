@@ -16,3 +16,12 @@
 [submodule "modules/ooutils"]
 	path = modules/ooutils
 	url = git://github.com/wakaba/perl-ooutils
+[submodule "modules/temma"]
+	path = modules/temma
+	url = git://github.com/wakaba/temma
+[submodule "modules/web-dom"]
+	path = modules/web-dom
+	url = git://github.com/manakai/perl-web-dom
+[submodule "modules/web-markup"]
+	path = modules/web-markup
+	url = git://github.com/manakai/perl-web-markup
