@@ -30,13 +30,17 @@
       <tr class=text-body>
         <t:for as=$lang x="$tr->langs">
           <td pl:data-lang=$lang>
-            <form data-action="i/{text_id}/" method=post onsubmit=" return saveLangCell (this) ">
+            <div class=view>
+              <p class=buttons><button type=button class=toggle-edit>Edit</button>
+              <p class=body_o>
+            </div>
+            <form data-action="i/{text_id}/" method=post onsubmit=" return saveLangCell (this.parentNode, this) " hidden>
               <input type=hidden name=lang pl:value=$lang>
               <!-- XXX hash -->
               <p><textarea name=body_o></textarea>
               <p><button type=submit>保存</button>
-                <span class=status hidden><progress></progress> <span class=message></span></span>
             </form>
+            <p class=status hidden><progress></progress> <span class=message></span>
         </t:for>
     </template>
   <tfoot>
@@ -47,22 +51,25 @@
       <td pl:colspan=$lang_cell_count>
 
 <form action=add method=post onsubmit="
+  var form = this;
+  form.hidden = true;
   var mainTable = document.getElementById ('texts');
   var mainTableStatus = mainTable.querySelector ('tfoot .status');
   mainTableStatus.hidden = false;
   mainTableStatus.querySelector ('.message').textContent = 'Adding...';
 
   var xhr = new XMLHttpRequest;
-  xhr.open ('POST', this.action, true);
-  var fd = new FormData (this);
+  xhr.open ('POST', form.action, true);
+  var fd = new FormData (form);
   xhr.onreadystatechange = function () {
     if (xhr.readyState === 4) {
       if (xhr.status < 400) {
         var json = JSON.parse (xhr.responseText);
         addTexts (json.texts);
-        mainTableStatus.hidden = true;
       } else { // XXX
       }
+      mainTableStatus.hidden = true;
+      form.hidden = false;
     }
   };
   xhr.send (fd);
@@ -92,12 +99,17 @@ function addTexts (texts) {
           }
           for (lang in text.langs) { // XXX escape
             var langCell = fragment.querySelector ('[data-lang="'+lang+'"]');
-            if (langCell) {
+            if (langCell) (function (langCell) {
+              langCell.querySelector ('button.toggle-edit').onclick = function () {
+                toggleLangCellEditor (langCell, true);
+              };
+
               var langData = text.langs[lang];
               if (langData.body_o) {
                 langCell.querySelector ('[name=body_o]').value = langData.body_o;
               }
-            }
+              syncLangCellView (langCell);
+            }) (langCell);
           }
 
           Array.prototype.forEach.call (fragment.querySelectorAll ('form[data-action]'), function (el) {
@@ -132,10 +144,31 @@ function addTexts (texts) {
   };
   xhr.send (null);
 
-function saveLangCell (form) {
-  var formStatus = form.querySelector ('.status');
+function syncLangCellView (cell) {
+  var edit = cell.querySelector ('form');
+  var view = cell.querySelector ('.view');
+  view.querySelector ('.body_o').textContent = edit.querySelector ('[name=body_o]').value;
+} // cell
+
+function toggleLangCellEditor (cell, editMode) {
+  var edit = cell.querySelector ('form');
+  var view = cell.querySelector ('.view');
+  if (editMode) {
+    edit.hidden = false;
+    view.hidden = true;
+  } else {
+    view.hidden = false;
+    edit.hidden = true;
+  }
+} // toggleLangCellEditor
+
+function saveLangCell (cell, form) {
+  var formStatus = cell.querySelector ('.status');
   formStatus.hidden = false;
   formStatus.querySelector ('.message').textContent = 'Saving...';
+  toggleLangCellEditor (cell, false);
+  var editButton = cell.querySelector ('button.toggle-edit');
+  editButton.disabled = true;
 
   var xhr = new XMLHttpRequest;
   xhr.open ('POST', form.action, true);
@@ -143,9 +176,11 @@ function saveLangCell (form) {
   xhr.onreadystatechange = function () {
     if (xhr.readyState === 4) {
       if (xhr.status < 400) {
-        formStatus.hidden = true;
+        syncLangCellView (cell);
       } else { // XXX
       }
+      formStatus.hidden = true;
+      editButton.disabled = false;
     }
   };
   xhr.send (fd);

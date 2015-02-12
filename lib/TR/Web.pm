@@ -176,7 +176,7 @@ sub main ($$) {
         my $id = $tr->generate_text_id;
         my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
         my $msgid = $app->text_param ('msgid');
-        if (defined $msgid) {
+        if (defined $msgid and length $msgid) {
           # XXX check duplication
           $te->set (msgid => $msgid);
         }
