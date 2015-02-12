@@ -45,6 +45,11 @@ sub as_source_text ($) {
   return join "\x0A", @s;
 } # as_source_text
 
+sub as_jsonalizable ($) {
+  my $self = $_[0];
+  return $self->{props};
+} # as_jsonalizable
+
 1;
 
 =head1 Q & A

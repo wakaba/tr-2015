@@ -55,6 +55,7 @@ sub text_id_and_suffix_to_path ($$$) {
 
 sub read_file_by_text_id_and_suffix ($$$) {
   my ($self, $id, $suffix) = @_;
+  # XXX max file size
   my $path = $self->text_id_and_suffix_to_path ($id, $suffix);
   return Promise->new (sub {
     if ($path->is_file) {

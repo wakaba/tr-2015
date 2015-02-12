@@ -4,6 +4,7 @@ use warnings;
 use Warabe::App;
 push our @ISA, qw(Warabe::App);
 use Path::Tiny;
+use JSON::PS;
 use AnyEvent::Handle;
 use Promise;
 use Web::DOM::Document;
@@ -24,6 +25,13 @@ sub error_log ($$) {
   #$_[0]->ikachan (1, $_[1]);
   warn "ERROR: $_[1]\n"; # XXX blocking I/O
 } # error_log
+
+sub send_json ($$) {
+  my ($self, $data) = @_;
+  $self->http->set_response_header ('Content-Type' => 'application/json');
+  $self->http->send_response_body_as_ref (\perl2json_bytes $data);
+  $self->http->close_response_body;
+} # send_json
 
 my $RootPath = path (__FILE__)->parent->parent->parent;
 

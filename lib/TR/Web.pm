@@ -65,29 +65,42 @@ sub main ($$) {
       return $tr->clone_by_url ($path->[1])->then (sub {
         return $tr->text_ids;
       })->then (sub {
+        return $app->temma ('tr.texts.html.tm', {langs => \@lang});
+      })->catch (sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500);
+      })->then (sub {
+        return $tr->discard;
+      });
+
+    } elsif (@$path == 5 and $path->[4] eq 'data.json') {
+      # .../data.json
+      return $tr->clone_by_url ($path->[1])->then (sub {
+        return $tr->text_ids;
+      })->then (sub {
         # XXX
+        my $data = {};
         my $texts = {};
         my @id = keys %{$_[0]};
         my @p;
         my @lang = qw(ja en); # XXX
         for my $id (@id) {
           push @p, $tr->read_file_by_text_id_and_suffix ($id, 'txt')->then (sub {
-            $texts->{$id}->{common} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+            $data->{texts}->{$id} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '')->as_jsonalizable;
           }, sub {
-            $texts->{$id}->{common} = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
             die $_[0]; # XXX
           });
           for my $lang (@lang) {
             push @p, $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
-              $texts->{$id}->{langs}->{$lang} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+              return unless defined $_[0];
+              $data->{texts}->{$id}->{langs}->{$lang} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0])->as_jsonalizable;
             }, sub {
-              $texts->{$id}->{langs}->{$lang} = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
               die $_[0]; # XXX
             });
           }
         }
         return Promise->all (\@p)->then (sub {
-          return $app->temma ('tr.texts.html.tm', {texts => $texts, langs => \@lang});
+          return $app->send_json ($data);
         });
       })->catch (sub {
         $app->error_log ($_[0]);
