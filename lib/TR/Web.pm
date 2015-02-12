@@ -2,6 +2,7 @@ package TR::Web;
 use strict;
 use warnings;
 use Path::Tiny;
+use Wanage::URL;
 use Promise;
 use Wanage::HTTP;
 use TR::AppServer;
@@ -66,8 +67,17 @@ sub main ($$) {
       return $tr->clone_by_url ($path->[1])->then (sub { # XXX branch
         return $tr->text_ids;
       })->then (sub {
-        my @lang = qw(ja en); # XXX
-        return $app->temma ('tr.texts.html.tm', {tr => $tr});
+        my @param;
+        for my $k (qw(text_id)) {
+          my $list = $app->text_param_list ($k);
+          for (@$list) {
+            push @param, (percent_encode_c $k) . '=' . (percent_encode_c $_);
+          }
+        }
+        return $app->temma ('tr.texts.html.tm', {
+          tr => $tr,
+          data_params => (join '&', @param),
+        });
       })->catch (sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);
@@ -78,7 +88,12 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'data.json') {
       # .../data.json
       return $tr->clone_by_url ($path->[1])->then (sub {
-        return $tr->text_ids;
+        my $text_ids = $app->text_param_list ('text_id');
+        if (@$text_ids) {
+          return {map { $_ => 1 } grep { /\A[0-9a-f]{3,}\z/ } @$text_ids};
+        } else {
+          return $tr->text_ids;
+        }
       })->then (sub {
         # XXX
         my $data = {};

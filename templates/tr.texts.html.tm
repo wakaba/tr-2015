@@ -1,4 +1,4 @@
-<html t:params="$tr">
+<html t:params="$tr $data_params">
 <title>XXX</title>
 <link rel=stylesheet href=/css/common.css>
 
@@ -11,7 +11,7 @@
     <h3><code itemprop=texts-path><t:text value="'/' . $tr->texts_dir"></code></h3>
   </hgroup>
 
-  <link itemprop=data-url href=data.json>
+  <link itemprop=data-url pl:href="'data.json?'.$data_params">
 </header>
 
 <table id=texts>
@@ -97,20 +97,20 @@ function addTexts (texts) {
           if (text.msgid) {
             fragment.querySelector ('.msgid').textContent = text.msgid;
           }
-          for (lang in text.langs) { // XXX escape
-            var langCell = fragment.querySelector ('[data-lang="'+lang+'"]');
-            if (langCell) (function (langCell) {
-              langCell.querySelector ('button.toggle-edit').onclick = function () {
-                toggleLangCellEditor (langCell, true);
-              };
+          Array.prototype.map.call (fragment.querySelectorAll ('[data-lang]'), function (langCell) {
+            var lang = langCell.getAttribute ('data-lang');
+            langCell.querySelector ('button.toggle-edit').onclick = function () {
+              toggleLangCellEditor (langCell, true);
+            };
 
-              var langData = text.langs[lang];
+            var langData = text.langs ? text.langs[lang] : null;
+            if (langData) {
               if (langData.body_o) {
                 langCell.querySelector ('[name=body_o]').value = langData.body_o;
               }
               syncLangCellView (langCell);
-            }) (langCell);
-          }
+            }
+          });
 
           Array.prototype.forEach.call (fragment.querySelectorAll ('form[data-action]'), function (el) {
             el.action = el.getAttribute ('data-action').replace (/\{text_id\}/g, textId);
