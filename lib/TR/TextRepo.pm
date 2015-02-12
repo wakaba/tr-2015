@@ -9,6 +9,27 @@ sub new_from_temp_path ($) {
   return bless {temp_path => $_[1]}, $_[0];
 } # new_from_temp_path
 
+sub url ($;$) {
+  if (@_ > 1) {
+    $_[0]->{url} = $_[1];
+  }
+  return $_[0]->{url};
+} # url
+
+sub branch ($;$) {
+  if (@_ > 1) {
+    $_[0]->{branch} = $_[1];
+  }
+  return $_[0]->{branch};
+} # branch
+
+sub langs ($;$) {
+  if (@_ > 1) {
+    $_[0]->{langs} = $_[1];
+  }
+  return $_[0]->{langs} || [];
+} # langs
+
 sub repo_path ($) {
   return $_[0]->{repo_path} ||= $_[0]->{temp_path}->child ('text-repo-' . rand);
 } # repo_path

@@ -1,26 +1,34 @@
-<html t:params="$texts $langs">
-<title>???</title>
+<html t:params="$tr">
+<title>XXX</title>
+<link rel=stylesheet href=/css/common.css>
+
+<!-- XXX onbeforeunload -->
 
 <header itemscope itemtype=data>
-<h1>Texts</h1>
+  <hgroup> 
+    <h1><code itemprop=url><t:text value="$tr->url"></code></h1>
+    <h2><code itemprop=branch><t:text value="$tr->branch"></code></h2>
+    <h3><code itemprop=texts-path><t:text value="'/' . $tr->texts_dir"></code></h3>
+  </hgroup>
 
   <link itemprop=data-url href=data.json>
 </header>
 
 <table id=texts>
+  <t:my as=$lang_cell_count x="0+@{$tr->langs}">
   <thead>
     <tr>
-      <t:for as=$lang x=$langs>
-        <td><t:text value=$lang>
+      <t:for as=$lang x="$tr->langs">
+        <th><t:text value=$lang>
       </t:for>
   <tbody>
     <template>
-      <tr>
-        <th pl:colspan="0+@$langs">
-          <code class=text-id></code>
+      <tr class=text-header>
+        <th pl:colspan=$lang_cell_count>
           <code class=msgid></code>
-      <tr>
-        <t:for as=$lang x=$langs>
+          <code class=text-id></code>
+      <tr class=text-body>
+        <t:for as=$lang x="$tr->langs">
           <td pl:data-lang=$lang>
             <form data-action="i/{text_id}/" method=post onsubmit=" return saveLangCell (this) ">
               <input type=hidden name=lang pl:value=$lang>
@@ -33,8 +41,39 @@
     </template>
   <tfoot>
     <tr class=status hidden>
-      <th pl:colspan="0+@$langs">
+      <td pl:colspan=$lang_cell_count>
         <progress></progress> <span class=message></span>
+    <tr>
+      <td pl:colspan=$lang_cell_count>
+
+<form action=add method=post onsubmit="
+  var mainTable = document.getElementById ('texts');
+  var mainTableStatus = mainTable.querySelector ('tfoot .status');
+  mainTableStatus.hidden = false;
+  mainTableStatus.querySelector ('.message').textContent = 'Adding...';
+
+  var xhr = new XMLHttpRequest;
+  xhr.open ('POST', this.action, true);
+  var fd = new FormData (this);
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4) {
+      if (xhr.status < 400) {
+        var json = JSON.parse (xhr.responseText);
+        addTexts (json.texts);
+        mainTableStatus.hidden = true;
+      } else { // XXX
+      }
+    }
+  };
+  xhr.send (fd);
+  return false;
+">
+  <p>
+    <label><strong>メッセージID</strong>: <input type=text name=msgid></label>
+    <button type=submit>追加</button>
+</form>
+
+
 </table>
 
 <script>
@@ -113,30 +152,3 @@ function saveLangCell (form) {
   return false;
 } // saveLangCell
 </script>
-
-<form action=add method=post onsubmit="
-  var mainTable = document.getElementById ('texts');
-  var mainTableStatus = mainTable.querySelector ('tfoot .status');
-  mainTableStatus.hidden = false;
-  mainTableStatus.querySelector ('.message').textContent = 'Adding...';
-
-  var xhr = new XMLHttpRequest;
-  xhr.open ('POST', this.action, true);
-  var fd = new FormData (this);
-  xhr.onreadystatechange = function () {
-    if (xhr.readyState === 4) {
-      if (xhr.status < 400) {
-        var json = JSON.parse (xhr.responseText);
-        addTexts (json.texts);
-        mainTableStatus.hidden = true;
-      } else { // XXX
-      }
-    }
-  };
-  xhr.send (fd);
-  return false;
-">
-  <p><label><strong>メッセージID</strong>: <input type=text name=msgid></label>
-  <p><button type=submit>Add</button>
-</form>
-

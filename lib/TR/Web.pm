@@ -56,17 +56,18 @@ sub main ($$) {
       return $app->send_error (404);
     }
 
-    # XXX {url} validation
-    # XXX {branch}
     my $tr = TR::TextRepo->new_from_temp_path (Path::Tiny->tempdir);
+    $tr->url ($path->[1]); # XXX validation & normalization
+    $tr->branch ($path->[2]); # XXX validation
     $tr->texts_dir (substr $path->[3], 1);
+    $tr->langs ([qw(ja en)]); # XXX
 
     if (@$path == 5 and $path->[4] eq '') {
-      return $tr->clone_by_url ($path->[1])->then (sub {
+      return $tr->clone_by_url ($path->[1])->then (sub { # XXX branch
         return $tr->text_ids;
       })->then (sub {
         my @lang = qw(ja en); # XXX
-        return $app->temma ('tr.texts.html.tm', {langs => \@lang});
+        return $app->temma ('tr.texts.html.tm', {tr => $tr});
       })->catch (sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);
@@ -84,7 +85,7 @@ sub main ($$) {
         my $texts = {};
         my @id = keys %{$_[0]};
         my @p;
-        my @lang = qw(ja en); # XXX
+        my @lang = @{$tr->langs};
         for my $id (@id) {
           push @p, $tr->read_file_by_text_id_and_suffix ($id, 'txt')->then (sub {
             $data->{texts}->{$id} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '')->as_jsonalizable;

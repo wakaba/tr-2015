@@ -1,4 +1,36 @@
-h1 {
+h1, hgroup {
   display: block;
   color: green;
+}
+
+hgroup > h2, hgroup > h3 {
+  display: inline;
+  font-size: 100%;
+}
+
+table#texts {
+  width: 100%;
+}
+
+.text-header {
+  background-color: #eeffee;
+}
+
+table#texts th,
+table#texts td {
+  vertical-align: top;
+}
+
+.text-header th {
+  text-align: left;
+  font-weight: normal;
+}
+
+.text-header th .msgid {
+  font-size: 90%;
+}
+
+.text-header th .text-id {
+  font-size: 80%;
+  color: gray;
 }
