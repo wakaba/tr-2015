@@ -20,7 +20,13 @@
           <t:text value="$common->get ('msgid') // ''">
         </th>
         <t:for as=$lang x=$langs>
-          <td><t:text value="$ls->{$lang}->get ('body_o') // ''">
+          <td>
+            <form pl:action="'i/' . $text_id . '/'" method=post>
+              <input type=hidden name=lang pl:value=$lang>
+              <!-- XXX hash -->
+              <p><textarea name=body_o t:parse><t:text value="$ls->{$lang}->get ('body_o') // ''"></textarea>
+              <p><button type=submit>保存</button>
+            </form>
         </t:for>
     </t:for>
 </table>

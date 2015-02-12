@@ -95,6 +95,52 @@ sub main ($$) {
       })->then (sub {
         return $tr->discard;
       });
+
+    } elsif (@$path == 7 and $path->[4] eq 'i' and $path->[6] eq '') {
+      # .../i/{text_id}/
+      $app->requires_request_method ({POST => 1});
+      # XXX CSRF
+
+      # XXX access control
+
+      my $id = $path->[5];
+      # XXX validation
+
+      # XXX
+      my $auth = $app->http->request_auth;
+      unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
+        $app->http->set_response_auth ('basic', realm => $path->[1]);
+        return $app->send_error (401);
+      }
+      my $url = $path->[1];
+      $url =~ s{^https://}{https://$auth->{userid}:$auth->{password}\@}; # XXX percent-encode
+
+      my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
+      return $tr->clone_by_url ($url)->then (sub {
+        return $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt');
+      })->then (sub {
+        my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+        for (qw(body_o)) {
+          my $v = $app->text_param ($_);
+          $te->set ($_ => $v) if defined $v;
+        }
+        $te->set (last_modified => time);
+        return $tr->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
+      })->then (sub {
+        my $msg = $app->text_param ('commit_message') // '';
+        $msg = 'Added a message' unless length $msg;
+        return $tr->commit ($msg);
+      })->then (sub {
+        return $tr->push; # XXX failure
+      })->then (sub {
+        return $app->send_error (200); # XXX return JSON?
+      }, sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500);
+      })->then (sub {
+        return $tr->discard;
+      });
+
     } elsif (@$path == 5 and $path->[4] eq 'add') {
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
@@ -121,13 +167,6 @@ sub main ($$) {
               $te->set (msgid => $msgid);
             }
             return $tr->write_file_by_text_id_and_suffix ($id, 'txt' => $te->as_source_text);
-          }),
-          Promise->resolve->then (sub {
-            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
-            my $lang = $app->text_param ('lang'); # XXX validation / normalization
-            return unless defined $lang and length $lang;
-            $te->set (body_o => $app->text_param ('body_o'));
-            return $tr->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
           }),
         ]);
       })->then (sub {
