@@ -28,3 +28,6 @@
 [submodule "modules/vcutils"]
 	path = modules/vcutils
 	url = git://github.com/wakaba/perl-vcutils
+[submodule "modules/json-ps"]
+	path = modules/json-ps
+	url = git://github.com/wakaba/perl-json-ps
