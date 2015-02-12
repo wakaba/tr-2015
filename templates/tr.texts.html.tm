@@ -22,33 +22,30 @@
       <tr>
         <t:for as=$lang x=$langs>
           <td pl:data-lang=$lang>
-            <form data-action="i/{text_id}/" method=post>
+            <form data-action="i/{text_id}/" method=post onsubmit=" return saveLangCell (this) ">
               <input type=hidden name=lang pl:value=$lang>
               <!-- XXX hash -->
               <p><textarea name=body_o></textarea>
               <p><button type=submit>保存</button>
+                <span class=status hidden><progress></progress> <span class=message></span></span>
             </form>
         </t:for>
     </template>
+  <tfoot>
+    <tr class=status hidden>
+      <th pl:colspan="0+@$langs">
+        <progress></progress> <span class=message></span>
 </table>
 
 <script>
-  var item = document.querySelector ('[itemtype=data]');
-  var url = item.querySelector ('[itemprop=data-url]').href;
-  var xhr = new XMLHttpRequest;
-  xhr.open ('GET', url, true);
-  xhr.onreadystatechange = function () {
-    if (xhr.readyState === 4) {
-      if (xhr.status < 400) {
-        var json = JSON.parse (xhr.responseText);
+function addTexts (texts) {
         var mainTable = document.getElementById ('texts');
         var rowContainer = mainTable.querySelector ('tbody');
         var rowTemplate = rowContainer.querySelector ('template');
-        for (var textId in json.texts) {
-          var text = json.texts[textId];
+        for (var textId in texts) {
+          var text = texts[textId];
           var fragment = document.createElement ('tbody');
           fragment.innerHTML = rowTemplate.innerHTML;
-console.log(fragment);
 
           fragment.querySelector ('.text-id').textContent = textId;
           if (text.msgid) {
@@ -72,17 +69,74 @@ console.log(fragment);
             rowContainer.appendChild (el);
           });
         }
+} // addTexts
+
+  var mainTable = document.getElementById ('texts');
+  var mainTableStatus = mainTable.querySelector ('tfoot .status');
+  mainTableStatus.hidden = false;
+  mainTableStatus.querySelector ('.message').textContent = 'Loading...';
+
+  var item = document.querySelector ('[itemtype=data]');
+  var url = item.querySelector ('[itemprop=data-url]').href;
+  var xhr = new XMLHttpRequest;
+  xhr.open ('GET', url, true);
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4) {
+      if (xhr.status < 400) {
+        var json = JSON.parse (xhr.responseText);
+        addTexts (json.texts);
+        mainTableStatus.hidden = true;
       } else {
         // XXX
       }
     }
   };
   xhr.send (null);
+
+function saveLangCell (form) {
+  var formStatus = form.querySelector ('.status');
+  formStatus.hidden = false;
+  formStatus.querySelector ('.message').textContent = 'Saving...';
+
+  var xhr = new XMLHttpRequest;
+  xhr.open ('POST', form.action, true);
+  var fd = new FormData (form);
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4) {
+      if (xhr.status < 400) {
+        formStatus.hidden = true;
+      } else { // XXX
+      }
+    }
+  };
+  xhr.send (fd);
+  return false;
+} // saveLangCell
 </script>
 
-<form action=add method=post>
-  <p><label><strong>メッセージID</strong>: <input type=text name=msgid></label>
+<form action=add method=post onsubmit="
+  var mainTable = document.getElementById ('texts');
+  var mainTableStatus = mainTable.querySelector ('tfoot .status');
+  mainTableStatus.hidden = false;
+  mainTableStatus.querySelector ('.message').textContent = 'Adding...';
 
-  <p><input name=commit_message title=コミットメッセージ> <button type=submit>Add</button>
+  var xhr = new XMLHttpRequest;
+  xhr.open ('POST', this.action, true);
+  var fd = new FormData (this);
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 4) {
+      if (xhr.status < 400) {
+        var json = JSON.parse (xhr.responseText);
+        addTexts (json.texts);
+        mainTableStatus.hidden = true;
+      } else { // XXX
+      }
+    }
+  };
+  xhr.send (fd);
+  return false;
+">
+  <p><label><strong>メッセージID</strong>: <input type=text name=msgid></label>
+  <p><button type=submit>Add</button>
 </form>
 

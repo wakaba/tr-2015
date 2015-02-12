@@ -65,6 +65,7 @@ sub main ($$) {
       return $tr->clone_by_url ($path->[1])->then (sub {
         return $tr->text_ids;
       })->then (sub {
+        my @lang = qw(ja en); # XXX
         return $app->temma ('tr.texts.html.tm', {langs => \@lang});
       })->catch (sub {
         $app->error_log ($_[0]);
@@ -169,19 +170,17 @@ sub main ($$) {
       my $url = $path->[1];
       $url =~ s{^https://}{https://$auth->{userid}:$auth->{password}\@}; # XXX percent-encode
 
+      my $data = {texts => {}};
       return $tr->clone_by_url ($url)->then (sub {
         my $id = $tr->generate_text_id;
-        return Promise->all ([
-          Promise->resolve->then (sub {
-            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
-            my $msgid = $app->text_param ('msgid');
-            if (defined $msgid) {
-              # XXX check duplication
-              $te->set (msgid => $msgid);
-            }
-            return $tr->write_file_by_text_id_and_suffix ($id, 'txt' => $te->as_source_text);
-          }),
-        ]);
+        my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
+        my $msgid = $app->text_param ('msgid');
+        if (defined $msgid) {
+          # XXX check duplication
+          $te->set (msgid => $msgid);
+        }
+        $data->{texts}->{$id} = $te->as_jsonalizable;
+        return $tr->write_file_by_text_id_and_suffix ($id, 'txt' => $te->as_source_text);
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
         $msg = 'Added a message' unless length $msg;
@@ -189,7 +188,7 @@ sub main ($$) {
       })->then (sub {
         return $tr->push; # XXX failure
       })->then (sub {
-        return $app->send_error (200); # XXX return JSON?
+        return $app->send_json ($data);
       }, sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);
