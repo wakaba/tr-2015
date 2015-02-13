@@ -68,13 +68,14 @@ sub main ($$) {
         return $tr->text_ids;
       })->then (sub {
         my @param;
-        for my $k (qw(text_id)) {
+        for my $k (qw(text_id msgid tag)) {
           my $list = $app->text_param_list ($k);
           for (@$list) {
             push @param, (percent_encode_c $k) . '=' . (percent_encode_c $_);
           }
         }
         return $app->temma ('tr.texts.html.tm', {
+          app => $app,
           tr => $tr,
           data_params => (join '&', @param),
         });
@@ -101,21 +102,35 @@ sub main ($$) {
         my @id = keys %{$_[0]};
         my @p;
         my @lang = @{$tr->langs};
+        my $tags = $app->text_param_list ('tag');
+        my $msgid = $app->text_param ('msgid');
+        undef $msgid if defined $msgid and not length $msgid;
         for my $id (@id) {
           push @p, $tr->read_file_by_text_id_and_suffix ($id, 'txt')->then (sub {
-            $data->{texts}->{$id} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '')->as_jsonalizable;
-          }, sub {
-            die $_[0]; # XXX
+            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+            my $ok = 1;
+            if (defined $msgid) {
+              my $mid = $te->get ('msgid');
+              return unless defined $mid;
+              return unless $msgid eq $mid;
+            }
+            if (@$tags) {
+              my $t = $te->enum ('tags');
+              for (@$tags) {
+                return unless $t->{$_};
+              }
+            }
+            $data->{texts}->{$id} = $te->as_jsonalizable;
+            my @q;
+            for my $lang (@lang) {
+              push @q, $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
+                return unless defined $_[0];
+                $data->{texts}->{$id}->{langs}->{$lang} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0])->as_jsonalizable;
+              });
+            }
+            return Promise->all (\@q);
           });
-          for my $lang (@lang) {
-            push @p, $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
-              return unless defined $_[0];
-              $data->{texts}->{$id}->{langs}->{$lang} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0])->as_jsonalizable;
-            }, sub {
-              die $_[0]; # XXX
-            });
-          }
-        }
+        } # $id
         return Promise->all (\@p)->then (sub {
           return $app->send_json ($data);
         });
@@ -126,52 +141,95 @@ sub main ($$) {
         return $tr->discard;
       });
 
-    } elsif (@$path == 7 and $path->[4] eq 'i' and $path->[6] eq '') {
-      # .../i/{text_id}/
-      $app->requires_request_method ({POST => 1});
-      # XXX CSRF
+    } elsif (@$path >= 7 and $path->[4] eq 'i') {
+      if (@$path == 7 and $path->[6] eq '') { # XXX URL
+        # .../i/{text_id}/
+        $app->requires_request_method ({POST => 1});
+        # XXX CSRF
 
-      # XXX access control
+        # XXX access control
 
-      my $id = $path->[5];
-      # XXX validation
+        my $id = $path->[5]; # XXX validation
 
-      # XXX
-      my $auth = $app->http->request_auth;
-      unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
-        $app->http->set_response_auth ('basic', realm => $path->[1]);
-        return $app->send_error (401);
-      }
-      my $url = $path->[1];
-      $url =~ s{^https://}{https://$auth->{userid}:$auth->{password}\@}; # XXX percent-encode
-
-      my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
-      return $tr->clone_by_url ($url)->then (sub {
-        return $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt');
-      })->then (sub {
-        my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
-        for (qw(body_o)) {
-          my $v = $app->text_param ($_);
-          $te->set ($_ => $v) if defined $v;
+        # XXX
+        my $auth = $app->http->request_auth;
+        unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
+          $app->http->set_response_auth ('basic', realm => $path->[1]);
+          return $app->send_error (401);
         }
-        $te->set (last_modified => time);
-        return $tr->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
-      })->then (sub {
-        my $msg = $app->text_param ('commit_message') // '';
-        $msg = 'Added a message' unless length $msg;
-        return $tr->commit ($msg);
-      })->then (sub {
-        return $tr->push; # XXX failure
-      })->then (sub {
-        return $app->send_error (200); # XXX return JSON?
-      }, sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500);
-      })->then (sub {
-        return $tr->discard;
-      });
+        my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
+        return $tr->clone_by_url ($path->[1],
+          userid => $auth->{userid},
+          password => $auth->{password},
+        )->then (sub {
+          return $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt');
+        })->then (sub {
+          my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+          for (qw(body_o)) {
+            my $v = $app->text_param ($_);
+            $te->set ($_ => $v) if defined $v;
+          }
+          $te->set (last_modified => time);
+          return $tr->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
+        })->then (sub {
+          my $msg = $app->text_param ('commit_message') // '';
+          $msg = 'Added a message' unless length $msg;
+          return $tr->commit ($msg);
+        })->then (sub {
+          return $tr->push; # XXX failure
+        })->then (sub {
+          return $app->send_error (200); # XXX return JSON?
+        }, sub {
+          $app->error_log ($_[0]);
+          return $app->send_error (500);
+        })->then (sub {
+          return $tr->discard;
+        });
+      } elsif (@$path == 7 and $path->[6] eq 'tags') {
+        # .../i/{text_id}/tags
+        $app->requires_request_method ({POST => 1});
+        # XXX CSRF
+
+        # XXX access control
+
+        my $id = $path->[5]; # XXX validation
+
+        # XXX
+        my $auth = $app->http->request_auth;
+        unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
+          $app->http->set_response_auth ('basic', realm => $path->[1]);
+          return $app->send_error (401);
+        }
+        return $tr->clone_by_url ($path->[1],
+          userid => $auth->{userid},
+          password => $auth->{password},
+        )->then (sub {
+          return $tr->read_file_by_text_id_and_suffix ($id, 'txt');
+        })->then (sub {
+          my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+          my $enum = $te->enum ('tags');
+          %$enum = ();
+          $enum->{$_} = 1 for grep { length } @{$app->text_param_list ('tag')};
+          return $tr->write_file_by_text_id_and_suffix ($id, 'txt' => $te->as_source_text);
+        })->then (sub {
+          my $msg = $app->text_param ('commit_message') // '';
+          $msg = 'Added a message' unless length $msg;
+          return $tr->commit ($msg);
+        })->then (sub {
+          return $tr->push; # XXX failure
+        })->then (sub {
+          return $app->send_error (200); # XXX return JSON?
+        }, sub {
+          $app->error_log ($_[0]);
+          return $app->send_error (500);
+        })->then (sub {
+          return $tr->discard;
+        });
+      }
 
     } elsif (@$path == 5 and $path->[4] eq 'add') {
+      # .../add
+
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
 
@@ -183,17 +241,21 @@ sub main ($$) {
         $app->http->set_response_auth ('basic', realm => $path->[1]);
         return $app->send_error (401);
       }
-      my $url = $path->[1];
-      $url =~ s{^https://}{https://$auth->{userid}:$auth->{password}\@}; # XXX percent-encode
 
       my $data = {texts => {}};
-      return $tr->clone_by_url ($url)->then (sub {
+      return $tr->clone_by_url ($path->[1],
+        userid => $auth->{userid},
+        password => $auth->{password},
+      )->then (sub {
         my $id = $tr->generate_text_id;
         my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
         my $msgid = $app->text_param ('msgid');
         if (defined $msgid and length $msgid) {
           # XXX check duplication
           $te->set (msgid => $msgid);
+        }
+        for (@{$app->text_param_list ('tag')}) {
+          $te->enum ('tags')->{$_} = 1;
         }
         $data->{texts}->{$id} = $te->as_jsonalizable;
         return $tr->write_file_by_text_id_and_suffix ($id, 'txt' => $te->as_source_text);

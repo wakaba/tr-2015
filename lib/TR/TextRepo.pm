@@ -49,10 +49,13 @@ sub texts_path ($) {
   };
 } # texts_path
 
-sub clone_by_url ($$) { # XXX branch
-  my ($self, $url) = @_;
+sub clone_by_url ($$;%) { # XXX branch
+  my ($self, $url, %args) = @_;
   return Promise->new (sub {
     my ($ok, $ng) = @_;
+    if (defined $args{userid} and defined $args{password}) {
+      $url =~ s{^https://}{https://$args{userid}:$args{password}\@}; # XXX percent-encode
+    }
     my $repo_path = $self->repo_path;
     (run_cmd ['git', 'clone', $url, $repo_path, '--depth', 1])->cb (sub { # XXX timeout
       my  $status = $_[0]->recv;
