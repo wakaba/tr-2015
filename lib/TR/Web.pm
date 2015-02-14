@@ -105,8 +105,9 @@ sub main ($$) {
         my $tags = $app->text_param_list ('tag');
         my $msgid = $app->text_param ('msgid');
         undef $msgid if defined $msgid and not length $msgid;
+        my $with_comments = $app->bare_param ('with_comments');
         for my $id (@id) {
-          push @p, $tr->read_file_by_text_id_and_suffix ($id, 'txt')->then (sub {
+          push @p, $tr->read_file_by_text_id_and_suffix ($id, 'dat')->then (sub {
             my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
             my $ok = 1;
             if (defined $msgid) {
@@ -128,7 +129,16 @@ sub main ($$) {
                 $data->{texts}->{$id}->{langs}->{$lang} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0])->as_jsonalizable;
               });
             }
+            if ($with_comments) {
+              my $comments = $data->{texts}->{$id}->{comments} = [];
+              push @q, $tr->read_file_by_text_id_and_suffix ($id, 'comments')->then (sub {
+                for (grep { length } split /\x0D?\x0A\x0D?\x0A/, $_[0] // '') {
+                  push @$comments, TR::TextEntry->new_from_text_id_and_source_text ($id, $_)->as_jsonalizable;
+                }
+              });
+            }
             return Promise->all (\@q);
+            # XXX limit
           });
         } # $id
         return Promise->all (\@p)->then (sub {
@@ -204,16 +214,56 @@ sub main ($$) {
           userid => $auth->{userid},
           password => $auth->{password},
         )->then (sub {
-          return $tr->read_file_by_text_id_and_suffix ($id, 'txt');
+          return $tr->read_file_by_text_id_and_suffix ($id, 'dat');
         })->then (sub {
           my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
           my $enum = $te->enum ('tags');
           %$enum = ();
           $enum->{$_} = 1 for grep { length } @{$app->text_param_list ('tag')};
-          return $tr->write_file_by_text_id_and_suffix ($id, 'txt' => $te->as_source_text);
+          return $tr->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
         })->then (sub {
           my $msg = $app->text_param ('commit_message') // '';
           $msg = 'Added a message' unless length $msg;
+          return $tr->commit ($msg);
+        })->then (sub {
+          return $tr->push; # XXX failure
+        })->then (sub {
+          return $app->send_error (200); # XXX return JSON?
+        }, sub {
+          $app->error_log ($_[0]);
+          return $app->send_error (500);
+        })->then (sub {
+          return $tr->discard;
+        });
+      } elsif (@$path == 7 and $path->[6] eq 'comments') {
+        # .../i/{text_id}/comments
+        $app->requires_request_method ({POST => 1});
+        # XXX CSRF
+
+        # XXX access control
+
+        my $id = $path->[5]; # XXX validation
+
+        # XXX
+        my $auth = $app->http->request_auth;
+        unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
+          $app->http->set_response_auth ('basic', realm => $path->[1]);
+          return $app->send_error (401);
+        }
+        return $tr->clone_by_url ($path->[1],
+          userid => $auth->{userid},
+          password => $auth->{password},
+        )->then (sub {
+          my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
+          $te->set (id => $tr->generate_section_id);
+          $te->set (body => $app->text_param ('body') // ''); # XXX validation
+          # XXX author
+          $te->set (last_modified => time);
+          return $tr->append_section_to_file_by_text_id_and_suffix
+              ($id, 'comments' => $te->as_source_text);
+        })->then (sub {
+          my $msg = $app->text_param ('commit_message') // '';
+          $msg = 'Added a comment' unless length $msg;
           return $tr->commit ($msg);
         })->then (sub {
           return $tr->push; # XXX failure
@@ -258,7 +308,7 @@ sub main ($$) {
           $te->enum ('tags')->{$_} = 1;
         }
         $data->{texts}->{$id} = $te->as_jsonalizable;
-        return $tr->write_file_by_text_id_and_suffix ($id, 'txt' => $te->as_source_text);
+        return $tr->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
         $msg = 'Added a message' unless length $msg;

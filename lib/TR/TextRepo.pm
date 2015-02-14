@@ -72,6 +72,10 @@ sub generate_text_id ($) {
   return sha1_hex (time () . $$ . rand ());
 } # generate_text_id
 
+sub generate_section_id ($) {
+  return sha1_hex (time () . $$ . rand ());
+} # generate_section_id
+
 sub text_id_and_suffix_to_path ($$$) {
   my ($self, $id, $suffix) = @_;
   return $self->texts_path->child ((substr $id, 0, 2) . '/' . (substr $id, 2) . '.' . $suffix);
@@ -98,11 +102,19 @@ sub write_file_by_text_id_and_suffix ($$$$) {
   return $self->add_by_paths ([$path]);
 } # write_file_by_text_id_and_suffix
 
+sub append_section_to_file_by_text_id_and_suffix ($$$$) {
+  my ($self, $id, $suffix, $text) = @_;
+  my $path = $self->text_id_and_suffix_to_path ($id, $suffix);
+  $path->parent->mkpath;
+  $path->append_utf8 ("\x0A\x0A" . $text); # or exception # XXX blocking I/O
+  return $self->add_by_paths ([$path]);
+} # append_section_to_file_by_text_id_and_suffix
+
 sub text_ids ($) {
   my $self = $_[0];
   my %list;
   my $texts_path = $self->texts_path;
-  if ($texts_path->is_dir) {
+  if ($texts_path->is_dir) { # XXX blocking I/O ??; symlink ??
     for my $path ($texts_path->children (qr/\A([0-9a-f]{2})\z/)) {
       next unless $path->is_dir;
       for my $path ($path->children (qr/\A([0-9a-f]+)\./)) {

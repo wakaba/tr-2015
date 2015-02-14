@@ -11,7 +11,7 @@
     <h3><code itemprop=texts-path><t:text value="'/' . $tr->texts_dir"></code></h3>
   </hgroup>
 
-  <link itemprop=data-url pl:href="'data.json?'.$data_params">
+  <link itemprop=data-url pl:href="'data.json?'.$data_params.'&with_comments=1'">
 </header>
 
 <table id=texts>
@@ -38,6 +38,28 @@
             </form>
             <p class=status hidden><progress></progress> <span class=message></span>
           </div>
+      <tr class=text-annotations>
+        <td pl:colspan=$lang_cell_count>
+          <section class=comments>
+            <h1>コメント</h1>
+            <div class=comments-container></div>
+            <template>
+              <article>
+                <p class=body>
+                <p><time></time>
+              </article>
+            </template>
+            <div class=new-comment>
+              <div class=view>
+                <p class=buttons><button type=button class=toggle-edit>コメントを書く</button>
+              </div>
+              <form data-action="i/{text_id}/comments" method=post class=edit hidden>
+                <p><textarea name=body></textarea>
+                <p class=buttons><button type=submit>投稿</button>
+              </form>
+              <p class=status hidden><progress></progress> <span class=message></span>
+            </div>
+          </section>
       <tr class=text-body>
         <t:for as=$lang x="$tr->langs">
           <td pl:data-lang=$lang class=lang-area>
@@ -48,7 +70,7 @@
             <form data-action="i/{text_id}/" method=post class=edit hidden>
               <input type=hidden name=lang pl:value=$lang>
               <!-- XXX hash -->
-              <p><textarea name=body_o></textarea>
+              <p><textarea name=body_o required></textarea>
               <p class=buttons><button type=submit>保存</button>
             </form>
             <p class=status hidden><progress></progress> <span class=message></span>
@@ -97,6 +119,7 @@
 
 </table>
 
+<script src=/js/time.js charset=utf-8></script>
 <script>
 function addTexts (texts) {
   var mainTable = document.getElementById ('texts');
@@ -167,6 +190,21 @@ function addTexts (texts) {
       }
     });
 
+    var comments = fragment.querySelector ('.comments');
+    comments.querySelector ('button.toggle-edit').onclick = function () {
+      toggleAreaEditor (comments, true);
+    };
+    var commentForm = comments.querySelector ('form');
+    commentForm.onsubmit = function () { return saveArea (comments) };
+    comments.trSync = function () {
+      var c = {body: commentForm.elements.body.value,
+               last_modified: (new Date).valueOf () / 1000};
+      syncTextComments (comments, [c]);
+    };
+    if (text.comments && text.comments.length) {
+      syncTextComments (comments, text.comments);
+    }
+
           Array.prototype.forEach.call (fragment.querySelectorAll ('form[data-action]'), function (el) {
             el.action = el.getAttribute ('data-action').replace (/\{text_id\}/g, textId);
           });
@@ -221,6 +259,21 @@ function syncTagAreaView (area) {
     viewTags.appendChild (document.createTextNode (' '));
   });
 } // syncTagAreaView
+
+function syncTextComments (commentsEl, textComments) {
+  var commentTemplate = commentsEl.querySelector ('template');
+  var commentParent = commentsEl.querySelector ('.comments-container');
+  textComments.forEach (function (comment) {
+    var df = document.createElement ('div');
+    df.innerHTML = commentTemplate.innerHTML;
+    df.querySelector ('.body').textContent = comment.body;
+    df.querySelector ('time').setAttribute ('datetime', new Date (comment.last_modified * 1000).toISOString ());
+    new TER.Delta (df);
+    Array.prototype.slice.call (df.childNodes).forEach (function (n) {
+      commentParent.appendChild (n);
+    });
+  });
+} // syncTextComments
 
 function toggleAreaEditor (area, editMode) {
   var edit = area.querySelector ('form.edit');
