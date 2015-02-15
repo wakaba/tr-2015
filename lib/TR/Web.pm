@@ -61,14 +61,27 @@ sub main ($$) {
     $tr->url ($path->[1]); # XXX validation & normalization
     $tr->branch ($path->[2]); # XXX validation
     $tr->texts_dir (substr $path->[3], 1);
-    $tr->langs ([qw(ja en)]); # XXX
 
     if (@$path == 5 and $path->[4] eq '') {
+      # .../
       return $tr->clone_by_url ($path->[1])->then (sub { # XXX branch
-        return $tr->text_ids;
+        return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
       })->then (sub {
+        my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
+        my $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
+        $langs = ['en'] unless @$langs;
+        my $all_langs = $langs;
+        my $specified_langs = $app->text_param_list ('lang');
+        if (@$specified_langs) {
+          my $avail_langs = {map { $_ => 1 } @$langs};
+          @$specified_langs = grep { $avail_langs->{$_} } @$specified_langs;
+          $langs = $specified_langs;
+        }
+        $tr->langs ($langs);
+        $tr->avail_langs ($all_langs);
+
         my @param;
-        for my $k (qw(text_id msgid tag)) {
+        for my $k (qw(text_id msgid tag lang)) {
           my $list = $app->text_param_list ($k);
           for (@$list) {
             push @param, (percent_encode_c $k) . '=' . (percent_encode_c $_);
@@ -89,6 +102,19 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'data.json') {
       # .../data.json
       return $tr->clone_by_url ($path->[1])->then (sub {
+        return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
+      })->then (sub {
+        my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
+        my $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
+        $langs = ['en'] unless @$langs;
+        my $specified_langs = $app->text_param_list ('lang');
+        if (@$specified_langs) {
+          my $avail_langs = {map { $_ => 1 } @$langs};
+          @$specified_langs = grep { $avail_langs->{$_} } @$specified_langs;
+          $langs = $specified_langs;
+        }
+        $tr->langs ($langs);
+      })->then (sub {
         my $text_ids = $app->text_param_list ('text_id');
         if (@$text_ids) {
           return {map { $_ => 1 } grep { /\A[0-9a-f]{3,}\z/ } @$text_ids};
@@ -317,6 +343,51 @@ sub main ($$) {
         return $tr->push; # XXX failure
       })->then (sub {
         return $app->send_json ($data);
+      }, sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500);
+      })->then (sub {
+        return $tr->discard;
+      });
+
+    } elsif (@$path == 5 and $path->[4] eq 'langs') {
+      # .../langs
+
+      $app->requires_request_method ({POST => 1});
+      # XXX CSRF
+
+      # XXX access control
+
+      # XXX
+      my $auth = $app->http->request_auth;
+      unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
+        $app->http->set_response_auth ('basic', realm => $path->[1]);
+        return $app->send_error (401);
+      }
+
+      my %found; # XXX lang validation & normalization
+      my $langs = [grep { length and not $found{$_}++ } @{$app->text_param_list ('lang')}];
+      unless (@$langs) {
+        return $app->send_error (400, reason_phrase => 'Bad |lang|');
+      }
+
+      return $tr->clone_by_url ($path->[1],
+        userid => $auth->{userid},
+        password => $auth->{password},
+      )->then (sub {
+        return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
+      })->then (sub {
+        my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
+        $tr_config->set (langs => join ',', @$langs);
+        return $tr->write_file_by_path ($tr->texts_path->child ('config.json'), $tr_config->as_source_text);
+      })->then (sub {
+        my $msg = $app->text_param ('commit_message') // '';
+        $msg = 'Added a message' unless length $msg;
+        return $tr->commit ($msg);
+      })->then (sub {
+        return $tr->push; # XXX failure
+      })->then (sub {
+        return $app->send_json ({});
       }, sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);

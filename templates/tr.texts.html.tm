@@ -14,13 +14,23 @@
   <link itemprop=data-url pl:href="'data.json?'.$data_params.'&with_comments=1'">
 </header>
 
-<table id=texts>
+<table id=texts pl:data-all-langs="join ',', @{$tr->avail_langs}">
   <t:my as=$lang_cell_count x="0+@{$tr->langs}">
   <thead>
     <tr>
       <t:for as=$lang x="$tr->langs">
         <th><t:text value=$lang>
       </t:for>
+      <th class=langs-menu-container>
+        <button type=button title="言語の選択">&#x25BC;</button>
+        <menu hidden>
+          <!-- XXX -->
+          <t:for as=$lang x="$tr->avail_langs">
+            <label><input type=checkbox pl:value=$lang> <t:text value=$lang></label>
+          </t:for>
+          <hr>
+          <a href="#config-langs" onclick=" toggleLangsConfig (true) ">編集...</a>
+        </menu>
   <tbody>
     <template>
       <tr class=text-header>
@@ -143,7 +153,10 @@ function addTexts (texts) {
       area.querySelector ('button.toggle-edit').onclick = function () {
         toggleAreaEditor (area, true);
       };
-      area.querySelector ('form.edit').onsubmit = function () { return saveArea (area) };
+      area.querySelector ('form.edit').onsubmit = function () {
+        toggleAreaEditor (area, false);
+        return saveArea (area);
+      };
 
       var form = area.querySelector ('form.edit');
       var tagsContainer = form.querySelector ('.tags');
@@ -176,7 +189,10 @@ function addTexts (texts) {
       area.querySelector ('button.toggle-edit').onclick = function () {
         toggleAreaEditor (area, true);
       };
-      area.querySelector ('form.edit').onsubmit = function () { return saveArea (area) };
+      area.querySelector ('form.edit').onsubmit = function () {
+        toggleAreaEditor (area, false);
+        return saveArea (area);
+      };
       area.trSync = syncLangAreaView;
 
       var lang = area.getAttribute ('data-lang');
@@ -195,7 +211,10 @@ function addTexts (texts) {
       toggleAreaEditor (comments, true);
     };
     var commentForm = comments.querySelector ('form');
-    commentForm.onsubmit = function () { return saveArea (comments) };
+    commentForm.onsubmit = function () {
+      toggleAreaEditor (comments, false);
+      return saveArea (comments);
+    };
     comments.trSync = function () {
       var c = {body: commentForm.elements.body.value,
                last_modified: (new Date).valueOf () / 1000};
@@ -291,11 +310,10 @@ function saveArea (area) {
   var formStatus = area.querySelector ('.status');
   formStatus.hidden = false;
   formStatus.querySelector ('.message').textContent = 'Saving...';
-  toggleAreaEditor (area, false);
   var editButton = area.querySelector ('button.toggle-edit');
-  editButton.disabled = true;
+  if (editButton) editButton.disabled = true;
 
-  var form = area.querySelector ('form.edit');
+  var form = area.querySelector ('form');
   var xhr = new XMLHttpRequest;
   xhr.open ('POST', form.action, true);
   var fd = new FormData (form);
@@ -306,10 +324,108 @@ function saveArea (area) {
       } else { // XXX
       }
       formStatus.hidden = true;
-      editButton.disabled = false;
+      if (editButton) editButton.disabled = false;
     }
   };
   xhr.send (fd);
   return false;
 } // saveArea
 </script>
+
+  <section id=config-langs hidden>
+    <h1>言語設定</h1>
+
+    <form action="langs" method=post>
+      <ul>
+        <t:for as=$lang x="$tr->avail_langs">
+          <li>
+            <span class=lang-id><t:text value=$lang></span>
+            <input type=hidden name=lang pl:value=$lang>
+        </t:for>
+        <li class=lang-new>
+          <template>
+            <span class=lang-id></span><input type=hidden name=lang>
+          </template>
+          <table class=config>
+            <tbody>
+              <tr>
+                <th>言語ID
+                <td><input name=lang_id required>
+              <tr>
+                <th>言語タグ
+                <td><input name=lang_tag required>
+          </table>
+          <p class=buttons><button type=button class=add>追加</button>
+      </ul>
+
+      <p class=buttons>
+        <button type=button class=save>保存して閉じる</button>
+        <button type=button class=close>閉じる</button>
+    </form>
+    <p class=status hidden><progress></progress> <span class=message></span>
+    <script>
+      function toggleLangsConfig (status) {
+        var langsPanel = document.querySelector ('#config-langs');
+        if (status) {
+          langsPanel.hidden = false;
+        } else {
+          langsPanel.hidden = true;
+        }
+      } // toggleLangsConfig
+
+      (function () {
+        var langsMenuContainer = document.querySelector ('.langs-menu-container');
+        var langsMenuButton = langsMenuContainer.querySelector ('button');
+        var langsMenu = langsMenuContainer.querySelector ('menu');
+        langsMenuButton.onclick = function () {
+          langsMenu.hidden = !langsMenu.hidden;
+          langsMenuButton.classList.toggle ('active', !langsMenu.hidden);
+          if (langsMenu.hidden) {
+            history.replaceState (null, null, '#');
+          }
+        };
+        Array.prototype.slice.call (langsMenu.querySelectorAll ('a')).forEach (function (a) {
+          a.addEventListener ('click', function () {
+            langsMenu.hidden = true;
+            langsMenuButton.classList.remove ('active');
+            history.replaceState (null, null, '#');
+          });
+        });
+
+        var langsPanel = document.querySelector ('#config-langs');
+        langsPanel.trSync = function () {
+          // XXX enable lang setting
+          toggleLangsConfig (false);
+          // XXX sync langs in this page
+        };
+        langsPanel.querySelector ('button.save').onclick = function () {
+          // XXX disable lang setting
+          saveArea (langsPanel);
+          // XXX enable lang setting if save failed
+        };
+        langsPanel.querySelector ('button.close').onclick = function () {
+          toggleLangsConfig (false);
+        };
+        var newLang = langsPanel.querySelector ('.lang-new');
+        var langTemplate = newLang.querySelector ('template');
+        newLang.querySelector ('button.add').onclick = function () {
+          var item = document.createElement ('li');
+          item.innerHTML = langTemplate.innerHTML;
+          var langID = newLang.querySelector ('input[name=lang_id]').value;
+          var langTag = newLang.querySelector ('input[name=lang_tag]').value;
+          if (langID && langTag) {
+            item.querySelector ('.lang-id').textContent = langID;
+            item.querySelector ('input[name=lang]').value = langTag;
+            newLang.parentNode.insertBefore (item, newLang);
+            newLang.querySelector ('input[name=lang_id]').value = '';
+            newLang.querySelector ('input[name=lang_tag]').value = '';
+          }
+        };
+
+        var f = decodeURIComponent (location.hash.replace (/^#/, ''));
+        if (f === 'config-langs') {
+          toggleLangsConfig (true);
+        }
+      }) ();
+    </script>
+  </section>
