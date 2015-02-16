@@ -254,7 +254,7 @@ th > section form.edit:not([hidden]) p {
   background: white;
   color: black;
   line-height: 1.6;
-  min-height: 1rem;
+  min-height: 2rem;
 }
 
 .text-form-tabs:not([hidden]) {
@@ -295,4 +295,36 @@ th > section form.edit:not([hidden]) p {
   border-top-color: transparent;
   color: black;
   background: #eee;
+}
+
+.dialog:not([hidden]) {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.dialog > section {
+  display: block;
+  margin: 1em auto;
+  border: 2px solid gray;
+  padding: 0.5em;
+  width: 50em;
+  max-width: 100%;
+  background: white;
+  color: black;
+  box-shadow: gray 5px 5px;
+}
+
+.dialog > section > h1 {
+  margin: 0 0 0.3em 0;
+  font-size: 100%;
+  border-bottom: 0.1em solid;
+  padding: 0 0.3em 0.3em;
+}
+
+.dialog > section form > .buttons button {
+  padding: 0.3em;
+  min-width: 8em;
 }

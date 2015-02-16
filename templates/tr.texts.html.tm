@@ -398,7 +398,8 @@ function saveArea (area) {
 } // saveArea
 </script>
 
-  <section id=config-langs hidden>
+<div class=dialog id=config-langs hidden>
+  <section>
     <h1>言語設定</h1>
 
     <form action="langs" method=post>
@@ -495,3 +496,4 @@ function saveArea (area) {
       }) ();
     </script>
   </section>
+</div>
