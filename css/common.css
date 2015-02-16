@@ -238,8 +238,13 @@ th > section form.edit:not([hidden]) p {
   padding: 0.3rem;
 }
 
+.lang-area > .edit select {
+  width: 100%;
+}
+
 .lang-area > .edit .buttons {
   margin-top: 0.3em;
+  text-align: right;
 }
 
 .lang-area > .view p {
@@ -250,4 +255,44 @@ th > section form.edit:not([hidden]) p {
   color: black;
   line-height: 1.6;
   min-height: 1rem;
+}
+
+.text-form-tabs:not([hidden]) {
+  margin: 0.2em;
+  padding: 0 0.2em;
+  border-top: gray 1px solid;
+  font-size: 80%;
+  text-align: left;
+}
+
+.text-form-tabs > span:not([hidden]) {
+  display: inline-block;
+  margin: -1px 0 0.2em 0;
+  border: gray 1px;
+  border-style: solid;
+  border-bottom-left-radius: 0.4em;
+  border-bottom-right-radius: 0.2em;
+  padding: 0.2em 0.3em;
+  min-width: 1em;
+  background: #ccc;
+  color: gray;
+  cursor: pointer;
+  text-align: center;
+}
+
+.lang-area[data-selected-form] p[data-form] { display: none }
+.lang-area[data-selected-form="0"] p[data-form="0"] { display: block }
+.lang-area[data-selected-form="1"] p[data-form="1"] { display: block }
+.lang-area[data-selected-form="2"] p[data-form="2"] { display: block }
+.lang-area[data-selected-form="3"] p[data-form="3"] { display: block }
+.lang-area[data-selected-form="4"] p[data-form="4"] { display: block }
+
+.lang-area[data-selected-form="0"] .text-form-tabs > span[data-form="0"],
+.lang-area[data-selected-form="1"] .text-form-tabs > span[data-form="1"],
+.lang-area[data-selected-form="2"] .text-form-tabs > span[data-form="2"],
+.lang-area[data-selected-form="3"] .text-form-tabs > span[data-form="3"],
+.lang-area[data-selected-form="4"] .text-form-tabs > span[data-form="4"] {
+  border-top-color: transparent;
+  color: black;
+  background: #eee;
 }

@@ -1,8 +1,7 @@
 <html t:params="$tr $data_params $app">
 <title>XXX</title>
 <link rel=stylesheet href=/css/common.css>
-
-<!-- XXX onbeforeunload -->
+<body onbeforeunload=" return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
 
 <header itemscope itemtype=data>
   <hgroup> 
@@ -76,15 +75,44 @@
               <strong class=lang><t:text value=$lang></strong>
               <button type=button class=toggle-edit title=Edit>Edit</button>
             <div class=view>
-              <p class=body_o>
+              <p class=body_0 data-form=0>
+              <p class=body_1 data-form=1>
+              <p class=body_2 data-form=2>
+              <p class=body_3 data-form=3>
+              <p class=body_4 data-form=4>
+              <menu class=text-form-tabs>
+                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
+                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
+                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
+                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
+                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
+              </menu>
             </div>
+            <p class=status hidden><progress></progress> <span class=message></span>
             <form data-action="i/{text_id}/" method=post class=edit hidden>
+              <p class=buttons><button type=submit>保存</button>
               <input type=hidden name=lang pl:value=$lang>
               <!-- XXX hash -->
-              <p><textarea name=body_o required></textarea>
-              <p class=buttons><button type=submit>保存</button>
+              <p data-form=0><textarea name=body_0></textarea>
+              <p data-form=1><textarea name=body_1></textarea>
+              <p data-form=2><textarea name=body_2></textarea>
+              <p data-form=3><textarea name=body_3></textarea>
+              <p data-form=4><textarea name=body_4></textarea>
+              <menu class=text-form-tabs>
+                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
+                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
+                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
+                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
+                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
+              </menu>
+              <p>
+                <select name=forms>
+                  <option value=o data-fields=0>Only the default form
+                  <option value=1o data-fields=0,1>Singular (1) and plural
+                  <option value=0o data-fields=0,1>Singular (0, 1) and plural
+                  <option value=test data-fields=0,2,3,4>Test
+                </select>
             </form>
-            <p class=status hidden><progress></progress> <span class=message></span>
         </t:for>
     </template>
   <tfoot>
@@ -200,13 +228,21 @@ function addTexts (texts) {
 
       var lang = area.getAttribute ('data-lang');
       var langData = text.langs ? text.langs[lang] : null;
+      var form = area.querySelector ('form.edit');
       if (langData) {
-        var form = area.querySelector ('form.edit');
-        if (langData.body_o) {
-          form.querySelector ('[name=body_o]').value = langData.body_o;
-        }
-        area.trSync (area);
+        if (langData.body_0) form.querySelector ('[name=body_0]').value = langData.body_0;
+        if (langData.body_1) form.querySelector ('[name=body_1]').value = langData.body_1;
+        if (langData.body_2) form.querySelector ('[name=body_2]').value = langData.body_2;
+        if (langData.body_3) form.querySelector ('[name=body_3]').value = langData.body_3;
+        if (langData.body_4) form.querySelector ('[name=body_4]').value = langData.body_4;
+        if (langData.forms) form.querySelector ('[name=forms]').value = langData.forms;
       }
+
+      form.querySelector ('select[name=forms]').onchange = function () {
+        syncLangAreaTabs (area);
+      };
+
+      area.trSync (area);
     });
 
     var comments = fragment.querySelector ('.comments');
@@ -262,7 +298,32 @@ function addTexts (texts) {
 function syncLangAreaView (area) {
   var edit = area.querySelector ('form.edit');
   var view = area.querySelector ('.view');
-  view.querySelector ('.body_o').textContent = edit.querySelector ('[name=body_o]').value;
+  view.querySelector ('.body_0').textContent = edit.querySelector ('[name=body_0]').value;
+  view.querySelector ('.body_1').textContent = edit.querySelector ('[name=body_1]').value;
+  view.querySelector ('.body_2').textContent = edit.querySelector ('[name=body_2]').value;
+  view.querySelector ('.body_3').textContent = edit.querySelector ('[name=body_3]').value;
+  view.querySelector ('.body_4').textContent = edit.querySelector ('[name=body_4]').value;
+  syncLangAreaTabs (area);
+} // syncLangAreaView
+
+function syncLangAreaTabs (area) {
+  var edit = area.querySelector ('form.edit');
+  var forms = edit.querySelector ('[name=forms]');
+  var formsValue = forms.value;
+  var formsFields = forms.selectedOptions[0].getAttribute ('data-fields').split (/,/);
+  var hasFormsFields = {};
+  formsFields.forEach (function (v) {
+    hasFormsFields[v] = true;
+  });
+  area.setAttribute ('data-selected-form', formsFields[0]);
+  var tabses = area.querySelectorAll ('.text-form-tabs');
+  Array.prototype.forEach.call (tabses, function (el) {
+    el.hidden = !(formsFields.length > 1);
+  });
+  Array.prototype.forEach.call (area.querySelectorAll ('.text-form-tabs > span[data-form]'), function (el) {
+    var form = el.getAttribute ('data-form');
+    el.hidden = !hasFormsFields[form];
+  });
 } // syncLangAreaView
 
 function syncTagAreaView (area) {
