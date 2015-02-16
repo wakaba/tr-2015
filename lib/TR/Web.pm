@@ -398,8 +398,8 @@ sub main ($$) {
   }
 
   if (@$path == 2 and
-      {js => 1, css => 1, data => 1, images => 1}->{$path->[0]} and
-      $path->[1] =~ /\A[0-9A-Za-z_-]+\.(js|css|jpe?g|gif|png|json)\z/) {
+      {js => 1, css => 1, data => 1, images => 1, fonts => 1}->{$path->[0]} and
+      $path->[1] =~ /\A[0-9A-Za-z_-]+\.(js|css|jpe?g|gif|png|json|ttf|otf|woff)\z/) {
     # /js/* /css/* /images/* /data/*
     return $app->send_file ("$path->[0]/$path->[1]", {
       js => 'text/javascript; charset=utf-8',
@@ -419,7 +419,7 @@ sub main ($$) {
 
 =head1 LICENSE
 
-Copyright 2007-2014 Wakaba <wakaba@suikawiki.org>.
+Copyright 2007-2015 Wakaba <wakaba@suikawiki.org>.
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself.

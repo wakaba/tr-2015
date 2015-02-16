@@ -9,21 +9,68 @@ hgroup > h2, hgroup > h3 {
 }
 
 table#texts {
-  width: 100%;
+  background-color: #f6fff6;
+  border-collapse: collapse;
 }
 
 .text-header {
-  background-color: #eeffee;
+  background-color: #c8ffc8;
 }
 
 table#texts th,
 table#texts td {
+  padding: 0.3rem;
   vertical-align: top;
+  width: 10em;
+}
+
+table#texts thead th {
+}
+
+table#texts thead th:nth-child(2n+1),
+table#texts tbody td:nth-child(2n+1) {
+  background-color: #ecffec;
 }
 
 .text-header th {
   text-align: left;
   font-weight: normal;
+}
+
+table#texts th.langs-menu-container {
+  width: 1em;
+  border-style: hidden;
+  padding: 0;
+  text-align: center;
+  vertical-align: middle;
+  position: relative;
+}
+
+.langs-menu-container > button {
+  
+}
+
+.langs-menu-container > menu {
+  position: absolute;
+  right: 0;
+  width: 10em;
+  max-width: 100vw;
+  box-sizing: border-box;
+  margin: 0;
+  border: 2px solid #ccc;
+  padding: 0.5rem;
+  background: white;
+  color: black;
+}
+
+thead, tbody, tfoot,
+.text-header {
+  border-top: 3px green solid;
+}
+
+tbody > tr:last-child,
+thead, tbody, tfoot {
+  border-bottom: 3px green solid;
 }
 
 .text-header th .msgid {
@@ -33,4 +80,174 @@ table#texts td {
 .text-header th .text-id {
   font-size: 80%;
   color: gray;
+}
+
+th > section {
+  display: inline;
+  margin: 0 0.5em;
+  padding: 0;
+  font-size: 90%;
+}
+
+th > section > h1 {
+  display: inline;
+  margin: 0;
+  padding: 0;
+  font-weight: bold;
+  font-size: 100%;
+}
+
+th > section form,
+th > section div,
+th > section p {
+  margin: 0;
+  padding: 0;
+  text-indent: 0;
+}
+
+th > section form:not([hidden]),
+th > section div:not([hidden]),
+th > section p:not([hidden]) {
+  display: inline;
+}
+
+th > section form.edit:not([hidden]) {
+  display: block;
+  margin: 0 0.5rem 0.5rem;
+  border-radius: 0.3rem;
+  padding: 0.5rem;
+  background: white;
+  color: black;
+}
+
+th > section form.edit:not([hidden]) p {
+  display: block;
+}
+
+@font-face {
+  font-family: 'LigatureSymbols';
+  src: url('/fonts/LigatureSymbols.woff') format('woff'),
+       url('/fonts/LigatureSymbols.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+.lsf-icon::before {
+  font-family: 'LigatureSymbols';
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  content: attr(data-icon);
+  font-size: 120%;
+  margin-right: 0.3em;
+  line-height: 1.0;
+}
+
+.toggle-edit {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 1em;
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+}
+.toggle-edit::before {
+  font-family: 'LigatureSymbols';
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  content: "pen";
+  color: black;
+}
+
+.toggle-edit.active {
+  border-top-left-radius: 0.3rem;
+  border-top-right-radius: 0.3rem;
+  background: white;
+}
+
+.toggle-edit:hover,
+.toggle-edit:active,
+.toggle-edit:hover::before,
+.toggle-edit:active::before {
+  text-decoration: underline;
+}
+
+.view .tags a {
+  margin-right: 0;
+  background: #eee;
+  border-radius: 0.5em;
+  border: #ccc solid 1px;
+  text-decoration: none;
+  padding: 0.2em 0.3em;
+  color: black;
+  font-size: 90%;
+}
+
+.view .tags a::before {
+  font-family: 'LigatureSymbols';
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  content: "tag";
+  margin-right: 0.3em;
+}
+
+.buttons {
+  margin: 0.5em 0 0;
+  text-align: center;
+}
+
+.lang-area > .header {
+  display: block;
+  margin: 0 0 0.3em 0;
+  text-indent: 0;
+  font-size: 90%;
+  min-height: 1em;
+}
+
+.lang-area > .header::after {
+  content: "";
+  clear: both;
+}
+
+.lang-area > .header > strong {
+  float: left;
+  font-weight: normal;
+  color: gray
+}
+
+.lang-area > .header > button {
+  float: right;
+}
+
+.lang-area > .edit {
+
+}
+
+.lang-area > .edit p {
+  margin: 0;
+}
+
+.lang-area > .edit textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 10em;
+  margin: 0;
+  padding: 0.3rem;
+}
+
+.lang-area > .edit .buttons {
+  margin-top: 0.3em;
+}
+
+.lang-area > .view p {
+  margin: 0.3rem;
+  border-radius: 0.3rem;
+  padding: 0.3rem;
+  background: white;
+  color: black;
+  line-height: 1.6;
+  min-height: 1rem;
 }

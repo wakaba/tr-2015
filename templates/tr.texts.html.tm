@@ -37,9 +37,10 @@
         <th pl:colspan=$lang_cell_count>
           <a class=msgid><code></code></a>
           <a class=text-id><code></code></a>
-          <div class=tag-area>
+          <section class=tag-area>
+            <h1>タグ</h1>
+            <p class=buttons><button type=button class=toggle-edit title="Edit tags">Edit</button>
             <div class=view>
-              <p class=buttons><button type=button class=toggle-edit>Edit</button>
               <p class=tags>...
             </div>
             <form data-action="i/{text_id}/tags" method=post class=edit hidden>
@@ -47,9 +48,7 @@
               <p class=buttons><button type=submit>保存</button>
             </form>
             <p class=status hidden><progress></progress> <span class=message></span>
-          </div>
-      <tr class=text-annotations>
-        <td pl:colspan=$lang_cell_count>
+          </section>
           <section class=comments>
             <h1>コメント</h1>
             <div class=comments-container></div>
@@ -60,8 +59,8 @@
               </article>
             </template>
             <div class=new-comment>
+              <p class=buttons><button type=button class=toggle-edit title="コメントを書く">コメントを書く</button>
               <div class=view>
-                <p class=buttons><button type=button class=toggle-edit>コメントを書く</button>
               </div>
               <form data-action="i/{text_id}/comments" method=post class=edit hidden>
                 <p><textarea name=body></textarea>
@@ -73,8 +72,10 @@
       <tr class=text-body>
         <t:for as=$lang x="$tr->langs">
           <td pl:data-lang=$lang class=lang-area>
+            <p class=header>
+              <strong class=lang><t:text value=$lang></strong>
+              <button type=button class=toggle-edit title=Edit>Edit</button>
             <div class=view>
-              <p class=buttons><button type=button class=toggle-edit>Edit</button>
               <p class=body_o>
             </div>
             <form data-action="i/{text_id}/" method=post class=edit hidden>
@@ -150,8 +151,9 @@ function addTexts (texts) {
     }
 
     Array.prototype.map.call (fragment.querySelectorAll ('.tag-area'), function (area) {
-      area.querySelector ('button.toggle-edit').onclick = function () {
-        toggleAreaEditor (area, true);
+      var toggle = area.querySelector ('button.toggle-edit');
+      toggle.onclick = function () {
+        toggleAreaEditor (area, !this.classList.contains ('active'));
       };
       area.querySelector ('form.edit').onsubmit = function () {
         toggleAreaEditor (area, false);
@@ -186,8 +188,9 @@ function addTexts (texts) {
     });
 
     Array.prototype.map.call (fragment.querySelectorAll ('.lang-area[data-lang]'), function (area) {
-      area.querySelector ('button.toggle-edit').onclick = function () {
-        toggleAreaEditor (area, true);
+      var toggle = area.querySelector ('button.toggle-edit');
+      toggle.onclick = function () {
+        toggleAreaEditor (area, !this.classList.contains ('active'));
       };
       area.querySelector ('form.edit').onsubmit = function () {
         toggleAreaEditor (area, false);
@@ -297,6 +300,7 @@ function syncTextComments (commentsEl, textComments) {
 function toggleAreaEditor (area, editMode) {
   var edit = area.querySelector ('form.edit');
   var view = area.querySelector ('.view');
+  var toggle = area.querySelector ('button.toggle-edit');
   if (editMode) {
     edit.hidden = false;
     view.hidden = true;
@@ -304,6 +308,7 @@ function toggleAreaEditor (area, editMode) {
     view.hidden = false;
     edit.hidden = true;
   }
+  toggle.classList.toggle ('active', editMode);
 } // toggleAreaEditor
 
 function saveArea (area) {
