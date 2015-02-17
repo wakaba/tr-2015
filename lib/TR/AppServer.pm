@@ -35,6 +35,10 @@ sub send_json ($$) {
 
 my $RootPath = path (__FILE__)->parent->parent->parent;
 
+sub mirror_path ($) {
+  return $RootPath->child ('local/mirrors');
+} # mirror_path
+
 sub send_file ($$$) {
   my ($self, $file_name, $content_type) = @_;
   ## $file_name MUST be safe.

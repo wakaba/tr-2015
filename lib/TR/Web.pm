@@ -57,14 +57,16 @@ sub main ($$) {
       return $app->send_error (404);
     }
 
-    my $tr = TR::TextRepo->new_from_temp_path (Path::Tiny->tempdir);
+    my $tr = TR::TextRepo->new_from_mirror_and_temp_path ($app->mirror_path, Path::Tiny->tempdir);
     $tr->url ($path->[1]); # XXX validation & normalization
     $tr->branch ($path->[2]); # XXX validation
     $tr->texts_dir (substr $path->[3], 1);
 
     if (@$path == 5 and $path->[4] eq '') {
       # .../
-      return $tr->clone_by_url ($path->[1])->then (sub { # XXX branch
+      return $tr->prepare_mirror->then (sub {
+        return $tr->clone_from_mirror;
+      })->then (sub { # XXX branch
         return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
       })->then (sub {
         my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
@@ -101,7 +103,9 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'data.json') {
       # .../data.json
-      return $tr->clone_by_url ($path->[1])->then (sub {
+      return $tr->prepare_mirror->then (sub {
+        return $tr->clone_from_mirror;
+      })->then (sub {
         return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
       })->then (sub {
         my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
@@ -194,10 +198,11 @@ sub main ($$) {
           return $app->send_error (401);
         }
         my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
-        return $tr->clone_by_url ($path->[1],
-          userid => $auth->{userid},
-          password => $auth->{password},
-        )->then (sub {
+        return $tr->prepare_mirror->then (sub {
+          return $tr->clone_from_mirror;
+        })->then (sub {
+          return $tr->make_pushable ($auth->{userid}, $auth->{password});
+        })->then (sub {
           return $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt');
         })->then (sub {
           my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
@@ -236,10 +241,11 @@ sub main ($$) {
           $app->http->set_response_auth ('basic', realm => $path->[1]);
           return $app->send_error (401);
         }
-        return $tr->clone_by_url ($path->[1],
-          userid => $auth->{userid},
-          password => $auth->{password},
-        )->then (sub {
+        return $tr->prepare_mirror->then (sub {
+          return $tr->clone_from_mirror;
+        })->then (sub {
+          return $tr->make_pushable ($auth->{userid}, $auth->{password});
+        })->then (sub {
           return $tr->read_file_by_text_id_and_suffix ($id, 'dat');
         })->then (sub {
           my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
@@ -276,10 +282,11 @@ sub main ($$) {
           $app->http->set_response_auth ('basic', realm => $path->[1]);
           return $app->send_error (401);
         }
-        return $tr->clone_by_url ($path->[1],
-          userid => $auth->{userid},
-          password => $auth->{password},
-        )->then (sub {
+        return $tr->prepare_mirror->then (sub {
+          return $tr->clone_from_mirror;
+        })->then (sub {
+          return $tr->make_pushable ($auth->{userid}, $auth->{password});
+        })->then (sub {
           my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
           $te->set (id => $tr->generate_section_id);
           $te->set (body => $app->text_param ('body') // ''); # XXX validation
@@ -319,10 +326,11 @@ sub main ($$) {
       }
 
       my $data = {texts => {}};
-      return $tr->clone_by_url ($path->[1],
-        userid => $auth->{userid},
-        password => $auth->{password},
-      )->then (sub {
+      return $tr->prepare_mirror->then (sub {
+        return $tr->clone_from_mirror;
+      })->then (sub {
+        return $tr->make_pushable ($auth->{userid}, $auth->{password});
+      })->then (sub {
         my $id = $tr->generate_text_id;
         my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
         my $msgid = $app->text_param ('msgid');
@@ -371,10 +379,11 @@ sub main ($$) {
         return $app->send_error (400, reason_phrase => 'Bad |lang|');
       }
 
-      return $tr->clone_by_url ($path->[1],
-        userid => $auth->{userid},
-        password => $auth->{password},
-      )->then (sub {
+      return $tr->prepare_mirror->then (sub {
+        return $tr->clone_from_mirror;
+      })->then (sub {
+        return $tr->make_pushable ($auth->{userid}, $auth->{password});
+      })->then (sub {
         return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
       })->then (sub {
         my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');

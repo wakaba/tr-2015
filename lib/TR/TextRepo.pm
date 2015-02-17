@@ -4,10 +4,11 @@ use warnings;
 use AnyEvent::Util qw(run_cmd);
 use Promise;
 use Digest::SHA qw(sha1_hex);
+use Wanage::URL;
 
-sub new_from_temp_path ($) {
-  return bless {temp_path => $_[1]}, $_[0];
-} # new_from_temp_path
+sub new_from_mirror_and_temp_path ($$$) {
+  return bless {mirror_path => $_[1], temp_path => $_[2]}, $_[0];
+} # new_from_mirror_and_temp_path
 
 sub url ($;$) {
   if (@_ > 1) {
@@ -15,6 +16,11 @@ sub url ($;$) {
   }
   return $_[0]->{url};
 } # url
+
+sub path_name ($) {
+  my $self = $_[0];
+  $self->{path_name} ||= percent_encode_c $self->url;
+} # path_name
 
 sub branch ($;$) {
   if (@_ > 1) {
@@ -37,6 +43,14 @@ sub avail_langs ($;$) {
   return $_[0]->{avail_langs} || [];
 } # avail_langs
 
+sub mirror_parent_path ($) {
+  return $_[0]->{mirror_parent_path} ||= $_[0]->{mirror_path}->child ('git_mirrors');
+} # mirror_parent_path
+
+sub mirror_repo_path ($) {
+  return $_[0]->{mirror_repo_path} ||= $_[0]->mirror_parent_path->child ($_[0]->path_name);
+} # mirror_repo_path
+
 sub repo_path ($) {
   return $_[0]->{repo_path} ||= $_[0]->{temp_path}->child ('text-repo-' . rand);
 } # repo_path
@@ -56,24 +70,66 @@ sub texts_path ($) {
   };
 } # texts_path
 
-sub clone_by_url ($$;%) { # XXX branch
-  my ($self, $url, %args) = @_;
+sub prepare_mirror ($) {
+  my $self = $_[0];
   return Promise->new (sub {
     my ($ok, $ng) = @_;
-    if (defined $args{userid} and defined $args{password}) {
-      $url =~ s{^https://}{https://$args{userid}:$args{password}\@}; # XXX percent-encode
+    my $mirror_path = $self->mirror_repo_path;
+    if ($mirror_path->child ('config')->is_file) {
+      (run_cmd "cd \Q$mirror_path\E && git fetch")->cb (sub { # XXXtimeout
+        my $status = $_[0]->recv;
+        if ($status >> 8) {
+          $ng->("Can't clone <".$self->url.">"); # XXX
+        } else {
+          $ok->();
+        }
+      });
+    } else {
+      (run_cmd ['git', 'clone', '--mirror', $self->url, $mirror_path])->cb (sub { # XXX timeout
+        my $status = $_[0]->recv;
+        if ($status >> 8) {
+          $ng->("Can't clone <".$self->url.">"); # XXX
+        } else {
+          $ok->();
+        }
+      });
     }
-    my $repo_path = $self->repo_path;
-    (run_cmd ['git', 'clone', $url, $repo_path, '--depth', 1])->cb (sub { # XXX timeout
-      my  $status = $_[0]->recv;
+  });
+} # prepare_mirror
+
+sub clone_from_mirror ($) {
+  my $self = $_[0];
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    # XXX default branch
+    (run_cmd ['git', 'clone', '-b', $self->branch, $self->mirror_repo_path, $self->repo_path])->cb (sub {
+      my $status = $_[0]->recv;
       if ($status >> 8) {
-        $ng->("Can't clone <$url>");
+        $ng->("Can't clone");
       } else {
         $ok->();
       }
     });
   });
-} # clone_by_url
+} # clone_from_mirror
+
+sub make_pushable ($$$) {
+  my ($self, $userid, $password) = @_;
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    my $url = $self->url;
+    $url =~ s{^https://github\.com/}{'https://'.(percent_encode_c $userid).':'.(percent_encode_c $password).'@github.com/'}e;
+    my $path = $self->repo_path;
+    (run_cmd "cd \Q$path\E && git remote add remoterepo \Q$url\E")->cb (sub {
+      my $status = $_[0]->recv;
+      if ($status >> 8) {
+        $ng->("Can't config");
+      } else {
+        $ok->();
+      }
+    });
+  });
+} # make_pushable
 
 sub generate_text_id ($) {
   return sha1_hex (time () . $$ . rand ());
@@ -183,7 +239,7 @@ sub push ($) {
   return Promise->new (sub {
     my ($ok, $ng) = @_;
     my $repo_path = $self->repo_path;
-    (run_cmd "cd \Q$repo_path\E && git push")->cb (sub {
+    (run_cmd "cd \Q$repo_path\E && git push remoterepo")->cb (sub {
       my $status = $_[0]->recv;
       if ($status >> 8) {
         $ng->("Can't push");

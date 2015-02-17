@@ -463,6 +463,7 @@ function saveArea (area) {
         langsPanel.trSync = function () {
           // XXX enable lang setting
           toggleLangsConfig (false);
+          history.replaceState (null, null, '#');
           // XXX sync langs in this page
         };
         langsPanel.querySelector ('button.save').onclick = function () {
@@ -472,6 +473,7 @@ function saveArea (area) {
         };
         langsPanel.querySelector ('button.close').onclick = function () {
           toggleLangsConfig (false);
+          history.replaceState (null, null, '#');
         };
         var newLang = langsPanel.querySelector ('.lang-new');
         var langTemplate = newLang.querySelector ('template');
