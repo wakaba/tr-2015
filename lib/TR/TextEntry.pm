@@ -2,21 +2,36 @@ package TR::TextEntry;
 use strict;
 use warnings;
 
+sub _e ($) {
+  my $s = $_[0];
+  $s =~ s/([\x0D\x0A:\\])/{"\x0D" => "\\r", "\x0A" => "\\n", ":" => "\\C", "\\" => "\\\\"}->{$1}/ge;
+  return $s;
+} # _e
+
+sub _ue ($) {
+  my $v = $_[0];
+  $v =~ s/\\([nrC\\])/{n => "\x0A", r => "\x0D", "C" => ":", "\\" => "\\"}->{$1}/ge;
+  return $v;
+} # _ue
+
 sub new_from_text_id_and_source_text ($$$) {
   my ($class, $id, $text) = @_;
   my $self = bless {text_id => $id}, $class;
   my $props = $self->{props} = {};
   my $enum_props = $self->{enum_props} = {};
+  my $list_props = $self->{list_props} = {};
+  my $list_item_props = $self->{list_item_props} = {};
   $text =~ s/\x0D\x0A/\x0A/g;
   for (split /\x0A/, $text) {
-    if (/\A\$([0-9A-Za-z_]+):(.*)\z/) {
+    if (/\A\$([^:]+):(.*)\z/) {
       my ($n, $v) = ($1, $2);
-      $v =~ s/\\([nr\\])/{n => "\x0A", r => "\x0D", "\\" => "\\"}->{$1}/ge;
-      $props->{$n} = $v;
-    } elsif (/\A&([0-9A-Za-z_]+):(.*)\z/) {
+      $props->{_ue $n} = _ue $v;
+    } elsif (/\A&([^:]+):(.*)\z/) {
       my ($n, $v) = ($1, $2);
-      $v =~ s/\\([nr\\])/{n => "\x0A", r => "\x0D", "\\" => "\\"}->{$1}/ge;
-      $enum_props->{$n}->{$v} = 1;
+      $enum_props->{_ue $n}->{_ue $v} = 1;
+    } elsif (/\A\@([^:]+):(.*)\z/) {
+      my ($n, $v) = ($1, $2);
+      push @{$list_props->{_ue $n} ||= []}, _ue $v;
     }
   }
   return $self;
@@ -42,20 +57,29 @@ sub enum ($$) {
   return $_[0]->{enum_props}->{$_[1]} ||= {};
 } # enum
 
+sub list ($$) {
+  return $_[0]->{list_props}->{$_[1]} ||= [];
+} # list
+
 sub as_source_text ($) {
   my $self = $_[0];
   my $props = $self->{props};
   my @s;
   for (sort { $a cmp $b } keys %$props) {
-    my $s = '$' . $_ . ':' . $props->{$_};
-    $s =~ s/([\x0D\x0A\\])/{"\x0D" => "\\r", "\x0A" => "\\n", "\\" => "\\\\"}->{$1}/ge;
+    my $s = '$' . (_e $_) . ':' . _e $props->{$_};
     push @s, $s;
   }
   my $enum_props = $self->{enum_props};
   for my $key (sort { $a cmp $b } keys %$enum_props) {
     for (sort { $a cmp $b } grep { $enum_props->{$key}->{$_} } keys %{$enum_props->{$key}}) {
-      my $s = '&' . $key . ':' . $_;
-      $s =~ s/([\x0D\x0A\\])/{"\x0D" => "\\r", "\x0A" => "\\n", "\\" => "\\\\"}->{$1}/ge;
+      my $s = '&' . (_e $key) . ':' . _e $_;
+      push @s, $s;
+    }
+  }
+  my $list_props = $self->{list_props};
+  for my $key (sort { $a cmp $b } keys %$list_props) {
+    for my $item (@{$list_props->{$key}}) {
+      my $s = '@' . (_e $key) . ':' . _e $item;
       push @s, $s;
     }
   }
@@ -67,6 +91,9 @@ sub as_jsonalizable ($) {
   my $json = {%{$self->{props}}};
   for my $key (keys %{$self->{enum_props}}) {
     $json->{$key} = [sort { $a cmp $b } grep { $self->{enum_props}->{$key}->{$_} } keys %{$self->{enum_props}->{$key}}];
+  }
+  for my $key (keys %{$self->{list_props}}) {
+    $json->{$key} = $self->{list_props}->{$key};
   }
   return $json;
 } # as_jsonalizable

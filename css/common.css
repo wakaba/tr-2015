@@ -17,27 +17,24 @@ table#texts {
   background-color: #c8ffc8;
 }
 
-table#texts th,
-table#texts td {
+table#texts > * > tr > th,
+table#texts > * > tr > td {
   padding: 0.3rem;
   vertical-align: top;
   width: 10em;
 }
 
-table#texts thead th {
-}
-
-table#texts thead th:nth-child(2n+1),
-table#texts tbody td:nth-child(2n+1) {
+table#texts > thead > tr > th:nth-child(2n+1),
+table#texts > tbody > tr > td:nth-child(2n+1) {
   background-color: #ecffec;
 }
 
-.text-header th {
+.text-header > th {
   text-align: left;
   font-weight: normal;
 }
 
-table#texts th.langs-menu-container {
+table#texts > * > * > th.langs-menu-container {
   width: 1em;
   border-style: hidden;
   padding: 0;
@@ -99,7 +96,8 @@ th > section > h1 {
 
 th > section form,
 th > section div,
-th > section p {
+th > section p,
+th > section dl {
   margin: 0;
   padding: 0;
   text-indent: 0;
@@ -107,7 +105,8 @@ th > section p {
 
 th > section form:not([hidden]),
 th > section div:not([hidden]),
-th > section p:not([hidden]) {
+th > section p:not([hidden]),
+th > section dl:not([hidden]) {
   display: inline;
 }
 
@@ -192,6 +191,37 @@ th > section form.edit:not([hidden]) p {
   -webkit-font-smoothing: antialiased;
   content: "tag";
   margin-right: 0.3em;
+}
+
+.view .args {
+  margin: 0;
+  padding: 0;
+}
+
+.view .args > dt {
+  display: inline;
+  margin: 0 0 0 0.5em;
+  padding: 0;
+  color: purple;
+}
+
+.view .args > dd {
+  display: inline;
+  margin: 0 0 0 0.3em;
+  padding: 0;
+}
+
+.edit .args {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.edit .args input[name=arg_name] {
+  width: 3em;
+}
+
+.edit .args input[name=arg_desc] {
+  width: 10em;
 }
 
 .buttons {

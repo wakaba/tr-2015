@@ -28,7 +28,7 @@ sub error_log ($$) {
 
 sub send_json ($$) {
   my ($self, $data) = @_;
-  $self->http->set_response_header ('Content-Type' => 'application/json');
+  $self->http->set_response_header ('Content-Type' => 'application/json; charset=utf-8');
   $self->http->send_response_body_as_ref (\perl2json_bytes $data);
   $self->http->close_response_body;
 } # send_json

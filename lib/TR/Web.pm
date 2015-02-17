@@ -267,6 +267,58 @@ sub main ($$) {
         })->then (sub {
           return $tr->discard;
         });
+
+      } elsif (@$path == 7 and $path->[6] eq 'args') {
+        # .../i/{text_id}/args
+        $app->requires_request_method ({POST => 1});
+        # XXX CSRF
+
+        # XXX access control
+
+        my $id = $path->[5]; # XXX validation
+
+        # XXX
+        my $auth = $app->http->request_auth;
+        unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
+          $app->http->set_response_auth ('basic', realm => $path->[1]);
+          return $app->send_error (401);
+        }
+        return $tr->prepare_mirror->then (sub {
+          return $tr->clone_from_mirror;
+        })->then (sub {
+          return $tr->make_pushable ($auth->{userid}, $auth->{password});
+        })->then (sub {
+          return $tr->read_file_by_text_id_and_suffix ($id, 'dat');
+        })->then (sub {
+          my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+          my $args = $te->list ('args');
+          $te->set ('args.desc.' . $_ => undef) for @$args;
+          @$args = ();
+          my $names = $app->text_param_list ('arg_name');
+          my $descs = $app->text_param_list ('arg_desc');
+          my %found;
+          for (0..$#$names) {
+            next if $found{$names->[$_]}++;
+            next unless length $names->[$_];
+            push @$args, $names->[$_];
+            $te->set ('args.desc.'.$names->[$_] => $descs->[$_]);
+          }
+          return $tr->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
+        })->then (sub {
+          my $msg = $app->text_param ('commit_message') // '';
+          $msg = 'Added a message' unless length $msg;
+          return $tr->commit ($msg);
+        })->then (sub {
+          return $tr->push; # XXX failure
+        })->then (sub {
+          return $app->send_error (200); # XXX return JSON?
+        }, sub {
+          $app->error_log ($_[0]);
+          return $app->send_error (500);
+        })->then (sub {
+          return $tr->discard;
+        });
+
       } elsif (@$path == 7 and $path->[6] eq 'comments') {
         # .../i/{text_id}/comments
         $app->requires_request_method ({POST => 1});

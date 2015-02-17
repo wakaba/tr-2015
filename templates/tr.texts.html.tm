@@ -48,6 +48,37 @@
             </form>
             <p class=status hidden><progress></progress> <span class=message></span>
           </section>
+
+          <section class=args-area>
+            <h1>引数</h1>
+            <p class=buttons><button type=button class=toggle-edit title="Edit arguments">Edit</button>
+            <div class=view>
+              <dl class=args></dl>
+              <template>
+                <dt><code>{<span class=arg-name></span>}</code><dd><span class=arg-desc></span>
+              </template>
+            </div>
+            <form data-action="i/{text_id}/args" method=post class=edit hidden>
+              <table class=args>
+                <thead>
+                  <tr>
+                    <th>{変数名}
+                    <th>短い説明
+                    <th>
+                <tbody>
+                  <template>
+                    <th><code>{<input name=arg_name></span>}</code><td><input name=arg_desc></span><td><button type=button onclick=" if (confirm (getAttribute ('data-confirm'))) this.parentNode.parentNode.parentNode.removeChild (this.parentNode.parentNode) " data-confirm="この引数を削除します">削除</button>
+                  </template>
+                <tfoot>
+                  <tr><th><td><td><button type=button onclick="
+                    addArgsEditTableRow (this.parentNode.parentNode.parentNode.parentNode, '', '');
+                  ">追加</button>
+              </table>
+              <p class=buttons><button type=submit>保存</button>
+            </form>
+            <p class=status hidden><progress></progress> <span class=message></span>
+          </section>
+
           <section class=comments>
             <h1>コメント</h1>
             <div class=comments-container></div>
@@ -215,6 +246,28 @@ function addTexts (texts) {
       area.trSync (area);
     });
 
+    Array.prototype.map.call (fragment.querySelectorAll ('.args-area'), function (area) {
+      var toggle = area.querySelector ('button.toggle-edit');
+      toggle.onclick = function () {
+        toggleAreaEditor (area, !this.classList.contains ('active'));
+      };
+      area.querySelector ('form.edit').onsubmit = function () {
+        toggleAreaEditor (area, false);
+        return saveArea (area);
+      };
+
+      var form = area.querySelector ('form.edit');
+      var table = form.querySelector ('table.args');
+      (text.args || []).forEach (function (arg) {
+        var desc = text["args.desc." + arg] || "";
+        addArgsEditTableRow (table, arg, desc);
+      });
+      syncArgsAreaView (area);
+
+      area.trSync = syncArgsAreaView;
+      area.trSync (area);
+    });
+
     Array.prototype.map.call (fragment.querySelectorAll ('.lang-area[data-lang]'), function (area) {
       var toggle = area.querySelector ('button.toggle-edit');
       toggle.onclick = function () {
@@ -342,6 +395,37 @@ function syncTagAreaView (area) {
     viewTags.appendChild (document.createTextNode (' '));
   });
 } // syncTagAreaView
+
+function syncArgsAreaView (area) {
+  var edit = area.querySelector ('form.edit');
+  var view = area.querySelector ('.view');
+
+  var editArgs = edit.querySelector ('.args').tBodies[0];
+  var viewArgs = view.querySelector ('.args');
+  viewArgs.textContent = '';
+  var template = view.querySelector ('template');
+
+  Array.prototype.forEach.call (editArgs.rows, function (tr) {
+    var div = document.createElement ('div');
+    div.innerHTML = template.innerHTML;
+    var name = tr.querySelector ('input[name=arg_name]').value;
+    if (!name) return;
+    div.querySelector ('.arg-name').textContent = name;
+    div.querySelector ('.arg-desc').textContent = tr.querySelector ('input[name=arg_desc]').value;
+    Array.prototype.slice.call (div.childNodes).forEach (function (node) {
+      viewArgs.appendChild (node);
+    });
+  });
+} // syncArgsAreaView
+
+function addArgsEditTableRow (table, name, desc) {
+  var template = table.querySelector ('tbody template');
+  var tr = document.createElement ('tr');
+  tr.innerHTML = template.innerHTML;
+  tr.querySelector ('input[name=arg_name]').value = name;
+  tr.querySelector ('input[name=arg_desc]').value = desc;
+  table.tBodies[0].appendChild (tr);
+} // addArgsEditTableRow
 
 function syncTextComments (commentsEl, textComments) {
   var commentTemplate = commentsEl.querySelector ('template');
