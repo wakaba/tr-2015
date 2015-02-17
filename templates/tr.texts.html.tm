@@ -334,54 +334,6 @@ function syncLangAreaTabs (area) {
   });
 } // syncLangAreaView
 
-function syncTagAreaView (area) {
-  var edit = area.querySelector ('form.edit');
-  var view = area.querySelector ('.view');
-
-  var editTags = edit.querySelector ('.tags');
-  var viewTags = view.querySelector ('.tags');
-  viewTags.textContent = '';
-  Array.prototype.forEach.call (editTags.querySelectorAll ('input[name=tag]'), function (input) {
-    var tag = input.value;
-    var a = document.createElement ('a');
-    a.href = './?tag=' + encodeURIComponent (tag);
-    a.textContent = tag;
-    viewTags.appendChild (a);
-    viewTags.appendChild (document.createTextNode (' '));
-  });
-} // syncTagAreaView
-
-function syncArgsAreaView (area) {
-  var edit = area.querySelector ('form.edit');
-  var view = area.querySelector ('.view');
-
-  var editArgs = edit.querySelector ('.args').tBodies[0];
-  var viewArgs = view.querySelector ('.args');
-  viewArgs.textContent = '';
-  var template = view.querySelector ('template');
-
-  Array.prototype.forEach.call (editArgs.rows, function (tr) {
-    var div = document.createElement ('div');
-    div.innerHTML = template.innerHTML;
-    var name = tr.querySelector ('input[name=arg_name]').value;
-    if (!name) return;
-    div.querySelector ('.arg_name').textContent = name;
-    div.querySelector ('.arg_desc').textContent = tr.querySelector ('input[name=arg_desc]').value;
-    Array.prototype.slice.call (div.childNodes).forEach (function (node) {
-      viewArgs.appendChild (node);
-    });
-  });
-} // syncArgsAreaView
-
-function addArgsEditTableRow (table, name, desc) {
-  var template = table.querySelector ('tbody template');
-  var tr = document.createElement ('tr');
-  tr.innerHTML = template.innerHTML;
-  tr.querySelector ('input[name=arg_name]').value = name;
-  tr.querySelector ('input[name=arg_desc]').value = desc;
-  table.tBodies[0].appendChild (tr);
-} // addArgsEditTableRow
-
 function syncTextComments (commentsEl, textComments) {
   var commentTemplate = commentsEl.querySelector ('template');
   var commentParent = commentsEl.querySelector ('.comments-container');
@@ -639,6 +591,11 @@ function saveArea (area, onsaved) { // XXX promise
         tr.querySelector ('[name=tag]').value = el.textContent;
         dialogTagsContainer.appendChild (tr);
       });
+      if (!dialogTagsContainer.firstChild) {
+        var tr = document.createElement ('tr');
+        tr.innerHTML = dialogTagsTemplate.innerHTML;
+        dialogTagsContainer.appendChild (tr);
+      }
 
       var dialogArgs = dialog.querySelector ('table.args');
       var dialogArgsTemplate = dialogArgs.querySelector ('template');
@@ -651,6 +608,11 @@ function saveArea (area, onsaved) { // XXX promise
         tr.querySelector ('[name=arg_desc]').value = el.querySelector ('.arg_desc').textContent;
         dialogArgsContainer.appendChild (tr);
       });
+      if (!dialogArgsContainer.firstChild) {
+        var tr = document.createElement ('tr');
+        tr.innerHTML = dialogArgsTemplate.innerHTML;
+        dialogArgsContainer.appendChild (tr);
+      }
 
       dialog.hidden = false;
       dialog.style.top = document.body.scrollTop + 'px';
