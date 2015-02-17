@@ -35,49 +35,28 @@
       <tr class=text-header>
         <th pl:colspan=$lang_cell_count>
           <a class=msgid><code></code></a>
-          <a class=text-id><code></code></a>
-          <section class=tag-area>
-            <h1>タグ</h1>
-            <p class=buttons><button type=button class=toggle-edit title="Edit tags">Edit</button>
-            <div class=view>
-              <p class=tags>...
-            </div>
-            <form data-action="i/{text_id}/tags" method=post class=edit hidden>
-              <p class=tags>...
-              <p class=buttons><button type=submit>保存</button>
-            </form>
-            <p class=status hidden><progress></progress> <span class=message></span>
-          </section>
+          <a class=text_id><code></code></a>
+          <span class=tags-area>
+            <strong>タグ</strong>
+            <span class=tags></span>
+            <template>
+              <a href=... class=tag>...</a>
+            </template>
+          </span>
 
-          <section class=args-area>
-            <h1>引数</h1>
-            <p class=buttons><button type=button class=toggle-edit title="Edit arguments">Edit</button>
-            <div class=view>
-              <dl class=args></dl>
-              <template>
-                <dt><code>{<span class=arg-name></span>}</code><dd><span class=arg-desc></span>
-              </template>
-            </div>
-            <form data-action="i/{text_id}/args" method=post class=edit hidden>
-              <table class=args>
-                <thead>
-                  <tr>
-                    <th>{変数名}
-                    <th>短い説明
-                    <th>
-                <tbody>
-                  <template>
-                    <th><code>{<input name=arg_name></span>}</code><td><input name=arg_desc></span><td><button type=button onclick=" if (confirm (getAttribute ('data-confirm'))) this.parentNode.parentNode.parentNode.removeChild (this.parentNode.parentNode) " data-confirm="この引数を削除します">削除</button>
-                  </template>
-                <tfoot>
-                  <tr><th><td><td><button type=button onclick="
-                    addArgsEditTableRow (this.parentNode.parentNode.parentNode.parentNode, '', '');
-                  ">追加</button>
-              </table>
-              <p class=buttons><button type=submit>保存</button>
-            </form>
-            <p class=status hidden><progress></progress> <span class=message></span>
-          </section>
+          <span class=args-area>
+            <strong>引数</strong>
+            <span class=args></span>
+            <template>
+              <span class=arg>
+                <code>{<span class=arg_name></span>}</code>
+                <span class=arg_desc></span>
+              </span>
+            </template>
+          </span>
+
+          <span class=desc></span>
+          <span class=buttons><button type=button class=edit onclick=" showTextEditDialog (parentNode.parentNode) ">編集</button></span>
 
           <section class=comments>
             <h1>コメント</h1>
@@ -191,6 +170,49 @@
 
 <script src=/js/time.js charset=utf-8></script>
 <script>
+  function showTextMetadata (textId, text, area) {
+    var tid = area.querySelector ('.text_id');
+    tid.href = './?text_id=' + encodeURIComponent (textId);
+    tid.querySelector ('code').textContent = textId;
+
+    if (text.msgid) {
+      var mid = area.querySelector ('.msgid');
+      mid.href = './?msgid=' + encodeURIComponent (text.msgid);
+      mid.querySelector ('code').textContent = text.msgid;
+    }
+
+    area.querySelector ('.desc').textContent = text.desc || '';
+
+    var tagsArea = area.querySelector ('.tags-area');
+    var tagTemplate = tagsArea.querySelector ('template');
+    var tagsContainer = tagsArea.querySelector ('.tags');
+    tagsContainer.textContent = '';
+    (text.tags || []).forEach (function (tag) {
+      var div = document.createElement ('div');
+      div.innerHTML = tagTemplate.innerHTML;
+      div.querySelector ('.tag').textContent = tag;
+      div.querySelector ('.tag').href = './?tag=' + encodeURIComponent (tag);
+      Array.prototype.slice.call (div.childNodes).forEach (function (node) {
+        tagsContainer.appendChild (node);
+      });
+    });
+
+    var argsArea = area.querySelector ('.args-area');
+    var argTemplate = argsArea.querySelector ('template');
+    var argsContainer = argsArea.querySelector ('.args');
+    argsContainer.textContent = '';
+    (text.args || []).forEach (function (argName) {
+      var div = document.createElement ('div');
+      div.innerHTML = argTemplate.innerHTML;
+      div.querySelector ('.arg_name').textContent = argName;
+      div.querySelector ('.arg_desc').textContent = text["args.desc."+argName] || "";
+      Array.prototype.slice.call (div.childNodes).forEach (function (node) {
+        argsContainer.appendChild (node);
+      });
+    });
+    argsArea.hidden = !((text.args || []).length > 0);
+  } // showTextMetadata
+
 function addTexts (texts) {
   var mainTable = document.getElementById ('texts');
   var rowContainer = mainTable.querySelector ('tbody');
@@ -199,74 +221,7 @@ function addTexts (texts) {
     var fragment = document.createElement ('tbody');
     fragment.innerHTML = rowTemplate.innerHTML;
 
-    var tid = fragment.querySelector ('.text-id');
-    tid.href = './?text_id=' + encodeURIComponent (textId);
-    tid.querySelector ('code').textContent = textId;
-
-    if (text.msgid) {
-      var mid = fragment.querySelector ('.msgid');
-      mid.href = './?msgid=' + encodeURIComponent (text.msgid);
-      mid.querySelector ('code').textContent = text.msgid;
-    }
-
-    Array.prototype.map.call (fragment.querySelectorAll ('.tag-area'), function (area) {
-      var toggle = area.querySelector ('button.toggle-edit');
-      toggle.onclick = function () {
-        toggleAreaEditor (area, !this.classList.contains ('active'));
-      };
-      area.querySelector ('form.edit').onsubmit = function () {
-        toggleAreaEditor (area, false);
-        return saveArea (area);
-      };
-
-      var form = area.querySelector ('form.edit');
-      var tagsContainer = form.querySelector ('.tags');
-      tagsContainer.textContent = '';
-      if (text.tags) {
-        for (t in text.tags) {
-          var input = document.createElement ('input');
-          input.name = 'tag';
-          input.value = text.tags[t];
-          tagsContainer.appendChild (input);
-          tagsContainer.appendChild (document.createTextNode (' '));
-        }
-      }
-      var button = document.createElement ('button');
-      button.type = 'button';
-      button.textContent = 'Add';
-      button.onclick = function () {
-        var p = this.parentNode;
-        var input = document.createElement ('input');
-        input.name = 'tag';
-        p.insertBefore (input, this);
-        p.insertBefore (document.createTextNode (' '), this);
-      };
-      tagsContainer.appendChild (button);
-      area.trSync = syncTagAreaView;
-      area.trSync (area);
-    });
-
-    Array.prototype.map.call (fragment.querySelectorAll ('.args-area'), function (area) {
-      var toggle = area.querySelector ('button.toggle-edit');
-      toggle.onclick = function () {
-        toggleAreaEditor (area, !this.classList.contains ('active'));
-      };
-      area.querySelector ('form.edit').onsubmit = function () {
-        toggleAreaEditor (area, false);
-        return saveArea (area);
-      };
-
-      var form = area.querySelector ('form.edit');
-      var table = form.querySelector ('table.args');
-      (text.args || []).forEach (function (arg) {
-        var desc = text["args.desc." + arg] || "";
-        addArgsEditTableRow (table, arg, desc);
-      });
-      syncArgsAreaView (area);
-
-      area.trSync = syncArgsAreaView;
-      area.trSync (area);
-    });
+    showTextMetadata (textId, text, fragment.querySelector ('.text-header > th'));
 
     Array.prototype.map.call (fragment.querySelectorAll ('.lang-area[data-lang]'), function (area) {
       var toggle = area.querySelector ('button.toggle-edit');
@@ -410,8 +365,8 @@ function syncArgsAreaView (area) {
     div.innerHTML = template.innerHTML;
     var name = tr.querySelector ('input[name=arg_name]').value;
     if (!name) return;
-    div.querySelector ('.arg-name').textContent = name;
-    div.querySelector ('.arg-desc').textContent = tr.querySelector ('input[name=arg_desc]').value;
+    div.querySelector ('.arg_name').textContent = name;
+    div.querySelector ('.arg_desc').textContent = tr.querySelector ('input[name=arg_desc]').value;
     Array.prototype.slice.call (div.childNodes).forEach (function (node) {
       viewArgs.appendChild (node);
     });
@@ -456,7 +411,7 @@ function toggleAreaEditor (area, editMode) {
   toggle.classList.toggle ('active', editMode);
 } // toggleAreaEditor
 
-function saveArea (area) {
+function saveArea (area, onsaved) { // XXX promise
   var formStatus = area.querySelector ('.status');
   formStatus.hidden = false;
   formStatus.querySelector ('.message').textContent = 'Saving...';
@@ -470,7 +425,8 @@ function saveArea (area) {
   xhr.onreadystatechange = function () {
     if (xhr.readyState === 4) {
       if (xhr.status < 400) {
-        area.trSync (area);
+        if (onsaved) onsaved (JSON.parse (xhr.responseText));
+        if (area.trSync) area.trSync (area);
       } else { // XXX
       }
       formStatus.hidden = true;
@@ -484,7 +440,10 @@ function saveArea (area) {
 
 <div class=dialog id=config-langs hidden>
   <section>
-    <h1>言語設定</h1>
+    <header>
+      <h1>言語設定</h1>
+      <button type=button class=close title="保存せずに閉じる">閉じる</button>
+    </header>
 
     <form action="langs" method=post>
       <ul>
@@ -509,20 +468,19 @@ function saveArea (area) {
           <p class=buttons><button type=button class=add>追加</button>
       </ul>
 
-      <p class=buttons>
-        <button type=button class=save>保存して閉じる</button>
-        <button type=button class=close>閉じる</button>
+      <p class=buttons><button type=button class=save>保存して閉じる</button>
     </form>
     <p class=status hidden><progress></progress> <span class=message></span>
-    <script>
-      function toggleLangsConfig (status) {
-        var langsPanel = document.querySelector ('#config-langs');
-        if (status) {
-          langsPanel.hidden = false;
-        } else {
-          langsPanel.hidden = true;
-        }
-      } // toggleLangsConfig
+  </section>
+  <script>
+    function toggleLangsConfig (status) {
+      var langsPanel = document.querySelector ('#config-langs');
+      if (status) {
+        langsPanel.hidden = false;
+      } else {
+        langsPanel.hidden = true;
+      }
+    } // toggleLangsConfig
 
       (function () {
         var langsMenuContainer = document.querySelector ('.langs-menu-container');
@@ -580,6 +538,127 @@ function saveArea (area) {
           toggleLangsConfig (true);
         }
       }) ();
-    </script>
+  </script>
+</div>
+
+<div class="dialog config-text" id=config-text hidden>
+  <section>
+    <header>
+      <h1>テキストの設定</h1>
+      <button type=button class=close title="保存せず閉じる">閉じる</button>
+    </header>
+
+    <form data-action="i/{text_id}/meta" method=post>
+      <table>
+        <tbody>
+          <tr>
+            <th><label for=config-text-text-id>テキストID</label>
+            <td><input name=text_id id=config-text-text-id readonly>
+          <tr>
+            <th><label for=config-text-msgid>メッセージID</label>
+            <td><input name=msgid id=config-text-msgid>
+          <tr>
+            <th><label for=config-text-desc>簡単な説明</label>
+            <td><input name=desc id=config-text-desc>
+        <tbody>
+          <tr>
+            <th>タグ
+            <td>
+              <table class=tags>
+                <template>
+                  <th><input name=tag><td><button type=button onclick=" if (confirm (getAttribute ('data-confirm'))) this.parentNode.parentNode.parentNode.removeChild (this.parentNode.parentNode) " data-confirm="このタグを削除します">削除</button>
+                </template>
+                <tbody>
+                <tfoot>
+                  <tr>
+                    <td><td><button type=button onclick="
+                      var table = this.parentNode.parentNode.parentNode.parentNode;
+                      var template = table.querySelector ('template');
+                      var tr = document.createElement ('tr');
+                      tr.innerHTML = template.innerHTML;
+                      table.tBodies[0].appendChild (tr);
+                    ">追加</button>
+              </table>
+        <tbody>
+          <tr>
+            <th>引数
+            <td>
+              <table class=args>
+                <template>
+                  <th>{<input name=arg_name></span>}
+                  <td><input name=arg_desc></span>
+                  <td><button type=button onclick=" if (confirm (getAttribute ('data-confirm'))) this.parentNode.parentNode.parentNode.removeChild (this.parentNode.parentNode) " data-confirm="この引数を削除します">削除</button>
+                </template>
+                <thead>
+                  <tr>
+                    <th>{変数名}
+                    <th>短い説明
+                    <th>
+                <tbody>
+                <tfoot>
+                  <tr><th><td><td><button type=button onclick="
+                    var table = this.parentNode.parentNode.parentNode.parentNode;
+                    var template = table.querySelector ('template');
+                    var tr = document.createElement ('tr');
+                    tr.innerHTML = template.innerHTML;
+                    table.tBodies[0].appendChild (tr);
+                  ">追加</button>
+              </table>
+      </table>
+      <p class=buttons><button type=submit class=save>保存して閉じる</button>
+    </form>
+    <p class=status hidden><progress></progress> <span class=message></span>
   </section>
+  <script>
+    function showTextEditDialog (area) {
+      var dialog = document.querySelector ('#config-text');
+
+      var textId = area.querySelector ('.text_id').textContent;
+      var form = dialog.querySelector ('form');
+      form.action = form.getAttribute ('data-action').replace (/\{text_id\}/g, textId);
+
+      dialog.querySelector ('button.close').onclick = hideTextEditDialog;
+      form.onsubmit = function () {
+        return saveArea (dialog, function (text) {
+          showTextMetadata (textId, text, area);
+          hideTextEditDialog ();
+        });
+      };
+
+      ['msgid', 'text_id', 'desc'].forEach (function (n) {
+        dialog.querySelector ('[name='+n+']').value = area.querySelector ('.'+n+'').textContent;
+      });
+
+      var dialogTags = dialog.querySelector ('table.tags');
+      var dialogTagsTemplate = dialogTags.querySelector ('template');
+      var dialogTagsContainer = dialogTags.tBodies[0];
+      dialogTagsContainer.textContent = '';
+      Array.prototype.forEach.call (area.querySelectorAll ('.tag'), function (el) {
+        var tr = document.createElement ('tr');
+        tr.innerHTML = dialogTagsTemplate.innerHTML;
+        tr.querySelector ('[name=tag]').value = el.textContent;
+        dialogTagsContainer.appendChild (tr);
+      });
+
+      var dialogArgs = dialog.querySelector ('table.args');
+      var dialogArgsTemplate = dialogArgs.querySelector ('template');
+      var dialogArgsContainer = dialogArgs.tBodies[0];
+      dialogArgsContainer.textContent = '';
+      Array.prototype.forEach.call (area.querySelectorAll ('.arg'), function (el) {
+        var tr = document.createElement ('tr');
+        tr.innerHTML = dialogArgsTemplate.innerHTML;
+        tr.querySelector ('[name=arg_name]').value = el.querySelector ('.arg_name').textContent;
+        tr.querySelector ('[name=arg_desc]').value = el.querySelector ('.arg_desc').textContent;
+        dialogArgsContainer.appendChild (tr);
+      });
+
+      dialog.hidden = false;
+      dialog.style.top = document.body.scrollTop + 'px';
+    } // showTextEditDialog
+
+    function hideTextEditDialog () {
+      var dialog = document.querySelector ('#config-text');
+      dialog.hidden = true;
+    } // hideTextEditDialog
+  </script>
 </div>

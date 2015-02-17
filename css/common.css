@@ -58,6 +58,7 @@ table#texts > * > * > th.langs-menu-container {
   padding: 0.5rem;
   background: white;
   color: black;
+  z-index: 10000;
 }
 
 thead, tbody, tfoot,
@@ -70,23 +71,29 @@ thead, tbody, tfoot {
   border-bottom: 3px green solid;
 }
 
+.text-header th {
+  position: relative;
+}
+
 .text-header th .msgid {
   font-size: 90%;
 }
 
-.text-header th .text-id {
+.text-header th .text_id {
   font-size: 80%;
   color: gray;
 }
 
-th > section {
+.tags-area:not([hidden]),
+.args-area:not([hidden]) {
   display: inline;
   margin: 0 0.5em;
   padding: 0;
   font-size: 90%;
 }
 
-th > section > h1 {
+.tags-area > strong,
+.args-area > strong {
   display: inline;
   margin: 0;
   padding: 0;
@@ -94,33 +101,68 @@ th > section > h1 {
   font-size: 100%;
 }
 
-th > section form,
-th > section div,
-th > section p,
-th > section dl {
+.tags-area > strong::after,
+.args-area > strong::after {
+  content: ": ";
+}
+
+.tags-area .tags a {
+  margin-right: 0.3em;
+  background: #eee;
+  border-radius: 0.5em;
+  border: #ccc solid 1px;
+  text-decoration: none;
+  padding: 0.2em 0.3em;
+  color: black;
+  font-size: 90%;
+}
+
+.tags-area .tags a::before {
+  font-family: 'LigatureSymbols';
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  content: "tag";
+  margin-right: 0.3em;
+}
+
+.args-area .args {
   margin: 0;
   padding: 0;
-  text-indent: 0;
 }
 
-th > section form:not([hidden]),
-th > section div:not([hidden]),
-th > section p:not([hidden]),
-th > section dl:not([hidden]) {
+.args-area .args .arg > code {
   display: inline;
+  margin: 0 0 0 0.5em;
+  padding: 0;
+  color: purple;
 }
 
-th > section form.edit:not([hidden]) {
-  display: block;
-  margin: 0 0.5rem 0.5rem;
-  border-radius: 0.3rem;
-  padding: 0.5rem;
-  background: white;
-  color: black;
+.args-area .args .arg > .arg_desc {
+  display: inline;
+  margin: 0 0 0 0.3em;
+  padding: 0;
 }
 
-th > section form.edit:not([hidden]) p {
+.text-header .desc {
   display: block;
+  line-height: 1.3;
+  font-size: 90%;
+}
+
+.text-header .desc:empty {
+  display: none;
+}
+
+.text-header th > .buttons {
+  display: block;
+  position: absolute;
+  margin: 0.3em;
+  top: 0;
+  right: 0;
+}
+
+.text-header th > .buttons button {
+  font-size: 70%;
 }
 
 @font-face {
@@ -172,56 +214,6 @@ th > section form.edit:not([hidden]) p {
 .toggle-edit:hover::before,
 .toggle-edit:active::before {
   text-decoration: underline;
-}
-
-.view .tags a {
-  margin-right: 0;
-  background: #eee;
-  border-radius: 0.5em;
-  border: #ccc solid 1px;
-  text-decoration: none;
-  padding: 0.2em 0.3em;
-  color: black;
-  font-size: 90%;
-}
-
-.view .tags a::before {
-  font-family: 'LigatureSymbols';
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  content: "tag";
-  margin-right: 0.3em;
-}
-
-.view .args {
-  margin: 0;
-  padding: 0;
-}
-
-.view .args > dt {
-  display: inline;
-  margin: 0 0 0 0.5em;
-  padding: 0;
-  color: purple;
-}
-
-.view .args > dd {
-  display: inline;
-  margin: 0 0 0 0.3em;
-  padding: 0;
-}
-
-.edit .args {
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.edit .args input[name=arg_name] {
-  width: 3em;
-}
-
-.edit .args input[name=arg_desc] {
-  width: 10em;
 }
 
 .buttons {
@@ -341,20 +333,109 @@ th > section form.edit:not([hidden]) p {
   border: 2px solid gray;
   padding: 0.5em;
   width: 50em;
-  max-width: 100%;
+  max-width: 90%;
   background: white;
   color: black;
   box-shadow: gray 5px 5px;
 }
 
-.dialog > section > h1 {
+.dialog > section > header {
+  position: relative;
   margin: 0 0 0.3em 0;
   font-size: 100%;
   border-bottom: 0.1em solid;
   padding: 0 0.3em 0.3em;
 }
 
+.dialog > section > header > h1 {
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-size: 120%;
+}
+
+.dialog > section > header > button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  margin: 0;
+}
+
 .dialog > section form > .buttons button {
   padding: 0.3em;
   min-width: 8em;
+}
+
+.config-text form > table {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.config-text form > table > tbody > tr > th {
+  min-width: 8em;
+  text-align: right;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.config-text form > table > tbody > tr > th::after {
+  content: ":\A0";
+}
+
+.config-text input {
+  margin-top: 0.3em;
+  margin-bottom: 0.3em;
+}
+
+.config-text input[name=text_id],
+.config-text input[name=msgid],
+.config-text input[name=desc] {
+  width: 40em;
+  max-width: 80%;
+}
+
+.config-text .tags {
+  display: block;
+  border: none;
+}
+
+.config-text .tags tbody,
+.config-text .tags tfoot {
+  display: inline;
+  border: none;
+}
+
+.config-text .tags tr {
+  display: inline-block;
+  margin-bottom: 0.3em;
+  margin-right: 0.3em;
+  border: none;
+  white-space: nowrap;
+}
+
+.config-text .tags th,
+.config-text .tags td {
+  display: inline;
+  border: none;
+}
+
+.config-text .tags input {
+  width: 10em;
+}
+
+.config-text .args tr th {
+  min-width: 6em;
+  text-align: left;
+}
+
+.config-text .args tr th + th {
+  min-width: 15em;
+}
+
+.config-text input[name=arg_name] {
+  width: 5rem;
+}
+
+.config-text input[name=arg_desc] {
+  width: 15rem;
 }
