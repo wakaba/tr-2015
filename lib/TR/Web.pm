@@ -106,74 +106,14 @@ sub main ($$) {
       return $tr->prepare_mirror->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
-        return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
+        return $tr->get_data_as_jsonalizable
+            (langs => $app->text_param_list ('lang')->grep (sub { length }),
+             text_ids => $app->text_param_list ('text_id')->grep (sub { length }),
+             msgids => $app->text_param_list ('msgid')->grep (sub { length }),
+             tags => $app->text_param_list ('tag')->grep (sub { length }),
+             with_comments => $app->bare_param ('with_comments'));
       })->then (sub {
-        my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
-        my $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
-        $langs = ['en'] unless @$langs;
-        my $specified_langs = $app->text_param_list ('lang');
-        if (@$specified_langs) {
-          my $avail_langs = {map { $_ => 1 } @$langs};
-          @$specified_langs = grep { $avail_langs->{$_} } @$specified_langs;
-          $langs = $specified_langs;
-        }
-        $tr->langs ($langs);
-      })->then (sub {
-        my $text_ids = $app->text_param_list ('text_id');
-        if (@$text_ids) {
-          return {map { $_ => 1 } grep { /\A[0-9a-f]{3,}\z/ } @$text_ids};
-        } else {
-          return $tr->text_ids;
-        }
-      })->then (sub {
-        # XXX
-        my $data = {};
-        my $texts = {};
-        my @id = keys %{$_[0]};
-        my @p;
-        my @lang = @{$tr->langs};
-        my $tags = $app->text_param_list ('tag');
-        my $msgid = $app->text_param ('msgid');
-        undef $msgid if defined $msgid and not length $msgid;
-        my $with_comments = $app->bare_param ('with_comments');
-        for my $id (@id) {
-          push @p, $tr->read_file_by_text_id_and_suffix ($id, 'dat')->then (sub {
-            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
-            my $ok = 1;
-            if (defined $msgid) {
-              my $mid = $te->get ('msgid');
-              return unless defined $mid;
-              return unless $msgid eq $mid;
-            }
-            if (@$tags) {
-              my $t = $te->enum ('tags');
-              for (@$tags) {
-                return unless $t->{$_};
-              }
-            }
-            $data->{texts}->{$id} = $te->as_jsonalizable;
-            my @q;
-            for my $lang (@lang) {
-              push @q, $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
-                return unless defined $_[0];
-                $data->{texts}->{$id}->{langs}->{$lang} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0])->as_jsonalizable;
-              });
-            }
-            if ($with_comments) {
-              my $comments = $data->{texts}->{$id}->{comments} = [];
-              push @q, $tr->read_file_by_text_id_and_suffix ($id, 'comments')->then (sub {
-                for (grep { length } split /\x0D?\x0A\x0D?\x0A/, $_[0] // '') {
-                  push @$comments, TR::TextEntry->new_from_text_id_and_source_text ($id, $_)->as_jsonalizable;
-                }
-              });
-            }
-            return Promise->all (\@q);
-            # XXX limit
-          });
-        } # $id
-        return Promise->all (\@p)->then (sub {
-          return $app->send_json ($data);
-        });
+        return $app->send_json ($_[0]);
       })->catch (sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);

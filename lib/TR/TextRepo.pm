@@ -5,6 +5,7 @@ use AnyEvent::Util qw(run_cmd);
 use Promise;
 use Digest::SHA qw(sha1_hex);
 use Wanage::URL;
+use TR::TextEntry;
 
 sub new_from_mirror_and_temp_path ($$$) {
   return bless {mirror_path => $_[1], temp_path => $_[2]}, $_[0];
@@ -199,6 +200,75 @@ sub text_ids ($) {
   }
   return Promise->new (sub { $_[0]->(\%list) });
 } # text_ids
+
+sub get_data_as_jsonalizable ($%) {
+  my ($self, %args) = @_;
+  my $langs;
+  return $self->read_file_by_path ($self->texts_path->child ('config.json'))->then (sub {
+    my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
+    $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
+    my $specified_langs = $args{langs} || [];
+    if (@$specified_langs) {
+      my $avail_langs = {map { $_ => 1 } @$langs};
+      @$specified_langs = grep { $avail_langs->{$_} } @$specified_langs;
+      $langs = $specified_langs;
+    }
+  })->then (sub {
+    my $text_ids = $args{text_ids} || [];
+    if (@$text_ids) {
+      return {map { $_ => 1 } grep { /\A[0-9a-f]{3,}\z/ } @$text_ids};
+    } else {
+      return $self->text_ids;
+    }
+  })->then (sub {
+    # XXX
+    my $data = {};
+    my $texts = {};
+    my @id = keys %{$_[0]};
+    my @p;
+    my $tags = $args{tags} || [];
+    my $msgids = {map { $_ => 1 } @{$args{msgids} || []}};
+    undef $msgids unless keys %$msgids;
+    for my $id (@id) {
+      push @p, $self->read_file_by_text_id_and_suffix ($id, 'dat')->then (sub {
+        my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+        my $ok = 1;
+        if (defined $msgids) {
+          my $mid = $te->get ('msgid');
+          return unless defined $mid;
+          return unless $msgids->{$mid};
+        }
+        if (@$tags) {
+          my $t = $te->enum ('tags');
+          for (@$tags) {
+            return unless $t->{$_};
+          }
+        }
+        $data->{texts}->{$id} = $te->as_jsonalizable;
+        my @q;
+        for my $lang (@$langs) {
+          push @q, $self->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
+            return unless defined $_[0];
+            $data->{texts}->{$id}->{langs}->{$lang} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0])->as_jsonalizable;
+          });
+        }
+        if ($args{with_comments}) {
+          my $comments = $data->{texts}->{$id}->{comments} = [];
+          push @q, $self->read_file_by_text_id_and_suffix ($id, 'comments')->then (sub {
+            for (grep { length } split /\x0D?\x0A\x0D?\x0A/, $_[0] // '') {
+              push @$comments, TR::TextEntry->new_from_text_id_and_source_text ($id, $_)->as_jsonalizable;
+            }
+          });
+        }
+        return Promise->all (\@q);
+        # XXX limit
+      });
+    } # $id
+    return Promise->all (\@p)->then (sub {
+      return $data;
+    });
+  });
+} # get_data_as_jsonalizable
 
 sub add_by_paths ($$) {
   my ($self, $paths) = @_;

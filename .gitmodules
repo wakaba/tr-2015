@@ -31,3 +31,6 @@
 [submodule "modules/json-ps"]
 	path = modules/json-ps
 	url = git://github.com/wakaba/perl-json-ps
+[submodule "modules/popopo"]
+	path = modules/popopo
+	url = git://github.com/wakaba/perl-popopo
