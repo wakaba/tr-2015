@@ -18,9 +18,8 @@ sub new_from_text_id_and_source_text ($$$) {
   my ($class, $id, $text) = @_;
   my $self = bless {text_id => $id}, $class;
   my $props = $self->{props} = {};
-  my $enum_props = $self->{enum_props} = {};
-  my $list_props = $self->{list_props} = {};
-  my $list_item_props = $self->{list_item_props} = {};
+  my $enum_props = $self->{enum_props} = {tags => {}};
+  my $list_props = $self->{list_props} = {args => []};
   $text =~ s/\x0D\x0A/\x0A/g;
   for (split /\x0A/, $text) {
     if (/\A\$([^:]+):(.*)\z/) {

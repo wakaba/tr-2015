@@ -11,6 +11,7 @@
   </hgroup>
 
   <link itemprop=data-url pl:href="'data.json?'.$data_params.'&with_comments=1'">
+  <link itemprop=export-url pl:href="'export?'.$data_params">
 </header>
 
 <table id=texts pl:data-all-langs="join ',', @{$tr->avail_langs}">
@@ -28,7 +29,9 @@
             <label><input type=checkbox pl:value=$lang> <t:text value=$lang></label>
           </t:for>
           <hr>
-          <a href="#config-langs" onclick=" toggleLangsConfig (true) ">編集...</a>
+          <a href="#config-langs" onclick=" toggleLangsConfig (true) ">言語設定...</a>
+          <hr>
+          <a href="#config-export" onclick=" toggleExportDialog (true) ">Export...</a>
         </menu>
   <tbody>
     <template>
@@ -622,5 +625,67 @@ function saveArea (area, onsaved) { // XXX promise
       var dialog = document.querySelector ('#config-text');
       dialog.hidden = true;
     } // hideTextEditDialog
+  </script>
+</div>
+
+<div class=dialog id=config-export hidden>
+  <section>
+    <header>
+      <h1>Export</h1>
+      <button type=button class=close onclick=" toggleExportDialog (false) ">閉じる</button>
+    </header>
+
+    <form method=get target=_blank>
+      <table class=config>
+        <tr>
+          <th><label for=export-lang>Language</label>
+          <td>
+            <select id=export-lang name=lang>
+              <t:for as=$lang x="$tr->avail_langs">
+                <option pl:value=$lang pl:label=$lang><!-- XXX label -->
+              </t:for>
+            </select>
+        <tr>
+          <th><label for=export-format>Output format</label>
+          <td>
+            <select id=export-format name=format>
+              <option value=po>PO (GNU Gettext)
+            </select>
+        <tr>
+          <th><label for=export-arg_format>Argument format</label>
+          <td>
+            <select id=export-arg_format name=arg_format>
+              <option value=default>Default
+              <option value=printf>printf
+              <option value=percentn>%n
+              <option value=braced>{placeholder}
+            </select>
+        <tr>
+          <td colspan=2><label><input type=checkbox name=preserve_html> Preserve HTML markup</label>
+      </table>
+      <p class=buttons><button type=submit>Export</button>
+    </form>
+    
+  </section>
+  <script>
+    function toggleExportDialog (status) {
+      var exportPanel = document.querySelector ('#config-export');
+      if (status) {
+        var item = document.querySelector ('[itemtype=data]');
+        var url = item.querySelector ('[itemprop=export-url]').href;
+        exportPanel.querySelector ('form').action = url;
+
+        exportPanel.hidden = false;
+      } else {
+        exportPanel.hidden = true;
+      }
+    } // toggleExportDialog
+
+    (function () {
+      var f = decodeURIComponent (location.hash.replace (/^#/, ''));
+      if (f === 'config-export') {
+        toggleExportDialog (true);
+      }
+    }) ();
   </script>
 </div>

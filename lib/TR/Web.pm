@@ -120,6 +120,83 @@ sub main ($$) {
       })->then (sub {
         return $tr->discard;
       });
+    } elsif (@$path == 5 and $path->[4] eq 'export') {
+      # .../export
+      return $tr->prepare_mirror->then (sub {
+        return $tr->clone_from_mirror;
+      })->then (sub {
+        my $format = $app->text_param ('format') // '';
+        my $arg_format = $app->text_param ('arg_format') // '';
+        if ($format eq 'po') { # XXX and pot
+          my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX lang validation
+          $arg_format ||= 'printf'; #$arg_format normalization
+          $arg_format = 'printf' if $arg_format eq 'default';
+          return $tr->get_data_as_jsonalizable
+              (langs => [$lang],
+               text_ids => $app->text_param_list ('text_id')->grep (sub { length }),
+               msgids => $app->text_param_list ('msgid')->grep (sub { length }),
+               tags => $app->text_param_list ('tag')->grep (sub { length }))->then (sub {
+            my $json = $_[0];
+            require Popopo::Entry;
+            require Popopo::EntrySet;
+            my $es = Popopo::EntrySet->new;
+            my $header = $es->get_or_create_header;
+            # XXX $header
+            for my $text_id (keys %{$json->{texts} or {}}) {
+              my $text = $json->{texts}->{$text_id};
+              my $msgid = $text->{msgid};
+              next unless defined $msgid; # XXX fallback option?
+              my $str = $text->{langs}->{$lang}->{body_0} // '';
+              my $args = {};
+              my $i = 0;
+              for my $arg_name (@{$text->{args} or []}) {
+                $i++;
+                $args->{$arg_name} = {index => $i, name => $arg_name};
+              }
+              # XXX $app->text_param ('preserve_html')
+              my @str;
+              for (split /(\{[^{}]+\})/, $str, -1) {
+                if (/\A\{([^{}]+)\}\z/) {
+                  my $arg = $args->{$1};
+                  if ($arg) {
+                    if ($arg_format eq 'braced') {
+                      push @str, '{' . $arg->{name} . '}';
+                    } elsif ($arg_format eq 'printf') {
+                      push @str, '%'.$arg->{index}.'$s'; # XXX
+                    } elsif ($arg_format eq 'percentn') {
+                      push @str, '%' . $arg->{index};
+                    }
+                  } else {
+                    push @str, $_;
+                  }
+                } else {
+                  if ($arg_format eq 'printf' or $arg_format eq 'percentn') {
+                    s/%/%%/g;
+                  }
+                  push @str, $_;
+                }
+              }
+              $str = join '', @str;
+              my $e = Popopo::Entry->new
+                  (msgid => $msgid,
+                   msgstrs => [$str]);
+              # XXX more props
+              $es->add_entry ($e);
+            }
+            $app->http->set_response_header ('Content-Type' => 'text/x-po; charset=utf-8');
+            $app->http->set_response_disposition (filename => "$lang.po");
+            $app->http->send_response_body_as_text ($es->stringify);
+            $app->http->close_response_body;
+          });
+        } else {
+          return $app->send_error (400, reason_phrase => 'Unknown format');
+        }
+      })->catch (sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500);
+      })->then (sub {
+        return $tr->discard;
+      });
 
     } elsif (@$path >= 7 and $path->[4] eq 'i') {
       if (@$path == 7 and $path->[6] eq '') { # XXX URL
