@@ -130,7 +130,7 @@ sub main ($$) {
         if ($format eq 'po') { # XXX and pot
           my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX lang validation
           $arg_format ||= 'printf'; #$arg_format normalization
-          $arg_format = 'printf' if $arg_format eq 'default';
+          $arg_format = 'printf' if $arg_format eq 'auto';
           return $tr->get_data_as_jsonalizable
               (langs => [$lang],
                text_ids => $app->text_param_list ('text_id')->grep (sub { length }),
@@ -154,6 +154,7 @@ sub main ($$) {
                 $args->{$arg_name} = {index => $i, name => $arg_name};
               }
               # XXX $app->text_param ('preserve_html')
+              # XXX $app->text_param ('no_fallback')
               my @str;
               for (split /(\{[^{}]+\})/, $str, -1) {
                 if (/\A\{([^{}]+)\}\z/) {
@@ -192,6 +193,113 @@ sub main ($$) {
           return $app->send_error (400, reason_phrase => 'Unknown format');
         }
       })->catch (sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500);
+      })->then (sub {
+        return $tr->discard;
+      });
+    } elsif (@$path == 5 and $path->[4] eq 'import') {
+      # .../import
+
+      # XXX
+      my $auth = $app->http->request_auth;
+      unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
+        $app->http->set_response_auth ('basic', realm => $path->[1]);
+        return $app->send_error (401);
+      }
+
+      return $tr->prepare_mirror->then (sub {
+        return $tr->clone_from_mirror;
+      })->then (sub {
+        return $tr->make_pushable ($auth->{userid}, $auth->{password});
+      })->then (sub {
+        my $format = $app->text_param ('format') // '';
+        my $arg_format = $app->text_param ('arg_format') // '';
+        my $files = $app->http->request_uploads->{file} || [];
+        my $tags = $app->text_param_list ('tag')->grep (sub { length });
+        my @q;
+        for my $file (@$files) {
+          # XXX format=auto
+          if ($format eq 'po') { # XXX and pot
+            my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX lang validation # XXX auto
+            $arg_format ||= 'printf'; #$arg_format normalization
+            $arg_format = 'printf' if $arg_format eq 'auto'; # XXX
+            
+            require Popopo::Parser;
+            my $parser = Popopo::Parser->new;
+            # XXX onerror
+            my $es = $parser->parse_string (path ($file->as_f)->slurp_utf8); # XXX blocking XXX charset
+            # XXX lang and ohter metadata from header
+
+            my $msgid_to_e = {};
+            for my $e (@{$es->entries}) {
+              $msgid_to_e->{$e->msgid} = $e; # XXX warn duplicates
+            }
+
+            push @q, $tr->text_ids->then (sub {
+              my @id = keys %{$_[0]};
+              my @p;
+              for my $id (@id) {
+                push @p, $tr->read_file_by_text_id_and_suffix ($id, 'dat')->then (sub {
+                  my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+                  my $mid = $te->get ('msgid');
+                  return unless defined $mid and my $e = delete $msgid_to_e->{$mid};
+                  $te->enum ('tags')->{$_} = 1 for @$tags;
+
+                  push @p, $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
+                    my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+                    $te->set (body_0 => $e->msgstr);
+                    $te->set (last_modified => time);
+                    # XXX and other fields
+                    # XXX args
+                    return $tr->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
+                  });
+
+                  return $tr->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
+                });
+              } # $id
+            })->then (sub {
+              my @p;
+              for my $msgid (keys %$msgid_to_e) {
+                my $e = $msgid_to_e->{$msgid};
+                my $id = $tr->generate_text_id;
+                {
+                  my $te = TR::TextEntry->new_from_text_id_and_source_text
+                      ($id, '');
+                  $te->set (msgid => $msgid);
+                  $te->enum ('tags')->{$_} = 1 for @$tags;
+                  # XXX comment, ...
+                  push @p, $tr->write_file_by_text_id_and_suffix
+                      ($id, 'dat' => $te->as_source_text);
+                }
+                {
+                  my $te = TR::TextEntry->new_from_text_id_and_source_text
+                      ($id, '');
+                  $te->set (body_0 => $e->msgstr);
+                  $te->set (last_modified => time);
+                  # XXX and other fields
+                  # XXX args
+                  push @p, $tr->write_file_by_text_id_and_suffix
+                      ($id, $lang.'.txt' => $te->as_source_text);
+                }
+              }
+              return Promise->all (\@p);
+            });
+          } else {
+            # XXX
+            return $app->send_error (400, reason_phrase => 'Unknown format');
+          }
+        } # $file
+        return Promise->all (\@q);
+      })->then (sub {
+        my $msg = $app->text_param ('commit_message') // '';
+        $msg = 'Added a message' unless length $msg;
+        return $tr->commit ($msg);
+      })->then (sub {
+        return $tr->push; # XXX failure
+      })->then (sub {
+        return $app->send_error (200); # XXX return JSON?
+      }, sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);
       })->then (sub {

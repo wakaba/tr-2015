@@ -655,15 +655,54 @@ function saveArea (area, onsaved) { // XXX promise
           <th><label for=export-arg_format>Argument format</label>
           <td>
             <select id=export-arg_format name=arg_format>
-              <option value=default>Default
+              <option value=auto>Default
               <option value=printf>printf
               <option value=percentn>%n
               <option value=braced>{placeholder}
             </select>
         <tr>
-          <td colspan=2><label><input type=checkbox name=preserve_html> Preserve HTML markup</label>
+          <td colspan=2>
+            <p><label><input type=checkbox name=no_fallback> Disable fallback for missing texts</label>
+            <p><label><input type=checkbox name=preserve_html> Preserve HTML markup</label>
       </table>
       <p class=buttons><button type=submit>Export</button>
+    </form>
+
+    <hr><!-- XXX -->
+    <h1>Import</h1>
+
+    <form action=import method=post enctype=multipart/form-data target=_blank>
+      <table class=config>
+        <tr>
+          <th><label for=import-file>Files</label>
+          <td><input type=file name=file multiple id=import-file><!-- XXX accept=... -->
+
+        <tr>
+          <th><label for=import-lang>Language</label>
+          <td>
+            <select id=import-lang name=lang>
+              <t:for as=$lang x="$tr->avail_langs">
+                <option pl:value=$lang pl:label=$lang><!-- XXX label -->
+              </t:for>
+            </select>
+        <tr>
+          <th><label for=import-format>Input format</label>
+          <td>
+            <select id=import-format name=format>
+              <option value=po>PO (GNU Gettext)
+            </select>
+        <tr>
+          <th><label for=import-arg_format>Argument format</label>
+          <td>
+            <select id=import-arg_format name=arg_format>
+              <option value=auto>Auto
+              <option value=printf>printf
+              <option value=percentn>%n
+              <option value=braced>{placeholder}
+            </select>
+      </table>
+
+      <p class=buttons><button type=submit>Import</button>
     </form>
     
   </section>
