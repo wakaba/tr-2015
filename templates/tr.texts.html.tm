@@ -125,6 +125,7 @@
                   <option value=0o data-fields=0,1>Singular (0, 1) and plural
                   <option value=test data-fields=0,2,3,4>Test
                 </select>
+              <p class=links><a pl:data-href="'i/{text_id}/history.json?lang='.$lang #XXX percent-encode ?" target=history>History</a>
             </form>
         </t:for>
     </template>
@@ -274,9 +275,12 @@ function addTexts (texts) {
       syncTextComments (comments, text.comments);
     }
 
-          Array.prototype.forEach.call (fragment.querySelectorAll ('form[data-action]'), function (el) {
-            el.action = el.getAttribute ('data-action').replace (/\{text_id\}/g, textId);
-          });
+    Array.prototype.forEach.call (fragment.querySelectorAll ('form[data-action]'), function (el) {
+      el.action = el.getAttribute ('data-action').replace (/\{text_id\}/g, textId);
+    });
+    Array.prototype.forEach.call (fragment.querySelectorAll ('a[data-href]'), function (el) {
+      el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, textId);
+    });
           
           Array.prototype.slice.call (fragment.children).forEach (function (el) {
             rowContainer.appendChild (el);

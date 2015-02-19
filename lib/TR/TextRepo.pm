@@ -1,6 +1,7 @@
 package TR::TextRepo;
 use strict;
 use warnings;
+use Path::Tiny;
 use AnyEvent::Util qw(run_cmd);
 use Promise;
 use Digest::SHA qw(sha1_hex);
@@ -144,6 +145,76 @@ sub text_id_and_suffix_to_path ($$$) {
   my ($self, $id, $suffix) = @_;
   return $self->texts_path->child ((substr $id, 0, 2) . '/' . (substr $id, 2) . '.' . $suffix);
 } # text_id_and_suffix_to_path
+
+sub text_id_and_suffix_to_relative_path ($$$) {
+  my ($self, $id, $suffix) = @_;
+  my $path = (defined $self->{texts_dir} and length $self->{texts_dir})
+      ? path ($self->{texts_dir}, 'texts') : path ('texts');
+  return $path->child ((substr $id, 0, 2) . '/' . (substr $id, 2) . '.' . $suffix);
+} # text_id_and_suffix_to_relative_path
+
+sub git_log_for_text_id_and_lang ($$$;%) {
+  my ($self, $id, $lang, %args) = @_;
+  my $rel_path = $self->text_id_and_suffix_to_relative_path ($id, $lang . '.txt');
+  my $mirror_path = $self->mirror_repo_path;
+  my $p = Promise->new (sub {
+    my ($ok, $ng) = @_;
+    my $log;
+    (run_cmd "cd \Q$mirror_path\E && git log --raw --format=raw -- \Q$rel_path\E", '>' => \$log)->cb (sub {
+      my $status = $_[0]->recv;
+      if ($status >> 8) {
+        $ng->("failed");
+      } else {
+        require Git::Parser::Log;
+        my $parsed = Git::Parser::Log->parse_format_raw ($log);
+        $ok->($parsed);
+      }
+    });
+  });
+
+  if ($args{with_file_text}) {
+    $p = $p->then (sub {
+      my $parsed = $_[0];
+      my @p;
+      for my $commit (@{$parsed->{commits}}) {
+        push @p, Promise->new (sub {
+          my ($ok, $ng) = @_;
+          my $ls;
+          (run_cmd "cd \Q$mirror_path\E && git ls-tree \Q$commit->{tree}\E \Q$rel_path\E", '>' => \$ls)->cb (sub {
+            my $status = $_[0]->recv;
+            if ($status >> 8) {
+              $ng->("failed");
+            } else {
+              if ($ls =~ /^\S+ blob ([0-9a-f]+)\s/m) {
+                $ok->($1);
+              } else {
+                $ng->("failed");
+              }
+            }
+          });
+        })->then (sub {
+          my $blob = $_[0];
+          return Promise->new (sub {
+            my ($ok, $ng) = @_;
+            my $data;
+            (run_cmd "cd \Q$mirror_path\E && git show \Q$blob\E", '>' => \$data)->cb (sub {
+              my $status = $_[0]->recv;
+              if ($status >> 8) {
+                $ng->("failed");
+              } else {
+                $commit->{blob_data} = $data;
+                $ok->();
+              }
+            });
+          });
+        });
+      } # $commit
+      return Promise->all (\@p)->then (sub { return $parsed });
+    });
+  }
+
+  return $p;
+} # git_log_for_text_id
 
 sub read_file_by_path ($$) {
   my ($self, $path) = @_;

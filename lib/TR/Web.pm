@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Path::Tiny;
 use Wanage::URL;
+use Encode;
 use Promise;
 use Wanage::HTTP;
 use TR::AppServer;
@@ -448,6 +449,37 @@ sub main ($$) {
           return $tr->push; # XXX failure
         })->then (sub {
           return $app->send_error (200); # XXX return JSON?
+        }, sub {
+          $app->error_log ($_[0]);
+          return $app->send_error (500);
+        })->then (sub {
+          return $tr->discard;
+        });
+
+      } elsif (@$path == 7 and $path->[6] eq 'history.json') {
+        # .../i/{text_id}/history.json
+
+        # XXX access control
+
+        my $id = $path->[5]; # XXX validation
+
+        my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX validation
+        return $tr->prepare_mirror->then (sub {
+          return $tr->git_log_for_text_id_and_lang
+              ($id, $lang, with_file_text => 1);
+        })->then (sub {
+          my $parsed = $_[0];
+          my @json;
+          for (@{$parsed->{commits}}) {
+            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, decode 'utf-8', $_->{blob_data});
+            push @json, {lang_text => $te->as_jsonalizable,
+                         commit => {commit => $_->{commit},
+                                    author => $_->{author},
+                                    committer => $_->{committer}}};
+          }
+          return {history => \@json};
+        })->then (sub {
+          return $app->send_json ($_[0]);
         }, sub {
           $app->error_log ($_[0]);
           return $app->send_error (500);
