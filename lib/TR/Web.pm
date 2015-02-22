@@ -83,16 +83,30 @@ sub main ($$) {
         $tr->langs ($langs);
         $tr->avail_langs ($all_langs);
 
+        require TR::Query;
+        my $q = TR::Query->parse_query (
+          query => $app->text_param ('q'),
+          text_ids => $app->text_param_list ('text_id'),
+          msgids => $app->text_param_list ('msgid'),
+          tag_ors => $app->text_param_list ('tag_or'),
+          tags => $app->text_param_list ('tag'),
+          tag_minuses => $app->text_param_list ('tag_minus'),
+        );
+
         my @param;
-        for my $k (qw(text_id msgid tag lang)) {
+        for my $k (qw(lang)) {
           my $list = $app->text_param_list ($k);
           for (@$list) {
             push @param, (percent_encode_c $k) . '=' . (percent_encode_c $_);
           }
         }
+        my $qs = $q->stringify;
+        push @param, 'q=' . (percent_encode_c $qs) if length $qs;
+
         return $app->temma ('tr.texts.html.tm', {
           app => $app,
           tr => $tr,
+          query => $q,
           data_params => (join '&', @param),
         });
       })->catch (sub {
@@ -107,11 +121,18 @@ sub main ($$) {
       return $tr->prepare_mirror->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
+        require TR::Query;
+        my $q = TR::Query->parse_query (
+          query => $app->text_param ('q'),
+          text_ids => $app->text_param_list ('text_id'),
+          msgids => $app->text_param_list ('msgid'),
+          tag_ors => $app->text_param_list ('tag_or'),
+          tags => $app->text_param_list ('tag'),
+          tag_minuses => $app->text_param_list ('tag_minus'),
+        );
         return $tr->get_data_as_jsonalizable
-            (langs => $app->text_param_list ('lang')->grep (sub { length }),
-             text_ids => $app->text_param_list ('text_id')->grep (sub { length }),
-             msgids => $app->text_param_list ('msgid')->grep (sub { length }),
-             tags => $app->text_param_list ('tag')->grep (sub { length }),
+            ($q,
+             $app->text_param_list ('lang')->grep (sub { length }),
              with_comments => $app->bare_param ('with_comments'));
       })->then (sub {
         return $app->send_json ($_[0]);

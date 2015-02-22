@@ -1,4 +1,4 @@
-<html t:params="$tr $data_params $app">
+<html t:params="$tr $data_params $app $query">
 <title>XXX</title>
 <link rel=stylesheet href=/css/common.css>
 <body onbeforeunload=" return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
@@ -12,6 +12,11 @@
 
   <link itemprop=data-url pl:href="'data.json?'.$data_params.'&with_comments=1'">
   <link itemprop=export-url pl:href="'export?'.$data_params">
+
+  <form action="./" method=get>
+    <!-- XXX langs -->
+    <input type=search name=q pl:value="$query->stringify">
+  </form>
 </header>
 
 <table id=texts pl:data-all-langs="join ',', @{$tr->avail_langs}">

@@ -273,19 +273,18 @@ sub text_ids ($) {
 } # text_ids
 
 sub get_data_as_jsonalizable ($%) {
-  my ($self, %args) = @_;
-  my $langs;
+  my ($self, $query, $langs, %args) = @_;
   return $self->read_file_by_path ($self->texts_path->child ('config.json'))->then (sub {
     my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
     $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
-    my $specified_langs = $args{langs} || [];
+    my $specified_langs = $langs;
     if (@$specified_langs) {
       my $avail_langs = {map { $_ => 1 } @$langs};
       @$specified_langs = grep { $avail_langs->{$_} } @$specified_langs;
       $langs = $specified_langs;
     }
   })->then (sub {
-    my $text_ids = $args{text_ids} || [];
+    my $text_ids = $query->text_ids;
     if (@$text_ids) {
       return {map { $_ => 1 } grep { /\A[0-9a-f]{3,}\z/ } @$text_ids};
     } else {
@@ -297,8 +296,10 @@ sub get_data_as_jsonalizable ($%) {
     my $texts = {};
     my @id = keys %{$_[0]};
     my @p;
-    my $tags = $args{tags} || [];
-    my $msgids = {map { $_ => 1 } @{$args{msgids} || []}};
+    my $tag_ors = $query->tag_ors;
+    my $tags = $query->tags;
+    my $tag_minuses = $query->tag_minuses;
+    my $msgids = {map { $_ => 1 } @{$query->msgids}};
     undef $msgids unless keys %$msgids;
     for my $id (@id) {
       push @p, $self->read_file_by_text_id_and_suffix ($id, 'dat')->then (sub {
@@ -309,8 +310,19 @@ sub get_data_as_jsonalizable ($%) {
           return unless defined $mid;
           return unless $msgids->{$mid};
         }
+        my $t = $te->enum ('tags');
+        for (@$tag_minuses) {
+          return if $t->{$_};
+        }
+        if (@$tag_ors) {
+          F: {
+            for (@$tag_ors) {
+              last F if $t->{$_};
+            }
+            return;
+          } # F
+        }
         if (@$tags) {
-          my $t = $te->enum ('tags');
           for (@$tags) {
             return unless $t->{$_};
           }
