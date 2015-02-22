@@ -53,6 +53,7 @@ header.site::after {
 
 footer.site {
   display: block;
+  min-height: 15em;
   margin: 1em 0 0 0;
   background-color: #eee;
   color: black;
@@ -308,6 +309,7 @@ thead, tbody, tfoot {
 
 button.toggle-edit, button.edit,
 button.settings,
+button.close,
 a.import,
 a.export {
   display: inline-block;
@@ -327,6 +329,7 @@ a.export {
 }
 button.toggle-edit::before, button.edit::before,
 button.settings::before,
+button.close::before,
 a.import::before,
 a.export::before {
   font-family: 'LigatureSymbols';
@@ -336,17 +339,10 @@ a.export::before {
   color: black;
 }
 
-button.settings::before {
-  content: "setting";
-}
-
-a.import::before {
-  content: "in";
-}
-
-a.export::before {
-  content: "out";
-}
+button.settings::before { content: "setting" }
+button.close::before { content: "close" }
+a.import::before { content: "in" }
+a.export::before { content: "out" }
 
 button.toggle-edit.active {
   border-top-left-radius: 0.3rem;
@@ -361,7 +357,11 @@ button.toggle-edit:active::before,
 button.edit:hover,
 button.edit:active,
 button.edit:hover::before,
-button.edit:active::before {
+button.edit:active::before,
+button.close:hover,
+button.close:active,
+button.close:hover::before,
+button.close:active::before {
   text-decoration: underline;
 }
 
@@ -508,6 +508,66 @@ button.edit:active::before {
   background: #eee;
 }
 
+table.config > * > * > th {
+  text-align: right;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+table.config > tbody > tr > th::after {
+  margin-left: 0.1em;
+  content: ":\A0";
+}
+
+table.config input {
+  margin-top: 0.3em;
+  margin-bottom: 0.3em;
+}
+
+table#texts > tbody.status td {
+  height: 10em;
+  vertical-align: middle;
+  text-align: center;
+}
+
+#add details {
+  margin: 0.3em;
+}
+
+#add details > summary {
+  margin: 0;
+  font-size: 90%;
+  font-weight: bolder;
+  cursor: pointer;
+}
+
+#add details > summary {
+  font-size: 100%;
+}
+
+#add form:not([hidden]) {
+  display: table;
+}
+
+#add table.config {
+  margin: 0.3em;
+}
+
+#add input[type=text] {
+  min-width: 20em;
+  max-width: 80%;
+}
+
+#add tr.tags-area {
+  display: table-row;
+  font-size: 100%;
+}
+
+#add .buttons button {
+  padding: 0.3em;
+  min-width: 8em;
+}
+
 .dialog:not([hidden]) {
   display: block;
   position: absolute;
@@ -548,11 +608,29 @@ button.edit:active::before {
   top: 0;
   right: 0;
   margin: 0;
+  font-size: 130%;
 }
 
 .dialog > section form > .buttons button {
   padding: 0.3em;
   min-width: 8em;
+}
+
+.copy-id table.config {
+  width: 100%;
+}
+
+.copy-id table.config th {
+  width: 8em;
+  vertical-align: middle;
+}
+
+.copyable {
+  font-size: 150%;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.1em;
+  font-family: monospace;
 }
 
 .config-text form > table {
@@ -562,18 +640,6 @@ button.edit:active::before {
 
 .config-text form > table > tbody > tr > th {
   min-width: 8em;
-  text-align: right;
-  vertical-align: top;
-  line-height: 1.5;
-}
-
-.config-text form > table > tbody > tr > th::after {
-  content: ":\A0";
-}
-
-.config-text input {
-  margin-top: 0.3em;
-  margin-bottom: 0.3em;
 }
 
 .config-text input[name=text_id],
@@ -627,12 +693,6 @@ button.edit:active::before {
 
 .config-text input[name=arg_desc] {
   width: 15rem;
-}
-
-a[rel=help] {
-  display: inline-block;
-  min-width: 1em;
-  text-align: center;
 }
 
 progress {

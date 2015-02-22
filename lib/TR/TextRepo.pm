@@ -300,6 +300,7 @@ sub get_data_as_jsonalizable ($%) {
     my $tag_minuses = $query->tag_minuses;
     my $msgids = {map { $_ => 1 } @{$query->msgids}};
     my $words = $query->words;
+    my $equals = $query->equals;
     undef $msgids unless keys %$msgids;
     my $p = Promise->resolve;
     for my $id (@id) {
@@ -329,7 +330,7 @@ sub get_data_as_jsonalizable ($%) {
         }
         my $entry = $te->as_jsonalizable;
         my @q;
-        my $matched;
+        my $matched = not @$words;
         for my $lang (@$langs) {
           push @q, $self->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
             return unless defined $_[0];
@@ -345,7 +346,6 @@ sub get_data_as_jsonalizable ($%) {
                       last M;
                     }
                   }
-                  return;
                 } # M
               }
             }
@@ -361,9 +361,14 @@ sub get_data_as_jsonalizable ($%) {
           });
         }
         return Promise->all (\@q)->then (sub {
-          if (not @$words or $matched) {
-            $data->{texts}->{$id} = $entry;
+          for my $lang (keys %$equals) {
+            my $v = ($entry->{langs}->{$lang} // {})->{body_0} // '';
+            unless ($v eq $equals->{$lang}) {
+              $matched = 0;
+              last;
+            }
           }
+          $data->{texts}->{$id} = $entry if $matched;
         });
         # XXX limit
       });

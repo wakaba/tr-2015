@@ -100,8 +100,6 @@ sub main ($$) {
             push @param, (percent_encode_c $k) . '=' . (percent_encode_c $_);
           }
         }
-        my $qs = $q->stringify;
-        push @param, 'q=' . (percent_encode_c $qs) if length $qs;
 
         return $app->temma ('tr.texts.html.tm', {
           app => $app,
@@ -118,11 +116,12 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'data.json') {
       # .../data.json
+      my $q;
       return $tr->prepare_mirror->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
         require TR::Query;
-        my $q = TR::Query->parse_query (
+        $q = TR::Query->parse_query (
           query => $app->text_param ('q'),
           text_ids => $app->text_param_list ('text_id'),
           msgids => $app->text_param_list ('msgid'),
@@ -135,7 +134,9 @@ sub main ($$) {
              $app->text_param_list ('lang')->grep (sub { length }),
              with_comments => $app->bare_param ('with_comments'));
       })->then (sub {
-        return $app->send_json ($_[0]);
+        my $json = $_[0];
+        $json->{query} = $q->as_jsonalizable;
+        return $app->send_json ($json);
       })->catch (sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);

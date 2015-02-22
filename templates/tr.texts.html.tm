@@ -1,7 +1,7 @@
 <html t:params="$tr $data_params $app $query">
 <title>XXX</title>
 <link rel=stylesheet href=/css/common.css>
-<body onbeforeunload=" return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
+<body onbeforeunload=" if (isEditMode ()) return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
 
 <header class=site>
 <h1><a href="/" rel=index>TR</a></h1>
@@ -40,7 +40,7 @@
     <p>
       <input type=search name=q pl:value="$query->stringify" placeholder="Filtering by words">
       <button type=submit>Apply</button>
-      <a href="/help/filtering" rel=help title="Filter syntax" target=help>?</a>
+      <a href="/help/filtering" rel=help title="Filter syntax" target=help>Help</a>
     <!-- XXX langs -->
   </form>
 </header>
@@ -53,112 +53,114 @@
         <th><t:text value=$lang>
       </t:for>
       <th>コメント
-  <tbody>
-    <template>
-      <tr class=text-header>
-        <th pl:colspan="$lang_cell_count+1">
-          <a class=msgid><code></code></a>
-          <a class=text_id><code></code></a>
-          <span class=tags-area>
-            <strong>タグ</strong>
-            <span class=tags></span>
-            <template>
-              <a href=... class=tag>...</a>
-            </template>
-          </span>
-
-          <span class=args-area>
-            <strong>引数</strong>
-            <span class=args></span>
-            <template>
-              <span class=arg>
-                <code>{<span class=arg_name></span>}</code>
-                <span class=arg_desc></span>
-              </span>
-            </template>
-          </span>
-
-          <span class=desc></span>
-          <span class=buttons><button type=button class=edit title="テキスト情報を編集" onclick=" showTextEditDialog (parentNode.parentNode) ">編集</button></span>
-      <tr class=text-body>
-        <t:for as=$lang x="$tr->langs">
-          <td pl:data-lang=$lang class=lang-area>
-            <p class=header>
-              <strong class=lang><t:text value=$lang></strong>
-              <button type=button class=toggle-edit title=Edit>Edit</button>
-            <div class=view>
-              <p class=body_0 data-form=0>
-              <p class=body_1 data-form=1>
-              <p class=body_2 data-form=2>
-              <p class=body_3 data-form=3>
-              <p class=body_4 data-form=4>
-              <menu class=text-form-tabs>
-                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
-                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
-                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
-                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
-                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
-              </menu>
-            </div>
-            <p class=status hidden><progress></progress> <span class=message></span>
-            <form data-action="i/{text_id}/" method=post class=edit hidden>
-              <p class=buttons><button type=submit>保存</button>
-              <input type=hidden name=lang pl:value=$lang>
-              <!-- XXX hash -->
-              <p data-form=0><textarea name=body_0></textarea>
-              <p data-form=1><textarea name=body_1></textarea>
-              <p data-form=2><textarea name=body_2></textarea>
-              <p data-form=3><textarea name=body_3></textarea>
-              <p data-form=4><textarea name=body_4></textarea>
-              <menu class=text-form-tabs>
-                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
-                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
-                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
-                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
-                <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
-              </menu>
-              <p>
-                <select name=forms>
-                  <option value=o data-fields=0>Only the default form
-                  <option value=1o data-fields=0,1>Singular (1) and plural
-                  <option value=0o data-fields=0,1>Singular (0, 1) and plural
-                  <option value=test data-fields=0,2,3,4>Test
-                </select>
-              <p class=links><a pl:data-href="'i/{text_id}/history.json?lang='.$lang #XXX percent-encode ?" target=history>History</a>
-            </form>
-        </t:for>
-
-        <td class=comments-area>
-          <p class=header><button type=button class=toggle-edit title="コメントを書く">コメントを書く</button>
-          <div class=comments-container></div>
+  </thead>
+  <template class=text-header-template>
+    <tr class=text-header>
+      <th pl:colspan="$lang_cell_count+1">
+        <a class=msgid onclick=" showCopyIdDialog (this.parentNode); return false "><code></code></a>
+        <a class=text_id onclick=" showCopyIdDialog (this.parentNode); return false "><code></code></a>
+        <span class=tags-area>
+          <strong>タグ</strong>
+          <span class=tags></span>
           <template>
-            <article>
-              <p class=body>
-              <footer><p><time></time></footer>
-            </article>
+            <a href=... class=tag onclick=" return openQueryAnchor (this) ">...</a>
           </template>
-          <div class=new-comment>
-            <div class=view>
-            </div>
-            <form data-action="i/{text_id}/comments" method=post class=edit hidden>
-              <p><textarea name=body></textarea>
-              <p class=buttons><button type=submit>投稿</button>
-            </form>
-            <p class=status hidden><progress></progress> <span class=message></span>
+        </span>
+
+        <span class=args-area>
+          <strong>引数</strong>
+          <span class=args></span>
+          <template>
+            <span class=arg>
+              <code>{<span class=arg_name></span>}</code>
+              <span class=arg_desc></span>
+            </span>
+          </template>
+        </span>
+
+        <span class=desc></span>
+        <span class=buttons><button type=button class=edit title="テキスト情報を編集" onclick=" showTextEditDialog (parentNode.parentNode) ">編集</button></span>
+    <tr class=text-body>
+      <t:for as=$lang x="$tr->langs">
+        <td pl:data-lang=$lang class=lang-area>
+          <p class=header>
+            <strong class=lang><t:text value=$lang></strong>
+            <button type=button class=toggle-edit title=Edit>Edit</button>
+          <div class=view>
+            <p class=body_0 data-form=0>
+            <p class=body_1 data-form=1>
+            <p class=body_2 data-form=2>
+            <p class=body_3 data-form=3>
+            <p class=body_4 data-form=4>
+            <menu class=text-form-tabs>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
+            </menu>
           </div>
-    </template>
-  <tfoot>
-    <tr class=status hidden>
-      <td pl:colspan="$lang_cell_count+1">
-        <progress></progress> <span class=message></span>
+          <p class=status hidden><progress></progress> <span class=message></span>
+          <form data-action="i/{text_id}/" method=post class=edit hidden>
+            <p class=buttons><button type=submit>保存</button>
+            <input type=hidden name=lang pl:value=$lang>
+            <!-- XXX hash -->
+            <p data-form=0><textarea name=body_0></textarea>
+            <p data-form=1><textarea name=body_1></textarea>
+            <p data-form=2><textarea name=body_2></textarea>
+            <p data-form=3><textarea name=body_3></textarea>
+            <p data-form=4><textarea name=body_4></textarea>
+            <menu class=text-form-tabs>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
+            </menu>
+            <p>
+              <select name=forms>
+                <option value=o data-fields=0>Only the default form
+                <option value=1o data-fields=0,1>Singular (1) and plural
+                <option value=0o data-fields=0,1>Singular (0, 1) and plural
+                <option value=test data-fields=0,2,3,4>Test
+              </select>
+            <p class=links><a pl:data-href="'i/{text_id}/history.json?lang='.$lang #XXX percent-encode ?" target=history>History</a>
+          </form>
+      </t:for>
+
+      <td class=comments-area>
+        <p class=header><button type=button class=toggle-edit title="コメントを書く">コメントを書く</button>
+        <div class=comments-container></div>
+        <template>
+          <article>
+            <p class=body>
+            <footer><p><time></time></footer>
+          </article>
+        </template>
+        <div class=new-comment>
+          <div class=view>
+          </div>
+          <form data-action="i/{text_id}/comments" method=post class=edit hidden>
+            <p><textarea name=body></textarea>
+            <p class=buttons><button type=submit>投稿</button>
+          </form>
+          <p class=status hidden><progress></progress> <span class=message></span>
+        </div>
+  </template> 
+  <tbody>
+  <tbody class=status hidden>
     <tr>
       <td pl:colspan="$lang_cell_count+1">
+        <progress></progress> <span class=message></span>
+  <tfoot>
+    <tr id=add>
+      <td pl:colspan="$lang_cell_count+1">
 
-<form action=add method=post onsubmit="
+    <form action=add method=post onsubmit="
   var form = this;
   form.hidden = true;
   var mainTable = document.getElementById ('texts');
-  var mainTableStatus = mainTable.querySelector ('tfoot .status');
+  var mainTableStatus = mainTable.querySelector ('tbody.status');
   mainTableStatus.hidden = false;
   mainTableStatus.querySelector ('.message').textContent = 'Adding...';
 
@@ -170,6 +172,7 @@
       if (xhr.status < 400) {
         var json = JSON.parse (xhr.responseText);
         addTexts (json.texts);
+        form.reset ();
       } else { // XXX
       }
       mainTableStatus.hidden = true;
@@ -178,47 +181,73 @@
   };
   xhr.send (fd);
   return false;
-">
-  <p>
-    <label><strong>メッセージID</strong>: <input type=text name=msgid pl:value="$app->text_param ('msgid') // ''"></label>
-    <t:for as=$tag x="$app->text_param_list ('tag')">
-      <input type=hidden name=tag pl:value=$tag>
-    </t:for>
-    <button type=submit>追加</button>
-</form>
-
-
+    ">
+      <details>
+        <summary>メッセージの追加</summary>
+      <table class=config>
+        <tr>
+          <th><label for=add-msgid>メッセージID</label>
+          <td><input type=text name=msgid pl:value="$app->text_param ('msgid') // ''" id=add-msgid>
+        <tr>
+          <th><label for=add-desc>簡単な説明</label>
+          <td><input type=text name=desc id=add-desc>
+        <tr class=tags-area hidden>
+          <th>タグ
+          <td>
+            <span class=tags></span>
+            <template>
+              <a href=... class=tag onclick=" return openQueryAnchor (this) ">...</a>
+              <input type=hidden name=tag>
+            </template>
+      </table>
+      <p class=buttons><button type=submit>追加</button>
+      </details>
+    </form>
 </table>
 
 <script src=/js/time.js charset=utf-8></script>
 <script>
+  function escapeQueryValue (v) {
+    return '"' + v.replace (/([\u0022\u005C])/g, function (x) { return '\\' + x }) + '"';
+  } // escapeQueryValue
+
+  function updateTagsArea (tagsArea, tags) {
+    var tagTemplate = tagsArea.querySelector ('template');
+    var tagsContainer = tagsArea.querySelector ('.tags');
+    tagsContainer.textContent = '';
+    tags.forEach (function (tag) {
+      var div = document.createElement ('div');
+      div.innerHTML = tagTemplate.innerHTML;
+      var t = div.querySelector ('.tag');
+      t.textContent = tag;
+      t.href = './?tag=' + encodeURIComponent (tag);
+      t.setAttribute ('data-query', 'tag:' + escapeQueryValue (tag));
+      var input = div.querySelector ('input[name=tag]');
+      if (input) input.value = tag;
+      Array.prototype.slice.call (div.childNodes).forEach (function (node) {
+        tagsContainer.appendChild (node);
+      });
+    });
+    tagsArea.hidden = !(tags.length > 0);
+  } // updateTagsArea
+
   function showTextMetadata (textId, text, area) {
     var tid = area.querySelector ('.text_id');
     tid.href = './?text_id=' + encodeURIComponent (textId);
+    tid.setAttribute ('data-query', 'text_id:' + escapeQueryValue (textId));
     tid.querySelector ('code').textContent = textId;
 
     if (text.msgid) {
       var mid = area.querySelector ('.msgid');
       mid.href = './?msgid=' + encodeURIComponent (text.msgid);
+      mid.setAttribute ('data-query', 'msgid:' + escapeQueryValue (text.msgid));
       mid.querySelector ('code').textContent = text.msgid;
     }
 
     area.querySelector ('.desc').textContent = text.desc || '';
 
     var tagsArea = area.querySelector ('.tags-area');
-    var tagTemplate = tagsArea.querySelector ('template');
-    var tagsContainer = tagsArea.querySelector ('.tags');
-    tagsContainer.textContent = '';
-    (text.tags || []).forEach (function (tag) {
-      var div = document.createElement ('div');
-      div.innerHTML = tagTemplate.innerHTML;
-      div.querySelector ('.tag').textContent = tag;
-      div.querySelector ('.tag').href = './?tag=' + encodeURIComponent (tag);
-      Array.prototype.slice.call (div.childNodes).forEach (function (node) {
-        tagsContainer.appendChild (node);
-      });
-    });
-    tagsArea.hidden = !((text.tags || []).length > 0);
+    updateTagsArea (tagsArea, text.tags || []);
 
     var argsArea = area.querySelector ('.args-area');
     var argTemplate = argsArea.querySelector ('template');
@@ -236,15 +265,30 @@
     argsArea.hidden = !((text.args || []).length > 0);
   } // showTextMetadata
 
-function addTexts (texts) {
+function isEditMode () {
+  return !!document.querySelector ('.dialog:not([hidden]), .toggle-edit.active');
+} // isEditMode
+
+function addTexts (iTexts) {
   var mainTable = document.getElementById ('texts');
   var rowContainer = mainTable.querySelector ('tbody');
-  var rowTemplate = rowContainer.querySelector ('template');
-  for (var textId in texts) (function (text) {
+  var rowTemplate = mainTable.querySelector ('template.text-header-template');
+
+  var texts = [];
+  for (var textId in iTexts) (function (text) {
+    text.textId = textId;
+    texts.push (text);
+  }) (iTexts[textId]);
+  texts.sort (function (a, b) {
+    var aMsgid = a.msgid || '';
+    var bMsgid = b.msgid || '';
+    return aMsgid > bMsgid ? 1 : aMsgid < bMsgid ? -1 :
+           a.textId > b.textId ? 1 : a.textId < b.textId ? -1 : 0;
+  }).forEach (function (text) {
     var fragment = document.createElement ('tbody');
     fragment.innerHTML = rowTemplate.innerHTML;
 
-    showTextMetadata (textId, text, fragment.querySelector ('.text-header > th'));
+    showTextMetadata (text.textId, text, fragment.querySelector ('.text-header > th'));
 
     Array.prototype.map.call (fragment.querySelectorAll ('.lang-area[data-lang]'), function (area) {
       var toggle = area.querySelector ('button.toggle-edit');
@@ -295,39 +339,66 @@ function addTexts (texts) {
     }
 
     Array.prototype.forEach.call (fragment.querySelectorAll ('form[data-action]'), function (el) {
-      el.action = el.getAttribute ('data-action').replace (/\{text_id\}/g, textId);
+      el.action = el.getAttribute ('data-action').replace (/\{text_id\}/g, text.textId);
     });
     Array.prototype.forEach.call (fragment.querySelectorAll ('a[data-href]'), function (el) {
-      el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, textId);
+      el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, text.textId);
     });
           
-          Array.prototype.slice.call (fragment.children).forEach (function (el) {
-            rowContainer.appendChild (el);
-          });
-  }) (texts[textId]);
+    Array.prototype.slice.call (fragment.children).forEach (function (el) {
+      rowContainer.appendChild (el);
+    });
+  });
 } // addTexts
 
+function updateTable () {
   var mainTable = document.getElementById ('texts');
-  var mainTableStatus = mainTable.querySelector ('tfoot .status');
+  var mainTableData = mainTable.tBodies[0];
+  mainTableData.hidden = true;
+  mainTableData.textContent = '';
+  var mainTableStatus = mainTable.querySelector ('tbody.status');
   mainTableStatus.hidden = false;
   mainTableStatus.querySelector ('.message').textContent = 'Loading...';
 
   var item = document.querySelector ('[itemtype=data]');
   var url = item.querySelector ('[itemprop=data-url]').href;
+  var form = item.querySelector ('form');
+  var query = form.elements.q.value;
   var xhr = new XMLHttpRequest;
-  xhr.open ('GET', url, true);
+  xhr.open ('POST', url, true);
   xhr.onreadystatechange = function () {
     if (xhr.readyState === 4) {
       if (xhr.status < 400) {
         var json = JSON.parse (xhr.responseText);
         addTexts (json.texts);
+        var tagsArea = document.querySelector ('#add .tags-area');
+        updateTagsArea (tagsArea, json.query.tags);
+        mainTableData.hidden = false;
         mainTableStatus.hidden = true;
+        history.replaceState (null, null, './?q=' + encodeURIComponent (query)); // XXX lang=...
       } else {
         // XXX
       }
     }
   };
-  xhr.send (null);
+  xhr.send (new FormData (form));
+  return false;
+} // updateTable
+document.querySelector ('[itemtype=data] form').onsubmit = function () {
+  if (isEditMode ()) {
+    if (!confirm ('保存していない編集を破棄します')) return false;
+  }
+  return updateTable ();
+};
+updateTable ();
+
+function openQueryAnchor (el) {
+  if (isEditMode ()) {
+    if (!confirm ('保存していない編集を破棄します')) return false;
+  }
+  document.querySelector ('[itemtype=data] form input[name=q]').value = el.getAttribute ('data-query');
+  return updateTable ();
+} // openQueryAnchor
 
 function syncLangAreaView (area) {
   var edit = area.querySelector ('form.edit');
@@ -522,6 +593,49 @@ function saveArea (area, onsaved) { // XXX promise
   </script>
 </div>
 
+<div class="dialog copy-id" id=copy-id hidden>
+  <section>
+    <header>
+      <h1>テキストID</h1>
+      <button type=button class=close title="閉じる">閉じる</button>
+    </header>
+
+    <table class=config>
+      <tr><th>テキストID<td><input class=copyable data-value="{text_id}">
+      <tr><th>メッセージID<td><input class=copyable data-value="{msgid}">
+      <tr><th>TT<td><input class=copyable data-value="[% loc('{msgid}') %]">
+      <!-- XXX repo-dependent templates -->
+    </table>
+  </section>
+  <script>
+    function showCopyIdDialog (area) {
+      var dialog = document.querySelector ('#copy-id');
+
+      var textId = area.querySelector ('.text_id').textContent;
+      var msgid = area.querySelector ('.msgid').textContent;
+
+      dialog.querySelector ('button.close').onclick = hideCopyIdDialog;
+
+      Array.prototype.forEach.call (dialog.querySelectorAll ('input.copyable'), function (input) {
+        var template = input.getAttribute ('data-value');
+        input.parentNode.parentNode.hidden
+            = (textId === "" && /\{text_id\}/.test (template)) ||
+              (msgid === "" && /\{msgid\}/.test (template));
+        input.value = template.replace (/\{text_id\}/g, textId).replace (/\{msgid\}/g, msgid);
+        input.onfocus = function () { this.select (0, this.value.length) };
+      });
+
+      dialog.hidden = false;
+      dialog.style.top = document.body.scrollTop + 'px';
+    } // showCopyIdDialog
+
+    function hideCopyIdDialog () {
+      var dialog = document.querySelector ('#copy-id');
+      dialog.hidden = true;
+    } // hideCopyIdDialog
+  </script>
+</div>
+
 <div class="dialog config-text" id=config-text hidden>
   <section>
     <header>
@@ -530,7 +644,7 @@ function saveArea (area, onsaved) { // XXX promise
     </header>
 
     <form data-action="i/{text_id}/meta" method=post>
-      <table>
+      <table class=config>
         <tbody>
           <tr>
             <th><label for=config-text-text-id>テキストID</label>
