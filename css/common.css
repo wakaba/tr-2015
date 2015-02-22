@@ -51,11 +51,6 @@ header.site::after {
   clear: both;
 }
 
-hgroup.repo h1, hgroup.repo > h2, hgroup.repo > h3 {
-  display: inline;
-  font-size: 100%;
-}
-
 footer.site {
   display: block;
   margin: 1em 0 0 0;
@@ -84,20 +79,42 @@ footer.site a:hover {
   text-decoration: underline;
 }
 
-hgroup.repo h1 code::before {
+header.textset {
+  position: relative;
+}
+
+header.textset hgroup > h1,
+header.textset hgroup > h2,
+header.textset hgroup > h3 {
+  display: inline;
+  font-size: 130%;
+}
+
+header.textset hgroup h1 code::before {
   content: "<";
 }
 
-hgroup.repo h1 code::after {
+header.textset hgroup h1 code::after {
   content: ">";
 }
 
-hgroup.repo h2::before {
+header.textset hgroup h2::before {
   content: " - ";
 }
 
-hgroup.repo h3::before {
+header.textset hgroup h3::before {
   content: " - ";
+}
+
+header.textset nav {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+header.textset nav > button,
+header.textset nav > a {
+  font-size: 130%;
 }
 
 body > section {
@@ -289,7 +306,11 @@ thead, tbody, tfoot {
   line-height: 1.0;
 }
 
-button.toggle-edit, button.edit {
+button.toggle-edit, button.edit,
+button.settings,
+a.import,
+a.export {
+  display: inline-block;
   -webkit-appearance: none;
   -moz-appearance: none;
   width: 1em;
@@ -300,13 +321,31 @@ button.toggle-edit, button.edit {
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  vertical-align: middle;
 }
-button.toggle-edit::before, button.edit::before {
+button.toggle-edit::before, button.edit::before,
+button.settings::before,
+a.import::before,
+a.export::before {
   font-family: 'LigatureSymbols';
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   content: "pen";
   color: black;
+}
+
+button.settings::before {
+  content: "setting";
+}
+
+a.import::before {
+  content: "in";
+}
+
+a.export::before {
+  content: "out";
 }
 
 button.toggle-edit.active {

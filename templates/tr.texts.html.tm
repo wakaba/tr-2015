@@ -13,15 +13,28 @@
 
 <section>
 
-<header itemscope itemtype=data>
-  <hgroup class=repo> 
+<header class=textset itemscope itemtype=data>
+  <hgroup> 
     <h1 title=Repository><a href="../../" rel="up up"><code itemprop=url><t:text value="$tr->url"></code></a></h1>
     <h2 title=Branch><a href="../" rel=up><code itemprop=branch><t:text value="$tr->branch"></code></a></h2>
     <h3 title=Path><a href="./" rel=bookmark><code itemprop=texts-path><t:text value="'/' . $tr->texts_dir"></code></a></h3>
   </hgroup>
-
   <link itemprop=data-url pl:href="'data.json?'.$data_params.'&with_comments=1'">
   <link itemprop=export-url pl:href="'export?'.$data_params">
+
+  <nav class=langs-menu-container>
+    <a href="#config-export" onclick=" toggleExportDialog (true) " class=import title="テキスト集合に外部データを取り込み">Import</a>
+    <a href="#config-export" onclick=" toggleExportDialog (true) " class=export title="テキスト集合からデータファイルを生成">Export</a>
+    <button type=button class=settings title="テキスト集合全体の設定を変更">設定</button>
+    <menu hidden>
+          <!-- XXX -->
+          <t:for as=$lang x="$tr->avail_langs">
+            <label><input type=checkbox pl:value=$lang> <t:text value=$lang></label>
+          </t:for>
+          <hr>
+          <a href="#config-langs" onclick=" toggleLangsConfig (true) ">言語設定...</a>
+    </menu>
+  </nav>
 
   <form action="./" method=get class=filter>
     <p>
@@ -40,18 +53,6 @@
         <th><t:text value=$lang>
       </t:for>
       <th>コメント
-      <th class=langs-menu-container>
-        <button type=button title="言語の選択">&#x25BC;</button>
-        <menu hidden>
-          <!-- XXX -->
-          <t:for as=$lang x="$tr->avail_langs">
-            <label><input type=checkbox pl:value=$lang> <t:text value=$lang></label>
-          </t:for>
-          <hr>
-          <a href="#config-langs" onclick=" toggleLangsConfig (true) ">言語設定...</a>
-          <hr>
-          <a href="#config-export" onclick=" toggleExportDialog (true) ">Export...</a>
-        </menu>
   <tbody>
     <template>
       <tr class=text-header>
@@ -464,7 +465,7 @@ function saveArea (area, onsaved) { // XXX promise
 
       (function () {
         var langsMenuContainer = document.querySelector ('.langs-menu-container');
-        var langsMenuButton = langsMenuContainer.querySelector ('button');
+        var langsMenuButton = langsMenuContainer.querySelector ('button.settings');
         var langsMenu = langsMenuContainer.querySelector ('menu');
         langsMenuButton.onclick = function () {
           langsMenu.hidden = !langsMenu.hidden;
