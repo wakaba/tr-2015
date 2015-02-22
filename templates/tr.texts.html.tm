@@ -21,6 +21,7 @@
       <t:for as=$lang x="$tr->langs">
         <th><t:text value=$lang>
       </t:for>
+      <th>コメント
       <th class=langs-menu-container>
         <button type=button title="言語の選択">&#x25BC;</button>
         <menu hidden>
@@ -36,7 +37,7 @@
   <tbody>
     <template>
       <tr class=text-header>
-        <th pl:colspan=$lang_cell_count>
+        <th pl:colspan="$lang_cell_count+1">
           <a class=msgid><code></code></a>
           <a class=text_id><code></code></a>
           <span class=tags-area>
@@ -59,28 +60,7 @@
           </span>
 
           <span class=desc></span>
-          <span class=buttons><button type=button class=edit onclick=" showTextEditDialog (parentNode.parentNode) ">編集</button></span>
-
-          <section class=comments>
-            <h1>コメント</h1>
-            <div class=comments-container></div>
-            <template>
-              <article>
-                <p class=body>
-                <p><time></time>
-              </article>
-            </template>
-            <div class=new-comment>
-              <p class=buttons><button type=button class=toggle-edit title="コメントを書く">コメントを書く</button>
-              <div class=view>
-              </div>
-              <form data-action="i/{text_id}/comments" method=post class=edit hidden>
-                <p><textarea name=body></textarea>
-                <p class=buttons><button type=submit>投稿</button>
-              </form>
-              <p class=status hidden><progress></progress> <span class=message></span>
-            </div>
-          </section>
+          <span class=buttons><button type=button class=edit title="テキスト情報を編集" onclick=" showTextEditDialog (parentNode.parentNode) ">編集</button></span>
       <tr class=text-body>
         <t:for as=$lang x="$tr->langs">
           <td pl:data-lang=$lang class=lang-area>
@@ -128,13 +108,32 @@
               <p class=links><a pl:data-href="'i/{text_id}/history.json?lang='.$lang #XXX percent-encode ?" target=history>History</a>
             </form>
         </t:for>
+
+        <td class=comments-area>
+          <p class=header><button type=button class=toggle-edit title="コメントを書く">コメントを書く</button>
+          <div class=comments-container></div>
+          <template>
+            <article>
+              <p class=body>
+              <footer><p><time></time></footer>
+            </article>
+          </template>
+          <div class=new-comment>
+            <div class=view>
+            </div>
+            <form data-action="i/{text_id}/comments" method=post class=edit hidden>
+              <p><textarea name=body></textarea>
+              <p class=buttons><button type=submit>投稿</button>
+            </form>
+            <p class=status hidden><progress></progress> <span class=message></span>
+          </div>
     </template>
   <tfoot>
     <tr class=status hidden>
-      <td pl:colspan=$lang_cell_count>
+      <td pl:colspan="$lang_cell_count+1">
         <progress></progress> <span class=message></span>
     <tr>
-      <td pl:colspan=$lang_cell_count>
+      <td pl:colspan="$lang_cell_count+1">
 
 <form action=add method=post onsubmit="
   var form = this;
@@ -200,6 +199,7 @@
         tagsContainer.appendChild (node);
       });
     });
+    tagsArea.hidden = !((text.tags || []).length > 0);
 
     var argsArea = area.querySelector ('.args-area');
     var argTemplate = argsArea.querySelector ('template');
@@ -257,9 +257,9 @@ function addTexts (texts) {
       area.trSync (area);
     });
 
-    var comments = fragment.querySelector ('.comments');
+    var comments = fragment.querySelector ('.comments-area');
     comments.querySelector ('button.toggle-edit').onclick = function () {
-      toggleAreaEditor (comments, true);
+      toggleAreaEditor (comments, !this.classList.contains ('active'));
     };
     var commentForm = comments.querySelector ('form');
     commentForm.onsubmit = function () {
@@ -367,6 +367,7 @@ function toggleAreaEditor (area, editMode) {
     view.hidden = false;
     edit.hidden = true;
   }
+  area.classList.toggle ('edit-mode', editMode);
   toggle.classList.toggle ('active', editMode);
 } // toggleAreaEditor
 

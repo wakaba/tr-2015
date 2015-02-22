@@ -1,3 +1,7 @@
+html {
+  word-wrap: break-word;
+}
+
 h1, hgroup {
   display: block;
   color: green;
@@ -19,9 +23,9 @@ table#texts {
 
 table#texts > * > tr > th,
 table#texts > * > tr > td {
-  padding: 0.3rem;
+  padding: 0.1rem;
   vertical-align: top;
-  width: 10em;
+  width: 10rem;
 }
 
 table#texts > thead > tr > th:nth-child(2n+1),
@@ -156,7 +160,7 @@ thead, tbody, tfoot {
 .text-header th > .buttons {
   display: block;
   position: absolute;
-  margin: 0.3em;
+  margin: 0 0.3em;
   top: 0;
   right: 0;
 }
@@ -183,7 +187,7 @@ thead, tbody, tfoot {
   line-height: 1.0;
 }
 
-.toggle-edit {
+button.toggle-edit, button.edit {
   -webkit-appearance: none;
   -moz-appearance: none;
   width: 1em;
@@ -195,7 +199,7 @@ thead, tbody, tfoot {
   overflow: hidden;
   cursor: pointer;
 }
-.toggle-edit::before {
+button.toggle-edit::before, button.edit::before {
   font-family: 'LigatureSymbols';
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -203,16 +207,20 @@ thead, tbody, tfoot {
   color: black;
 }
 
-.toggle-edit.active {
+button.toggle-edit.active {
   border-top-left-radius: 0.3rem;
   border-top-right-radius: 0.3rem;
   background: white;
 }
 
-.toggle-edit:hover,
-.toggle-edit:active,
-.toggle-edit:hover::before,
-.toggle-edit:active::before {
+button.toggle-edit:hover,
+button.toggle-edit:active,
+button.toggle-edit:hover::before,
+button.toggle-edit:active::before,
+button.edit:hover,
+button.edit:active,
+button.edit:hover::before,
+button.edit:active::before {
   text-decoration: underline;
 }
 
@@ -221,7 +229,8 @@ thead, tbody, tfoot {
   text-align: center;
 }
 
-.lang-area > .header {
+.lang-area > .header,
+.comments-area > .header {
   display: block;
   margin: 0 0 0.3em 0;
   text-indent: 0;
@@ -229,54 +238,93 @@ thead, tbody, tfoot {
   min-height: 1em;
 }
 
-.lang-area > .header::after {
+.lang-area > .header::after,
+.comments-area > .header::after {
   content: "";
   clear: both;
 }
 
-.lang-area > .header > strong {
+.lang-area > .header > strong,
+.comments-area > .header > strong {
   float: left;
   font-weight: normal;
   color: gray
 }
 
-.lang-area > .header > button {
+.lang-area > .header > button,
+.comments-area > .header > button {
   float: right;
 }
 
-.lang-area > .edit {
-
-}
-
-.lang-area > .edit p {
+.lang-area .edit p,
+.comments-area .edit p {
   margin: 0;
 }
 
-.lang-area > .edit textarea {
+.lang-area .edit textarea,
+.comments-area .edit textarea {
   box-sizing: border-box;
   width: 100%;
   min-height: 10em;
   margin: 0;
-  padding: 0.3rem;
+  border: none;
+  padding: 0.1rem;
+  font-size: 90%;
+  font-family: sans-serif;
+  line-height: 1.4;
 }
 
-.lang-area > .edit select {
+.lang-area .edit select,
+.comments-area .edit select {
   width: 100%;
 }
 
-.lang-area > .edit .buttons {
+.lang-area .edit .buttons,
+.comments-area .edit .buttons {
   margin-top: 0.3em;
   text-align: right;
 }
 
+.lang-area > .view {
+  margin: 0;
+}
+
 .lang-area > .view p {
-  margin: 0.3rem;
-  border-radius: 0.3rem;
-  padding: 0.3rem;
+  margin: 0;
+  padding: 0.1rem;
   background: white;
   color: black;
-  line-height: 1.6;
+  line-height: 1.4;
+  font-family: sans-serif;
+  font-size: 90%;
   min-height: 2rem;
+  width: 9.6rem;
+}
+
+.comments-area article {
+  display: block;
+  margin: 0 0 0.3em 0;
+  font-size: 90%;
+  max-width: 9.5rem;
+}
+
+.comments-area.edit-mode article {
+  margin-bottom: 0.5em;
+}
+
+.comments-area article p {
+  margin: 0;
+}
+
+.comments-area article footer {
+  display: none;
+  font-size: 80%;
+  color: gray;
+  text-align: right;
+}
+
+.comments-area.edit-mode article footer {
+  display: block;
 }
 
 .text-form-tabs:not([hidden]) {
@@ -438,4 +486,8 @@ thead, tbody, tfoot {
 
 .config-text input[name=arg_desc] {
   width: 15rem;
+}
+
+progress {
+  max-width: 95%;
 }
