@@ -10,6 +10,7 @@ sub parse_query ($%) {
     tag_ors => $args{tag_ors} || [],
     tags => $args{tags} || [],
     tag_minuses => $args{tag_minuses} || [],
+    words => $args{words} || [],
   }, $class;
 
   my $q = $args{query} // '';
@@ -23,8 +24,7 @@ sub parse_query ($%) {
       my $v = $1;
       $v =~ s/\\(.)/$1/g;
       if (not defined $prefix) {
-        #XXX
-
+        push @{$self->{words}}, $v;
       } elsif ($prefix eq '-tag') {
         push @{$self->{tag_minuses}}, $v;
       } elsif ($prefix eq '|tag') {
@@ -34,8 +34,7 @@ sub parse_query ($%) {
       }
     } elsif ($q =~ s/^([^\x09\x0A\x0C\x0D\x20]*)//) {
       if (not defined $prefix) {
-        #XXX
-
+        push @{$self->{words}}, $1 if length $1;
       } elsif ($prefix eq '-tag') {
         push @{$self->{tag_minuses}}, $1;
       } elsif ($prefix eq '|tag') {
@@ -54,6 +53,7 @@ sub msgids ($) { return $_[0]->{msgids} }
 sub tag_ors ($) { return $_[0]->{tag_ors} }
 sub tags ($) { return $_[0]->{tags} }
 sub tag_minuses ($) { return $_[0]->{tag_minuses} }
+sub words ($) { return $_[0]->{words} }
 
 sub _s ($) {
   my $s = $_[0];
@@ -75,6 +75,7 @@ sub stringify ($) {
   push @result, 'tag:' . _s $_ for @{$self->{tags}};
   push @result, 'text_id:' . _s $_ for @{$self->{text_ids}};
   push @result, 'msgid:' . _s $_ for @{$self->{msgids}};
+  push @result, _s $_ for @{$self->{words}};
   return join ' ', @result;
 } # stringify
 

@@ -295,16 +295,16 @@ sub get_data_as_jsonalizable ($%) {
     my $data = {};
     my $texts = {};
     my @id = keys %{$_[0]};
-    my @p;
     my $tag_ors = $query->tag_ors;
     my $tags = $query->tags;
     my $tag_minuses = $query->tag_minuses;
     my $msgids = {map { $_ => 1 } @{$query->msgids}};
+    my $words = $query->words;
     undef $msgids unless keys %$msgids;
+    my $p = Promise->resolve;
     for my $id (@id) {
-      push @p, $self->read_file_by_text_id_and_suffix ($id, 'dat')->then (sub {
+      $p = $p->then (sub { $self->read_file_by_text_id_and_suffix ($id, 'dat') })->then (sub {
         my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
-        my $ok = 1;
         if (defined $msgids) {
           my $mid = $te->get ('msgid');
           return unless defined $mid;
@@ -327,27 +327,48 @@ sub get_data_as_jsonalizable ($%) {
             return unless $t->{$_};
           }
         }
-        $data->{texts}->{$id} = $te->as_jsonalizable;
+        my $entry = $te->as_jsonalizable;
         my @q;
+        my $matched;
         for my $lang (@$langs) {
           push @q, $self->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
             return unless defined $_[0];
-            $data->{texts}->{$id}->{langs}->{$lang} = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0])->as_jsonalizable;
+            my $e = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0]);
+            if (@$words) {
+              for my $word (@$words) {
+                M: {
+                  for (qw(body_0 body_1 body_2 body_3 body_4)) {
+                    my $value = $e->get ($_) // '';
+                    $value =~ s/\s+/ /g;
+                    if ($value =~ /\Q$word\E/i) {
+                      $matched = 1;
+                      last M;
+                    }
+                  }
+                  return;
+                } # M
+              }
+            }
+            $entry->{langs}->{$lang} = $e->as_jsonalizable;
           });
         }
         if ($args{with_comments}) {
-          my $comments = $data->{texts}->{$id}->{comments} = [];
+          my $comments = $entry->{comments} = [];
           push @q, $self->read_file_by_text_id_and_suffix ($id, 'comments')->then (sub {
             for (grep { length } split /\x0D?\x0A\x0D?\x0A/, $_[0] // '') {
               push @$comments, TR::TextEntry->new_from_text_id_and_source_text ($id, $_)->as_jsonalizable;
             }
           });
         }
-        return Promise->all (\@q);
+        return Promise->all (\@q)->then (sub {
+          if (not @$words or $matched) {
+            $data->{texts}->{$id} = $entry;
+          }
+        });
         # XXX limit
       });
     } # $id
-    return Promise->all (\@p)->then (sub {
+    return $p->then (sub {
       return $data;
     });
   });

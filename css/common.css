@@ -2,14 +2,117 @@ html {
   word-wrap: break-word;
 }
 
+body {
+  margin: 0;
+}
+
 h1, hgroup {
   display: block;
   color: green;
 }
 
-hgroup > h2, hgroup > h3 {
+hgroup > h1, hgroup > h2, hgroup > h3 {
+  margin: 0;
+}
+
+hgroup a, h1 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+header.site {
+  display: block;
+  margin: 0 0 0.5em 0;
+  padding: 0.3em;
+  background-color: black;
+  color: white;
+}
+
+header.site h1 {
+  float: left;
+  margin: 0;
+  font-weight: normal;
+  font-size: 100%;
+  color: inherit;
+}
+
+header.site nav {
+  display: block;
+  margin: 0;
+  text-align: right;
+}
+
+header.site nav a {
+  color: inherit;
+}
+
+header.site::after {
+  content: "";
+  clear: both;
+}
+
+hgroup.repo h1, hgroup.repo > h2, hgroup.repo > h3 {
   display: inline;
   font-size: 100%;
+}
+
+footer.site {
+  display: block;
+  margin: 1em 0 0 0;
+  background-color: #eee;
+  color: black;
+  font-size: 90%;
+}
+
+footer.site > ul {
+  display: inline-block;
+  width: 10em;
+  text-align: left;
+  vertical-align: top;
+}
+
+footer.site > ul > li {
+  display: block;
+  line-height: 1.5;
+}
+
+footer.site a {
+  text-decoration: none;
+}
+
+footer.site a:hover {
+  text-decoration: underline;
+}
+
+hgroup.repo h1 code::before {
+  content: "<";
+}
+
+hgroup.repo h1 code::after {
+  content: ">";
+}
+
+hgroup.repo h2::before {
+  content: " - ";
+}
+
+hgroup.repo h3::before {
+  content: " - ";
+}
+
+body > section {
+  margin: 0.5em;
+  min-height: 100vh;
+}
+
+.filter {
+  display: block;
+  width: 100%;
+  margin: 0.5em 0;
+}
+
+.filter input[name=q] {
+  width: 80%;
 }
 
 table#texts {
@@ -160,13 +263,12 @@ thead, tbody, tfoot {
 .text-header th > .buttons {
   display: block;
   position: absolute;
-  margin: 0 0.3em;
+  margin: 0;
   top: 0;
   right: 0;
 }
 
 .text-header th > .buttons button {
-  font-size: 70%;
 }
 
 @font-face {
@@ -263,8 +365,8 @@ button.edit:active::before {
 
 .lang-area .edit textarea,
 .comments-area .edit textarea {
-  box-sizing: border-box;
-  width: 100%;
+  box-sizing: content-box;
+  width: 9.6rem;
   min-height: 10em;
   margin: 0;
   border: none;
@@ -486,6 +588,12 @@ button.edit:active::before {
 
 .config-text input[name=arg_desc] {
   width: 15rem;
+}
+
+a[rel=help] {
+  display: inline-block;
+  min-width: 1em;
+  text-align: center;
 }
 
 progress {

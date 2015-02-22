@@ -3,19 +3,32 @@
 <link rel=stylesheet href=/css/common.css>
 <body onbeforeunload=" return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
 
+<header class=site>
+<h1><a href="/" rel=index>TR</a></h1>
+
+<nav>
+  <a href="/help" rel=help>Help</a>
+</nav>
+</header>
+
+<section>
+
 <header itemscope itemtype=data>
-  <hgroup> 
-    <h1><code itemprop=url><t:text value="$tr->url"></code></h1>
-    <h2><code itemprop=branch><t:text value="$tr->branch"></code></h2>
-    <h3><code itemprop=texts-path><t:text value="'/' . $tr->texts_dir"></code></h3>
+  <hgroup class=repo> 
+    <h1 title=Repository><a href="../../" rel="up up"><code itemprop=url><t:text value="$tr->url"></code></a></h1>
+    <h2 title=Branch><a href="../" rel=up><code itemprop=branch><t:text value="$tr->branch"></code></a></h2>
+    <h3 title=Path><a href="./" rel=bookmark><code itemprop=texts-path><t:text value="'/' . $tr->texts_dir"></code></a></h3>
   </hgroup>
 
   <link itemprop=data-url pl:href="'data.json?'.$data_params.'&with_comments=1'">
   <link itemprop=export-url pl:href="'export?'.$data_params">
 
-  <form action="./" method=get>
+  <form action="./" method=get class=filter>
+    <p>
+      <input type=search name=q pl:value="$query->stringify" placeholder="Filtering by words">
+      <button type=submit>Apply</button>
+      <a href="/help/filtering" rel=help title="Filter syntax" target=help>?</a>
     <!-- XXX langs -->
-    <input type=search name=q pl:value="$query->stringify">
   </form>
 </header>
 
@@ -403,6 +416,8 @@ function saveArea (area, onsaved) { // XXX promise
 } // saveArea
 </script>
 
+</section>
+
 <div class=dialog id=config-langs hidden>
   <section>
     <header>
@@ -738,3 +753,14 @@ function saveArea (area, onsaved) { // XXX promise
     }) ();
   </script>
 </div>
+
+<footer class=site>
+  <ul>
+    <li><a href="/" rel=index>Top</a>
+  </ul>
+  <ul>
+    <li><a href="/help" rel=help>Help</a>
+    <li><a href="/api">API</a>
+    <li><a href="/rule">Terms</a>
+  </ul>
+</footer>
