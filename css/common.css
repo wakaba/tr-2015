@@ -313,7 +313,8 @@ button.toggle-edit, button.edit,
 button.settings,
 button.close,
 a.import,
-a.export {
+a.export,
+a.share {
   display: inline-block;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -333,7 +334,8 @@ button.toggle-edit::before, button.edit::before,
 button.settings::before,
 button.close::before,
 a.import::before,
-a.export::before {
+a.export::before,
+a.share::before {
   font-family: 'LigatureSymbols';
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -345,6 +347,7 @@ button.settings::before { content: "setting" }
 button.close::before { content: "close" }
 a.import::before { content: "in" }
 a.export::before { content: "out" }
+a.share::before { content: "link" }
 
 button.toggle-edit.active {
   border-top-left-radius: 0.3rem;
@@ -620,11 +623,13 @@ table#texts > tbody.status td {
   min-width: 8em;
 }
 
-.copy-id table.config {
+.copy-id table.config,
+.share table.config {
   width: 100%;
 }
 
-.copy-id table.config th {
+.copy-id table.config th,
+.share table.config th {
   width: 8em;
   vertical-align: middle;
 }

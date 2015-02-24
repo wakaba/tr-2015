@@ -17,6 +17,7 @@
   <link itemprop=export-url pl:href="'export?'.$data_params">
 
   <nav class=langs-menu-container>
+    <a href="#share" onclick=" showShareDialog () " class=share title="共有">Share</a>
     <a href="#config-export" onclick=" toggleExportDialog (true) " class=import title="テキスト集合に外部データを取り込み">Import</a>
     <a href="#config-export" onclick=" toggleExportDialog (true) " class=export title="テキスト集合からデータファイルを生成">Export</a>
     <button type=button class=settings title="テキスト集合全体の設定を変更">設定</button>
@@ -585,6 +586,43 @@ function saveArea (area, onsaved) { // XXX promise
           toggleLangsConfig (true);
         }
       }) ();
+  </script>
+</div>
+
+<div class="dialog share" id=share hidden>
+  <section>
+    <header>
+      <h1>共有</h1>
+      <button type=button class=close title="閉じる">閉じる</button>
+    </header>
+
+    <table class=config>
+      <tr><th>全体<td><input class=copyable>
+      <tr><th>現在の絞り込み<td><input class=copyable>
+      <!-- XXX langs -->
+    </table>
+  </section>
+  <script>
+    function showShareDialog (area) {
+      var dialog = document.querySelector ('#share');
+      dialog.querySelector ('button.close').onclick = hideShareDialog;
+
+      var texts = dialog.querySelectorAll ('.copyable');
+      texts[0].value = location.href.replace (/\?.*/, '');
+      texts[1].value = location.href.replace (/#.*/, '');
+
+      Array.prototype.forEach.call (texts, function (input) {
+        input.onfocus = function () { this.select (0, this.value.length) };
+      });
+
+      dialog.hidden = false;
+      dialog.style.top = document.body.scrollTop + 'px';
+    } // showShareDialog
+
+    function hideShareDialog () {
+      var dialog = document.querySelector ('#share');
+      dialog.hidden = true;
+    } // hideShareDialog
   </script>
 </div>
 
