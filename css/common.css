@@ -100,11 +100,13 @@ header.textset hgroup h1 code::after {
 }
 
 header.textset hgroup h2::before {
-  content: " - ";
+  content: " \25BA  ";
+  white-space: pre;
 }
 
 header.textset hgroup h3::before {
-  content: " - ";
+  content: " \25BA  ";
+  white-space: pre;
 }
 
 header.textset nav {
@@ -551,6 +553,8 @@ table#texts > tbody.status td {
 
 #add table.config {
   margin: 0.3em;
+  min-width: 30em;
+  max-width: 100%;
 }
 
 #add input[type=text] {
@@ -558,7 +562,7 @@ table#texts > tbody.status td {
   max-width: 80%;
 }
 
-#add tr.tags-area {
+#add tr.tags-area:not([hidden]) {
   display: table-row;
   font-size: 100%;
 }
@@ -695,39 +699,85 @@ table#texts > tbody.status td {
   width: 15rem;
 }
 
-table.branches {
+table.branches,
+table.text-sets {
 }
 
 .branches th,
-.branches td {
+.branches td,
+.text-sets th,
+.text-sets td {
   padding: 0.3em;
 }
 
-.branches thead th {
+.branches thead th,
+.text-sets thead th {
   background: #c8ffc8;
   color: black;
 }
 
-.branches tbody tr {
+.branches tbody tr,
+.text-sets tbody tr {
   cursor: pointer;
 }
 
-.branches tbody tr:hover {
+.branches tbody tr:hover,
+.text-sets tbody tr:hover {
   background-color: #ecffec;
   color: black;
 }
 
-.branches tbody th {
+.branches tbody th,
+.text-sets tbody th {
   min-width: 10em;
   text-align: left;
   font-weight: normal;
 }
 
 .branches .default th,
-.branches .default td {
+.branches .default td,
+.text-sets .default th,
+.text-sets .default td {
   font-weight: bolder;
+}
+
+.branches .commit-message,
+.text-sets .commit-message {
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+}
+
+#add-text-set {
+  margin: 0.3em;
+}
+
+#add-text-set summary {
+  font-weight: bolder;
+  cursor: pointer;
+}
+
+#add-text-set p {
+  margin: 0.3em;
+}
+
+#add-text-set input[name=path] {
+  width: 15em;
 }
 
 progress {
   max-width: 95%;
+}
+
+p.help {
+  text-align: right;
+}
+
+a[rel~=help] {
+  font-size: 90%;
+  color: gray;
+}
+
+a[rel~=help]::before {
+  content: "[?] ";
 }

@@ -30,7 +30,7 @@
             <t:if x="$branch->{selected}"><t:class name="'default'"></t:if>
             <th><a pl:href="'./'.(percent_encode_c $branch->{name}).'/'"><code><t:text value="$branch->{name}"></code></a>
             <td><m:timestamp m:value="$branch->{commit_log}->{author}->{time}"/>
-            <td><t:text value="$branch->{commit_message}">
+            <td><span class=commit-message><t:text value="$branch->{commit_message}"></span>
         </t:for>
     </table>
   </section>

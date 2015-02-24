@@ -178,6 +178,70 @@ sub get_commit_logs ($$) {
   });
 } # get_commit_logs
 
+sub get_logs_by_path ($$;%) {
+  my ($self, $path, %args) = @_;
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    my $log;
+    my $mirror_path = $self->mirror_repo_path;
+    my $branch = $self->branch;
+    my $args = '';
+    $args = '-' . (0+$args{limit}) if $args{limit};
+    (run_cmd "cd \Q$mirror_path\E && git log $args --raw --format=raw \Q$branch\E -- \Q$path\E", '>' => \$log)->cb (sub {
+      my $status = $_[0]->recv;
+      if ($status >> 8) {
+        $ng->("failed");
+      } else {
+        require Git::Parser::Log;
+        my $parsed = Git::Parser::Log->parse_format_raw (decode 'utf-8', $log);
+        $ok->($parsed);
+      }
+    });
+  });
+} # get_logs_by_path
+
+sub get_last_commit_logs_by_paths ($$) {
+  my ($self, $paths) = @_;
+  my $p = Promise->resolve;
+  my $result = {};
+  for my $path (@$paths) {
+    $p = $p->then (sub {
+      return $self->get_logs_by_path ($path, limit => 1)->then (sub {
+        my $parsed = $_[0]; # XXX if not found
+        $result->{$path} = $_[0]->{commits}->[0];
+      });
+    });
+  }
+  return $p->then (sub { return $result });
+} # get_last_commit_logs_by_paths
+
+sub get_ls_tree ($$;%) {
+  my ($self, $tree, %args) = @_;
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    my $log;
+    my $mirror_path = $self->mirror_repo_path;
+    my $args = '';
+    $args = '-r' if $args{recursive};
+    (run_cmd "cd \Q$mirror_path\E && git ls-tree $args \Q$tree\E", '>' => \$log)->cb (sub {
+      my $status = $_[0]->recv;
+      if ($status >> 8) {
+        $ng->("failed");
+      } else {
+        my $parsed = {};
+        for (split /\x0A/, decode 'utf-8', $log) {
+          if (/^([0-9]+) (\S+) (\S+)\s+(.+)$/) {
+            my $d = {mode => $1, type => $2, object => $3, file => $4};
+            $d->{file} =~ s/\\([tn\\])/{t => "\x09", n => "\x0A", "\\" => "\\"}->{$1}/ge;
+            $parsed->{items}->{$d->{file}} = $d;
+          }
+        }
+        $ok->($parsed);
+      }
+    });
+  });
+} # get_ls_tree
+
 sub generate_text_id ($) {
   return sha1_hex (time () . $$ . rand ());
 } # generate_text_id
@@ -202,10 +266,11 @@ sub git_log_for_text_id_and_lang ($$$;%) {
   my ($self, $id, $lang, %args) = @_;
   my $rel_path = $self->text_id_and_suffix_to_relative_path ($id, $lang . '.txt');
   my $mirror_path = $self->mirror_repo_path;
+  my $branch = $self->branch;
   my $p = Promise->new (sub {
     my ($ok, $ng) = @_;
     my $log;
-    (run_cmd "cd \Q$mirror_path\E && git log --raw --format=raw -- \Q$rel_path\E", '>' => \$log)->cb (sub {
+    (run_cmd "cd \Q$mirror_path\E && git log --raw --format=raw \Q$branch\E -- \Q$rel_path\E", '>' => \$log)->cb (sub {
       my $status = $_[0]->recv;
       if ($status >> 8) {
         $ng->("failed");

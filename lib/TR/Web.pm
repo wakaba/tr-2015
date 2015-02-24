@@ -55,7 +55,9 @@ sub main ($$) {
     my $tr = TR::TextRepo->new_from_mirror_and_temp_path ($app->mirror_path, Path::Tiny->tempdir);
     $tr->url ($path->[1]); # XXX validation & normalization
 
-    return $tr->get_branches->then (sub {
+    return $tr->prepare_mirror->then (sub {
+      return $tr->get_branches;
+    })->then (sub {
       my $parsed1 = $_[0];
       return $tr->get_commit_logs ([map { $_->{commit} } values %{$parsed1->{branches}}])->then (sub {
         my $parsed2 = $_[0];
@@ -68,6 +70,59 @@ sub main ($$) {
           app => $app,
           tr => $tr,
           branches => $parsed1->{branches},
+        });
+      });
+    })->catch (sub {
+      $app->error_log ($_[0]);
+      return $app->send_error (500);
+    })->then (sub {
+      return $tr->discard;
+    });
+  }
+
+  if ($path->[0] eq 'tr' and $path->[3] eq '' and @$path == 4) {
+    # /tr/{url}/{branch}/
+
+    my $tr = TR::TextRepo->new_from_mirror_and_temp_path ($app->mirror_path, Path::Tiny->tempdir);
+    $tr->url ($path->[1]); # XXX validation & normalization
+    $tr->branch ($path->[2]); # XXX validation
+
+    return $tr->prepare_mirror->then (sub {
+      return $tr->get_commit_logs ([$tr->branch]);
+    })->then (sub {
+      my $parsed = $_[0]; # XXX if branch not found
+      my $tree = $parsed->{commits}->[0]->{tree};
+      return $tr->get_ls_tree ($tree, recursive => 1)->then (sub {
+        my $parsed = $_[0];
+
+        my $text_sets = {};
+        for (values %{$parsed->{items}}) {
+          next unless $_->{file} =~ m{/texts/config.json\z};
+          next unless $_->{type} eq 'blob';
+          # XXX next if symlink
+          my $path = '/' . $_->{file};
+          $path =~ s{/texts/config.json\z}{};
+          $text_sets->{$path}->{path} = $path;
+          $text_sets->{$path}->{texts_path} = (substr $path, 1) . '/texts';
+          # XXX text set label, desc, ...
+        }
+
+        my $has_root = (($parsed->{items}->{'texts/config.json'} || {})->{type} // '') eq 'blob'; # XXX and is not symlink
+        if ($has_root or not keys %$text_sets) {
+          $text_sets->{'/'}->{path} = '/';
+          $text_sets->{'/'}->{texts_path} = 'texts';
+        }
+
+        return $tr->get_last_commit_logs_by_paths ([map { $_->{texts_path} } values %$text_sets])->then (sub {
+          my $parsed = $_[0];
+          for (values %$text_sets) {
+            $_->{commit_log} = $parsed->{$_->{texts_path}};
+          }
+          return $app->temma ('tr.branch.html.tm', {
+            app => $app,
+            tr => $tr,
+            text_sets => $text_sets,
+          });
         });
       });
     })->catch (sub {

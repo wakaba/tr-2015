@@ -34,7 +34,7 @@
     <p>
       <input type=search name=q pl:value="$query->stringify" placeholder="Filtering by words">
       <button type=submit>Apply</button>
-      <a href="/help/filtering" rel=help title="Filter syntax" target=help>Help</a>
+      <a href="/help/filtering" rel=help title="Filter syntax" target=help>Advanced</a>
     <!-- XXX langs -->
   </form>
 </header>
@@ -194,7 +194,8 @@
               <input type=hidden name=tag>
             </template>
       </table>
-      <p class=buttons><button type=submit>追加</button>
+        <p class=buttons><button type=submit>追加</button>
+        <p class=help><a href="/help/XXX" rel=help target=help>How to add lots of texts at once</a>
       </details>
     </form>
 </table>
