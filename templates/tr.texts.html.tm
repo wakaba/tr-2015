@@ -81,6 +81,7 @@
           <p class=header>
             <strong class=lang><t:text value=$lang></strong>
             <button type=button class=toggle-edit title=Edit>Edit</button>
+            <button type=button class=search title="Search this text">Search</button>
           <div class=view>
             <p class=body_0 data-form=0>
             <p class=body_1 data-form=1>
@@ -308,6 +309,9 @@ function addTexts (iTexts) {
         if (langData.body_4) form.querySelector ('[name=body_4]').value = langData.body_4;
         if (langData.forms) form.querySelector ('[name=forms]').value = langData.forms;
       }
+      area.querySelector ('button.search').onclick = function () {
+        showSearchSidebar (form.querySelector ('[name=body_0]').value);
+      };
 
       form.querySelector ('select[name=forms]').onchange = function () {
         syncLangAreaTabs (area);
@@ -485,6 +489,104 @@ function saveArea (area, onsaved) { // XXX promise
 </script>
 
 </section>
+
+<aside class=sidebar hidden>
+  <hr tabindex=0 onclick=" parentNode.hidden = !parentNode.hidden; document.documentElement.classList.toggle ('has-sidebar', !parentNode.hidden) " title="サイドバーの表示の切り替え">
+  <!-- XXX resize -->
+  <section id=sidebar-search>
+    <header>
+      <h1>用例を探す</h1>
+      <button type=button class=close title="閉じる">閉じる</button>
+    </header>
+    <form action=/searchXXX method=get>
+      <input type=search name=q placeholder=検索語句>
+      <button type=submit>Search</button>
+    </form>
+    <p class=status hidden><progress></progress> <span class=message></span>
+    <ul class=search-result>
+    </ul>
+    <template class=search-result-template>
+      <div class=langs></div>
+      <template class=lang-template>
+        <p><strong class=lang>Language</strong>: <span class=text>Text</span>
+      </template>
+      <p class=source><a class=repo target=_blank>repo</a> / <span class=license>LICENSE</span>
+    </template>
+    <!-- Filter by langs -->
+    <script>
+      function showSearchSidebar (q) {
+        var sidebar = document.querySelector ('body > .sidebar');
+        if (sidebar.hidden) sidebar.querySelector ('hr').click ();
+        if (q) {
+          sidebar.querySelector ('input[name=q]').value = q;
+          sidebar.querySelector ('form').onsubmit ();
+        }
+      } // showSearchSidebar
+
+      document.querySelector ('#sidebar-search button.close').onclick = function () {
+        document.querySelector ('body > .sidebar > hr').click ();
+      };
+      document.querySelector ('#sidebar-search form').onsubmit = function () {
+        var search = document.querySelector ('#sidebar-search');
+        var q = search.querySelector ('input[name=q]').value;
+        if (!q) return;
+        var status = search.querySelector ('.status');
+        status.hidden = false;
+        status.querySelector ('.message').textContent = 'Searching...';
+        var xhr = new XMLHttpRequest;
+        xhr.open ('GET', '/search.json?q=' + encodeURIComponent (q), true);
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+              var results = JSON.parse (xhr.responseText);
+              var resultList = search.querySelector ('.search-result');
+              var resultTemplate = search.querySelector ('.search-result-template');
+              resultList.textContent = '';
+              results.forEach (function (item) {
+                var li = document.createElement ('li');
+                li.innerHTML = resultTemplate.innerHTML;
+                var langs = li.querySelector ('.langs');
+                var t = li.querySelector ('.lang-template');
+                for (var l in item.preview) {
+                  var div = document.createElement ('div');
+                  div.innerHTML = t.innerHTML;
+                  div.querySelector ('.lang').textContent = l;
+                  var text = div.querySelector ('.text'); // XXX if long,
+                  var rt = item.preview[l] || "";
+                  var i = rt.indexOf (q);
+                  if (i > -1) {
+                    text.textContent = rt.substring (0, i);
+                    text.appendChild (document.createElement ('mark'))
+                        .textContent = q;
+                    text.appendChild (document.createTextNode (rt.substring (i + q.length)));
+                  } else {
+                    text.textContent = rt;
+                  }
+                  Array.prototype.slice.call (div.childNodes).forEach (function (node) {
+                    langs.appendChild (node);
+                  });
+                }
+                var repoName = item.repo_url.split (/\//);
+                repoName = repoName[repoName.length-1];
+                li.querySelector ('.source .repo').textContent = repoName;
+                li.querySelector ('.source .repo').href = '/tr/' + encodeURIComponent (item.repo_url) + '/' + encodeURIComponent (item.repo_branch) + '/' + encodeURIComponent (item.repo_path) + '/?text_id=' + encodeURIComponent (item.text_id);
+                li.querySelector ('.source .license').textContent = '???';
+                resultList.appendChild (li);
+              });
+
+              // XXX paging
+            } else {
+              // XXX
+            }
+            status.hidden = true;
+          }
+        };
+        xhr.send (null);
+        return false;
+      };
+    </script>
+  </section>
+</aside>
 
 <div class=dialog id=config-langs hidden>
   <section>

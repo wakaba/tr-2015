@@ -312,6 +312,7 @@ thead, tbody, tfoot {
 button.toggle-edit, button.edit,
 button.settings,
 button.close,
+button.search,
 a.import,
 a.export,
 a.share {
@@ -333,6 +334,7 @@ a.share {
 button.toggle-edit::before, button.edit::before,
 button.settings::before,
 button.close::before,
+button.search::before,
 a.import::before,
 a.export::before,
 a.share::before {
@@ -345,6 +347,7 @@ a.share::before {
 
 button.settings::before { content: "setting" }
 button.close::before { content: "close" }
+button.search::before { content: "search" }
 a.import::before { content: "in" }
 a.export::before { content: "out" }
 a.share::before { content: "link" }
@@ -366,7 +369,11 @@ button.edit:active::before,
 button.close:hover,
 button.close:active,
 button.close:hover::before,
-button.close:active::before {
+button.close:active::before,
+button.search:hover,
+button.search:active,
+button.search:hover::before,
+button.search:active::before {
   text-decoration: underline;
 }
 
@@ -768,6 +775,121 @@ table.text-sets {
 
 #add-text-set input[name=path] {
   width: 15em;
+}
+
+.sidebar {
+  position: fixed;
+  display: block;
+  top: 1.6em;
+  left: 0;
+  width: 10em;
+  bottom: 0;
+}
+
+.sidebar[hidden] {
+  display: block;
+  width: 0.4em;
+}
+
+.sidebar[hidden] > * {
+  display: none;
+}
+
+.sidebar > hr {
+  display: block;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 3px;
+  box-sizing: border-box;
+  bottom: 0;
+  margin: 0;
+  border: none;
+  border-right: 3px double gray;
+  cursor: ew-resize;
+  background: white;
+}
+
+.sidebar[hidden] > hr {
+  display: block;
+  left: 0;
+  width: auto;
+}
+
+.sidebar > section {
+  height: 100%;
+  overflow: auto;
+  margin-right: 3px;
+}
+
+.has-sidebar body > section {
+  margin-left: 10.3em;
+}
+
+.has-sidebar body > footer {
+  margin-left: 10.3em;
+}
+
+#sidebar-search {
+  padding: 0.1em;
+}
+
+#sidebar-search header {
+  position: relative;
+  display: block;
+  margin: 0;
+}
+
+#sidebar-search h1 {
+  margin: 0 0 0.1em 0;
+  border-bottom: 1px solid;
+  padding-bottom: 0.1em;
+  font-size: 100%;
+}
+
+#sidebar-search header button {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+#sidebar-search header button.close::before {
+  content: "left";
+}
+
+#sidebar-search form {
+  width: 100%;
+}
+
+#sidebar-search form input[name=q] {
+  width: 100%;
+}
+
+#sidebar-search form button {
+  display: none;
+}
+
+#sidebar-search .search-result {
+  margin: 0;
+  padding: 0;
+  font-size: 80%;
+}
+
+#sidebar-search .search-result li {
+  margin: 0.5em 0;
+  border-bottom: 1px solid gray;
+  padding: 0.1em;
+}
+
+#sidebar-search .search-result li p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+#sidebar-search .search-result li .source {
+  text-align: right;
+  color: green;
+  font-size: 90%;
 }
 
 progress {

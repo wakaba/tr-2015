@@ -722,6 +722,7 @@ sub main ($$) {
     my $s = TR::Search->new_from_config ($app->config);
     return $s->search ($app->text_param ('q') // '')->then (sub {
       return $app->send_json ($_[0]);
+      # XXX paging
     });
   }
 
