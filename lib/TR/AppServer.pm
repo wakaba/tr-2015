@@ -13,7 +13,7 @@ use Temma::Processor;
 
 sub new_from_http_and_config ($$$) {
   my $self = $_[0]->SUPER::new_from_http ($_[1]);
-  $self->{config} = $_[1];
+  $self->{config} = $_[2];
   return $self;
 } # new_from_http_and_config
 

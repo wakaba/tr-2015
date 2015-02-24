@@ -34,3 +34,6 @@
 [submodule "modules/popopo"]
 	path = modules/popopo
 	url = git://github.com/wakaba/perl-popopo
+[submodule "modules/web-ua"]
+	path = modules/web-ua
+	url = git://github.com/wakaba/perl-web-useragent-functions

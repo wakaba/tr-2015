@@ -10,3 +10,4 @@
 - "../../modules/charclass" tests build
 - "../../modules/vcutils" tests viewvc rcs
 - "../../modules/temma" tests
+- "../../modules/web-ua" tests oauth wsse testws cli curl anyeventsocks

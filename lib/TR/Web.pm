@@ -227,6 +227,32 @@ sub main ($$) {
       })->then (sub {
         return $tr->discard;
       });
+
+    } elsif (@$path == 5 and $path->[4] eq 'XXXupdate-index') {
+      # .../XXXupdate-index
+      # XXX request method
+      # XXX branch
+      return $tr->prepare_mirror->then (sub {
+        return $tr->clone_from_mirror;
+      })->then (sub {
+        require TR::Query;
+        return $tr->get_data_as_jsonalizable (TR::Query->parse_query, []);
+      })->then (sub {
+        my $json = $_[0];
+        $json->{repo_url} = $tr->url;
+        $json->{repo_path} = '/' . ($tr->texts_dir // '');
+        require TR::Search;
+        my $s = TR::Search->new_from_config ($app->config);
+        return $s->put_data ($json)->then (sub {
+          return $app->send_error (200);
+        });
+      })->catch (sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500);
+      })->then (sub {
+        return $tr->discard;
+      });
+
     } elsif (@$path == 5 and $path->[4] eq 'export') {
       # .../export
       return $tr->prepare_mirror->then (sub {
@@ -688,6 +714,15 @@ sub main ($$) {
         return $tr->discard;
       });
     }
+  }
+
+  if (@$path == 1 and $path->[0] eq 'search.json') {
+    # /search.json
+    require TR::Search;
+    my $s = TR::Search->new_from_config ($app->config);
+    return $s->search ($app->text_param ('q') // '')->then (sub {
+      return $app->send_json ($_[0]);
+    });
   }
 
   if (@$path == 2 and
