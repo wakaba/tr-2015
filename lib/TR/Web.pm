@@ -49,6 +49,35 @@ sub main ($$) {
     return $app->temma ('index.html.tm');
   }
 
+  if ($path->[0] eq 'tr' and $path->[2] eq '' and @$path == 3) {
+    # /tr/{url}/
+
+    my $tr = TR::TextRepo->new_from_mirror_and_temp_path ($app->mirror_path, Path::Tiny->tempdir);
+    $tr->url ($path->[1]); # XXX validation & normalization
+
+    return $tr->get_branches->then (sub {
+      my $parsed1 = $_[0];
+      return $tr->get_commit_logs ([map { $_->{commit} } values %{$parsed1->{branches}}])->then (sub {
+        my $parsed2 = $_[0];
+        my $sha_to_commit = {};
+        $sha_to_commit->{$_->{commit}} = $_ for @{$parsed2->{commits}};
+        for (values %{$parsed1->{branches}}) {
+          $_->{commit_log} = $sha_to_commit->{$_->{commit}};
+        }
+        return $app->temma ('tr.html.tm', {
+          app => $app,
+          tr => $tr,
+          branches => $parsed1->{branches},
+        });
+      });
+    })->catch (sub {
+      $app->error_log ($_[0]);
+      return $app->send_error (500);
+    })->then (sub {
+      return $tr->discard;
+    });
+  }
+
   if ($path->[0] eq 'tr' and @$path >= 4) {
     # /tr/{url}/{branch}/{path}
     if (($path->[3] eq '/' or $path->[3] =~ m{\A(?:/[0-9A-Za-z_.-]+)+\z}) and

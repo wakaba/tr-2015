@@ -695,6 +695,39 @@ table#texts > tbody.status td {
   width: 15rem;
 }
 
+table.branches {
+}
+
+.branches th,
+.branches td {
+  padding: 0.3em;
+}
+
+.branches thead th {
+  background: #c8ffc8;
+  color: black;
+}
+
+.branches tbody tr {
+  cursor: pointer;
+}
+
+.branches tbody tr:hover {
+  background-color: #ecffec;
+  color: black;
+}
+
+.branches tbody th {
+  min-width: 10em;
+  text-align: left;
+  font-weight: normal;
+}
+
+.branches .default th,
+.branches .default td {
+  font-weight: bolder;
+}
+
 progress {
   max-width: 95%;
 }

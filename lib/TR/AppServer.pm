@@ -74,6 +74,7 @@ sub send_file ($$$) {
 
 my $TemplatesPath = $RootPath->child ('templates');
 
+use Path::Class; # XXX
 sub temma ($$$) {
   my ($self, $template_path, $args) = @_;
   $template_path = $TemplatesPath->child ($template_path);
@@ -87,7 +88,7 @@ sub temma ($$$) {
 
   my $doc = new Web::DOM::Document;
   my $parser = Temma::Parser->new;
-  $parser->parse_f ($template_path => $doc); # XXX blocking
+  $parser->parse_f (file ($template_path) => $doc); # XXX blocking
   my $processor = Temma::Processor->new;
   $processor->process_document ($doc => $fh, ondone => sub {
     $http->close_response_body;

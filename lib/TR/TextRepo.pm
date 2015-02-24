@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Path::Tiny;
 use AnyEvent::Util qw(run_cmd);
+use Encode;
 use Promise;
 use Digest::SHA qw(sha1_hex);
 use Wanage::URL;
@@ -133,6 +134,50 @@ sub make_pushable ($$$) {
   });
 } # make_pushable
 
+sub get_branches ($) {
+  my $self = $_[0];
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    my $log;
+    my $mirror_path = $self->mirror_repo_path;
+    (run_cmd "cd \Q$mirror_path\E && git branch -v --no-abbrev", '>' => \$log)->cb (sub {
+      my $status = $_[0]->recv;
+      if ($status >> 8) {
+        $ng->("failed");
+      } else {
+        my $parsed = {branches => {}};
+        for (split /\x0A/, decode 'utf-8', $log) {
+          if (/^(\* |  )(\S+)\s+(\S+) (.*)$/) {
+            my $d = {name => $2, commit => $3, commit_message => $4};
+            $d->{selected} = 1 if $1 eq '* ';
+            $parsed->{branches}->{$2} = $d;
+          }
+        }
+        $ok->($parsed);
+      }
+    });
+  });
+} # get_branches
+
+sub get_commit_logs ($$) {
+  my ($self, $commits) = @_;
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    my $log;
+    my $mirror_path = $self->mirror_repo_path;
+    (run_cmd "cd \Q$mirror_path\E && git show --raw --format=raw " . (join ' ', map { quotemeta $_ } @$commits), '>' => \$log)->cb (sub {
+      my $status = $_[0]->recv;
+      if ($status >> 8) {
+        $ng->("failed");
+      } else {
+        require Git::Parser::Log;
+        my $parsed = Git::Parser::Log->parse_format_raw (decode 'utf-8', $log);
+        $ok->($parsed);
+      }
+    });
+  });
+} # get_commit_logs
+
 sub generate_text_id ($) {
   return sha1_hex (time () . $$ . rand ());
 } # generate_text_id
@@ -166,7 +211,7 @@ sub git_log_for_text_id_and_lang ($$$;%) {
         $ng->("failed");
       } else {
         require Git::Parser::Log;
-        my $parsed = Git::Parser::Log->parse_format_raw ($log);
+        my $parsed = Git::Parser::Log->parse_format_raw (decode 'utf-8', $log);
         $ok->($parsed);
       }
     });
@@ -214,7 +259,7 @@ sub git_log_for_text_id_and_lang ($$$;%) {
   }
 
   return $p;
-} # git_log_for_text_id
+} # git_log_for_text_id_and_lang
 
 sub read_file_by_path ($$) {
   my ($self, $path) = @_;

@@ -3,13 +3,7 @@
 <link rel=stylesheet href=/css/common.css>
 <body onbeforeunload=" if (isEditMode ()) return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
 
-<header class=site>
-<h1><a href="/" rel=index>TR</a></h1>
-
-<nav>
-  <a href="/help" rel=help>Help</a>
-</nav>
-</header>
+<t:include path=_header.html.tm />
 
 <section>
 
@@ -869,13 +863,4 @@ function saveArea (area, onsaved) { // XXX promise
   </script>
 </div>
 
-<footer class=site>
-  <ul>
-    <li><a href="/" rel=index>Top</a>
-  </ul>
-  <ul>
-    <li><a href="/help" rel=help>Help</a>
-    <li><a href="/api">API</a>
-    <li><a href="/rule">Terms</a>
-  </ul>
-</footer>
+<t:include path=_footer.html.tm />
