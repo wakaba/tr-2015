@@ -1,4 +1,4 @@
-<html t:params="$tr $data_params $app $query">
+<html t:params="$tr $tr_config $data_params $app $query">
 <title>XXX</title>
 <link rel=stylesheet href=/css/common.css>
 <body onbeforeunload=" if (isEditMode ()) return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
@@ -15,6 +15,9 @@
   </hgroup>
   <link itemprop=data-url pl:href="'data.json?'.$data_params.'&with_comments=1'">
   <link itemprop=export-url pl:href="'export?'.$data_params">
+  <meta itemprop=license pl:content="$tr_config->get ('license') // ''">
+  <meta itemprop=license-holders pl:content="$tr_config->get ('license_holders') // ''">
+  <meta itemprop=additional-license-terms pl:content="$tr_config->get ('additional_license_terms') // ''">
 
   <nav class=langs-menu-container>
     <a href="#share" onclick=" showShareDialog () " class=share title="共有">Share</a>
@@ -27,7 +30,8 @@
             <label><input type=checkbox pl:value=$lang> <t:text value=$lang></label>
           </t:for>
           <hr>
-          <a href="#config-langs" onclick=" toggleLangsConfig (true) ">言語設定...</a>
+      <a href="#config-langs" onclick=" toggleLangsConfig (true) ">言語設定...</a>
+      <a href="#config-license" onclick=" toggleLicenseConfig (true) ">ライセンス設定...</a>
     </menu>
   </nav>
 
@@ -510,7 +514,7 @@ function saveArea (area, onsaved) { // XXX promise
       <template class=lang-template>
         <p><strong class=lang>Language</strong>: <span class=text>Text</span>
       </template>
-      <p class=source><a class=repo target=_blank>repo</a> / <span class=license>LICENSE</span>
+      <p class=source><a class=repo target=_blank>repo</a> / <a class=license target=license>LICENSE</a>
     </template>
     <!-- Filter by langs -->
     <script>
@@ -568,9 +572,11 @@ function saveArea (area, onsaved) { // XXX promise
                 }
                 var repoName = item.repo_url.split (/\//);
                 repoName = repoName[repoName.length-1];
+                var repoPage = '/tr/' + encodeURIComponent (item.repo_url) + '/' + encodeURIComponent (item.repo_branch) + '/' + encodeURIComponent (item.repo_path) + '/';
                 li.querySelector ('.source .repo').textContent = repoName;
-                li.querySelector ('.source .repo').href = '/tr/' + encodeURIComponent (item.repo_url) + '/' + encodeURIComponent (item.repo_branch) + '/' + encodeURIComponent (item.repo_path) + '/?text_id=' + encodeURIComponent (item.text_id);
-                li.querySelector ('.source .license').textContent = '???';
+                li.querySelector ('.source .repo').href = repoPage + '?text_id=' + encodeURIComponent (item.text_id);
+                li.querySelector ('.source .license').textContent = item.repo_license || 'Unknown'; // XXX human-readable abbrev
+                li.querySelector ('.source .license').href = repoPage + 'LICENSE';
                 resultList.appendChild (li);
               });
 
@@ -688,6 +694,86 @@ function saveArea (area, onsaved) { // XXX promise
           toggleLangsConfig (true);
         }
       }) ();
+  </script>
+</div>
+
+<div class=dialog id=config-license hidden>
+  <section>
+    <header>
+      <h1>ライセンス設定</h1>
+      <button type=button class=close title="保存せずに閉じる">閉じる</button>
+    </header>
+
+    <form action="license" method=post>
+      <table class=config>
+        <tbody>
+          <tr>
+            <th><label for=config-license-license>ライセンス
+            <td>
+              <select name=license id=config-license-license required>
+                <option value>ライセンスを選択
+                <option value=CC0>CC0
+                <option value=Public-Domain>Public Domain
+                <option value=MIT>MIT ライセンス
+                <option value=BSDModified>修正 BSD ライセンス
+                <option value=Apache2>Apache License 2.0
+                <option value=GPL2+>GPL2 以降
+                <option value=GPL3+>GPL3 以降
+                <option value=CC-BY-SA4>CC BY-SA 4.0
+                <option value=Perl>Perl と同じ
+                <option value=proprietary>独占的ライセンス
+              </select>
+          <tr>
+            <th><label for=config-license-license_holders>ライセンス保有者</label>
+            <td><input name=license_holders id=config-license-license_holders>
+          <tr>
+            <th><label for=config-license-additional_license_terms>追加のライセンス条項</label>
+            <td><textarea name=additional_license_terms id=config-license-additional_license_terms></textarea>
+      </table>
+
+      <p class=buttons><button type=button class=save>保存して閉じる</button>
+    </form>
+    <p class=status hidden><progress></progress> <span class=message></span>
+  </section>
+  <script>
+    function toggleLicenseConfig (status) {
+      var licensePanel = document.querySelector ('#config-license');
+      if (status) {
+        var item = document.querySelector ('[itemtype=data]');
+        var form = licensePanel.querySelector ('form');
+        form.elements.license.value = item.querySelector ('meta[itemprop=license]').content;
+        form.elements['license_holders'].value = item.querySelector ('meta[itemprop=license-holders]').content;
+        form.elements['additional_license_terms'].value = item.querySelector ('meta[itemprop=additional-license-terms]').content;
+        licensePanel.hidden = false;
+      } else {
+        licensePanel.hidden = true;
+      }
+    } // toggleLicenseConfig
+
+    (function () {
+      var licensePanel = document.querySelector ('#config-license');
+      licensePanel.trSync = function () {
+        toggleLicenseConfig (false);
+        history.replaceState (null, null, '#');
+        var item = document.querySelector ('[itemtype=data]');
+        var form = licensePanel.querySelector ('form');
+        item.querySelector ('meta[itemprop=license]').content = form.elements.license.value;
+        item.querySelector ('meta[itemprop=license-holders]').content = form.elements['license_holders'].value;
+        item.querySelector ('meta[itemprop=additional-license-terms]').content = form.elements['additional_license_terms'].value;
+      };
+      licensePanel.querySelector ('button.save').onclick = function () {
+        saveArea (licensePanel);
+      };
+      licensePanel.querySelector ('button.close').onclick = function () {
+        toggleLicenseConfig (false);
+        history.replaceState (null, null, '#');
+      };
+
+      var f = decodeURIComponent (location.hash.replace (/^#/, ''));
+      if (f === 'config-license') {
+        toggleLicenseConfig (true);
+      }
+    }) ();
   </script>
 </div>
 

@@ -242,6 +242,28 @@ sub get_ls_tree ($$;%) {
   });
 } # get_ls_tree
 
+sub write_license_file ($%) {
+  my ($self, %args) = @_;
+  my $path = $self->texts_path->child ('LICENSE');
+  # XXX if $path is directory or symlink
+  my $license = $args{license} // '';
+  $license = 'Unknown license' unless length $license;
+  my $holders = $args{license_holders} // '';
+  $holders = 'Authors' unless length $holders;
+  my $additional = $args{additional_license_terms} // '';
+
+  my $text = 'Copyright {YEAR} {HOLDERS}.'; # XXX
+  $text =~ s/\{YEAR\}/[gmtime]->[5]+1900/ge;
+  $text =~ s/\{HOLDERS\}/$holders/g;
+
+  my @text;
+  push @text, "[$license]";
+  push @text, $text;
+  push @text, $additional if length $additional;
+
+  return $self->write_file_by_path ($path, join "\n\n", @text);
+} # write_license_file
+
 sub generate_text_id ($) {
   return sha1_hex (time () . $$ . rand ());
 } # generate_text_id

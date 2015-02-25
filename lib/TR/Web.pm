@@ -188,6 +188,7 @@ sub main ($$) {
         return $app->temma ('tr.texts.html.tm', {
           app => $app,
           tr => $tr,
+          tr_config => $tr_config,
           query => $q,
           data_params => (join '&', @param),
         });
@@ -232,15 +233,21 @@ sub main ($$) {
       # .../XXXupdate-index
       # XXX request method
       # XXX branch
+      my $tr_config;
       return $tr->prepare_mirror->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
+        return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
+      })->then (sub {
+        $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
+
         require TR::Query;
         return $tr->get_data_as_jsonalizable (TR::Query->parse_query, []);
       })->then (sub {
         my $json = $_[0];
         $json->{repo_url} = $tr->url;
         $json->{repo_path} = '/' . ($tr->texts_dir // '');
+        $json->{repo_license} = $tr_config->get ('license');
         require TR::Search;
         my $s = TR::Search->new_from_config ($app->config);
         return $s->put_data ($json)->then (sub {
@@ -699,6 +706,57 @@ sub main ($$) {
         my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
         $tr_config->set (langs => join ',', @$langs);
         return $tr->write_file_by_path ($tr->texts_path->child ('config.json'), $tr_config->as_source_text);
+      })->then (sub {
+        my $msg = $app->text_param ('commit_message') // '';
+        $msg = 'Added a message' unless length $msg;
+        return $tr->commit ($msg);
+      })->then (sub {
+        return $tr->push; # XXX failure
+      })->then (sub {
+        return $app->send_json ({});
+      }, sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500);
+      })->then (sub {
+        return $tr->discard;
+      });
+
+    } elsif (@$path == 5 and $path->[4] eq 'LICENSE') {
+      # .../LICENSE
+      return $app->send_plain_text ('XXX');
+
+    } elsif (@$path == 5 and $path->[4] eq 'license') {
+      # .../license
+
+      $app->requires_request_method ({POST => 1});
+      # XXX CSRF
+
+      # XXX access control
+
+      # XXX
+      my $auth = $app->http->request_auth;
+      unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
+        $app->http->set_response_auth ('basic', realm => $path->[1]);
+        return $app->send_error (401);
+      }
+
+      return $tr->prepare_mirror->then (sub {
+        return $tr->clone_from_mirror;
+      })->then (sub {
+        return $tr->make_pushable ($auth->{userid}, $auth->{password});
+      })->then (sub {
+        return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
+      })->then (sub {
+        my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
+        my $license = {license => $app->text_param ('license'),
+                       license_holders => $app->text_param ('license_holders'),
+                       additional_license_terms => $app->text_param ('additional_license_terms')};
+        $tr_config->set (license => $license->{license});
+        $tr_config->set (license_holders => $license->{license_holders});
+        $tr_config->set (additional_license_terms => $license->{additional_license_terms});
+        return $tr->write_file_by_path ($tr->texts_path->child ('config.json'), $tr_config->as_source_text)->then (sub {
+          return $tr->write_license_file (%$license);
+        });
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
         $msg = 'Added a message' unless length $msg;

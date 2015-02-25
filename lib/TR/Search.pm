@@ -20,6 +20,7 @@ sub put_data ($$) {
 
       my $repo_url = $data->{repo_url};
       my $repo_path = $data->{repo_path};
+      my $repo_license = $data->{repo_license};
       http_post_data
           url => qq<$prefix/texts/_bulk>,
           basic_auth => $auth,
@@ -29,7 +30,8 @@ sub put_data ($$) {
                      text_id => $_,
 #                     _id => $_,
                      repo_url => $repo_url,
-                     repo_path => $repo_path};
+                     repo_path => $repo_path,
+                     repo_license => $repo_license};
             $d->{ft} = join ' ', grep { defined } map { ($_->{body_0}, $_->{body_1}, $_->{body_2}, $_->{body_3}, $_->{body_4}) } values %{$d->{langs} or {}};
             $d->{pre} = perl2json_chars {map { $_ => $d->{langs}->{$_}->{body_0} } keys %{$d->{langs} or {}}};
             ((perl2json_bytes {index => {}}), (perl2json_bytes $d));
@@ -65,7 +67,7 @@ sub search ($$) {
   return Promise->new (sub {
     my ($ok, $ng) = @_;
     http_post_data
-        url => qq<$prefix/texts/_search?fields=repo_url,repo_path,text_id,pre>,
+        url => qq<$prefix/texts/_search?fields=repo_url,repo_path,repo_license,text_id,pre>,
         basic_auth => $auth,
         content => perl2json_bytes {
           query => {
@@ -86,6 +88,7 @@ sub search ($$) {
                 repo_url => $_->{fields}->{repo_url}->[0],
                 repo_branch => 'master',
                 repo_path => $_->{fields}->{repo_path}->[0],
+                repo_license => $_->{fields}->{repo_license}->[0],
                 text_id => $_->{fields}->{text_id}->[0],
                 preview => (json_chars2perl ($_->{fields}->{pre}->[0] // '{}')) || {}};
             } @{$json->{hits}->{hits}};
