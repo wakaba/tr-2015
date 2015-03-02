@@ -37,3 +37,12 @@
 [submodule "modules/web-ua"]
 	path = modules/web-ua
 	url = git://github.com/wakaba/perl-web-useragent-functions
+[submodule "modules/promised-command"]
+	path = modules/promised-command
+	url = git://github.com/wakaba/perl-promised-command
+[submodule "t_deps/modules/promised-docker-webdriver"]
+	path = t_deps/modules/promised-docker-webdriver
+	url = git://github.com/wakaba/perl-promised-docker-webdriver
+[submodule "t_deps/modules/promised-plackup"]
+	path = t_deps/modules/promised-plackup
+	url = git://github.com/wakaba/perl-promised-plackup
