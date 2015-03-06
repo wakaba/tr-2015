@@ -271,11 +271,17 @@ sub main ($$) {
           my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX lang validation
           $arg_format ||= 'printf'; #$arg_format normalization
           $arg_format = 'printf' if $arg_format eq 'auto';
+          require TR::Query;
+          my $q = TR::Query->parse_query (
+            query => $app->text_param ('q'),
+            text_ids => $app->text_param_list ('text_id'),
+            msgids => $app->text_param_list ('msgid'),
+            tag_ors => $app->text_param_list ('tag_or'),
+            tags => $app->text_param_list ('tag'),
+            tag_minuses => $app->text_param_list ('tag_minus'),
+          );
           return $tr->get_data_as_jsonalizable
-              (langs => [$lang],
-               text_ids => $app->text_param_list ('text_id')->grep (sub { length }),
-               msgids => $app->text_param_list ('msgid')->grep (sub { length }),
-               tags => $app->text_param_list ('tag')->grep (sub { length }))->then (sub {
+              ($q, [$lang])->then (sub {
             my $json = $_[0];
             require Popopo::Entry;
             require Popopo::EntrySet;
