@@ -19,6 +19,10 @@ $config->{es_url_prefix} = decode_base64 $key_path->child ('es-url-prefix.txt')-
 $config->{es_user} = decode_base64 $key_path->child ('es-user.txt')->slurp;
 $config->{es_password} = decode_base64 $key_path->child ('es-password.txt')->slurp;
 
+$config->{account_url_prefix} = decode_base64 $key_path->child ('account-url-prefix.txt')->slurp;
+$config->{account_token} = decode_base64 $key_path->child ('account-token.txt')->slurp;
+$config->{account_sk_context} = 'tr';
+
 return TR::Web->psgi_app ($config);
 
 =head1 LICENSE

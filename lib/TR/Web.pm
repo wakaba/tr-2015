@@ -5,7 +5,9 @@ use Path::Tiny;
 use Wanage::URL;
 use Encode;
 use Promise;
+use JSON::PS;
 use Wanage::HTTP;
+use Web::UserAgent::Functions qw(http_get http_post);
 use TR::AppServer;
 use TR::TextRepo;
 use TR::TextEntry;
@@ -32,6 +34,7 @@ sub psgi_app ($$) {
       #XXX
       #my $origin = $app->http->url->ascii_origin;
       #if ($origin eq $app->config->{web_origin}) {
+      # XXX HSTS
         return $class->main ($app);
       #} else {
       #  return $app->send_error (400, reason_phrase => 'Bad |Host:|');
@@ -789,6 +792,184 @@ sub main ($$) {
       # XXX paging
     });
   }
+
+  # XXX Cache-Control
+  if (@$path == 2 and $path->[0] eq 'account' and $path->[1] eq 'login') {
+    # /account/login
+    $app->requires_request_method ({POST => 1});
+    $app->requires_same_origin_or_referer_origin;
+
+    my $server = $app->bare_param ('server') // '';
+    unless ($server eq 'github') {
+      return $app->send_error (400, reason_phrase => 'Bad |server|');
+    }
+
+    my $prefix = $app->config->{account_url_prefix};
+    my $api_token = $app->config->{account_token};
+    return Promise->new (sub {
+      my ($ok, $ng) = @_;
+      http_post
+          url => qq<$prefix/session>,
+          header_fields => {Authorization => 'Bearer ' . $api_token},
+          params => {
+            sk => $app->http->request_cookies->{sk},
+            sk_context => $app->config->{account_sk_context},
+          },
+          anyevent => 1,
+          cb => sub {
+            my (undef, $res) = @_;
+            if ($res->code == 200) {
+              $ok->(json_bytes2perl $res->content);
+            } else {
+              $ng->($res->status_line);
+            }
+          };
+    })->then (sub {
+      my $json = $_[0];
+      $app->http->set_response_cookie
+          (sk => $json->{sk},
+           expires => $json->{sk_expires},
+           httponly => 1,
+           secure => 0, # XXX
+           domain => undef, # XXX
+           path => q</>) if $json->{set_sk};
+      return Promise->new (sub {
+        my ($ok, $ng) = @_;
+        http_post
+            url => qq<$prefix/login>,
+            header_fields => {Authorization => 'Bearer ' . $api_token},
+            params => {
+              sk => $json->{sk},
+              sk_context => $app->config->{account_sk_context},
+              server => $server,
+              callback_url => $app->http->url->resolve_string ('/account/cb')->stringify,
+            },
+            anyevent => 1,
+            cb => sub {
+              my (undef, $res) = @_;
+              if ($res->code == 200) {
+                $ok->(json_bytes2perl $res->content);
+              } else {
+                $ng->($res->status_line);
+              }
+            };
+      });
+    })->then (sub {
+      my $json = $_[0];
+      return $app->send_redirect ($json->{authorization_url});
+    });
+  } elsif (@$path == 2 and $path->[0] eq 'account' and $path->[1] eq 'cb') {
+    # /account/cb
+    my $prefix = $app->config->{account_url_prefix};
+    my $api_token = $app->config->{account_token};
+    return Promise->new (sub {
+      my ($ok, $ng) = @_;
+      http_post
+          url => qq<$prefix/cb>,
+          header_fields => {Authorization => 'Bearer ' . $api_token},
+          params => {
+            sk => $app->http->request_cookies->{sk},
+            sk_context => $app->config->{account_sk_context},
+            oauth_token => $app->http->query_params->{oauth_token},
+            oauth_verifier => $app->http->query_params->{oauth_verifier},
+            code => $app->http->query_params->{code},
+            state => $app->http->query_params->{state},
+          },
+          anyevent => 1,
+          cb => sub {
+            my (undef, $res) = @_;
+            if ($res->code == 200) {
+              $ok->(json_bytes2perl $res->content);
+            } else {
+              $ng->($res->status_line);
+            }
+          };
+    })->then (sub {
+      return $app->send_redirect ('/');
+    });
+  } elsif (@$path == 2 and $path->[0] eq 'account' and $path->[1] eq 'info.json') {
+    # /account/info.json
+    my $prefix = $app->config->{account_url_prefix};
+    my $api_token = $app->config->{account_token};
+    return Promise->new (sub {
+      my ($ok, $ng) = @_;
+      http_post
+          url => qq<$prefix/info>,
+          header_fields => {Authorization => 'Bearer ' . $api_token},
+          params => {
+            sk => $app->http->request_cookies->{sk},
+            sk_context => $app->config->{account_sk_context},
+          },
+          anyevent => 1,
+          cb => sub {
+            my (undef, $res) = @_;
+            if ($res->code == 200) {
+              $ok->(json_bytes2perl $res->content);
+            } else {
+              $ng->($res->status_line);
+            }
+          };
+    })->then (sub {
+      my $json = $_[0];
+      return $app->send_json ({name => $json->{name}, # or undef
+                               account_id => $json->{account_id}}); # or undef
+    });
+    # XXX report remote API error
+  } # /account
+
+  if (@$path == 3 and
+      $path->[0] eq 'remote' and
+      $path->[1] eq 'github' and
+      $path->[2] eq 'repos.json') {
+    # /remote/github/repos.json
+
+    # XXX Cache-Control
+    # XXX caching of remote JSON
+
+    return Promise->new (sub {
+      my ($ok, $ng) = @_;
+      my $prefix = $app->config->{account_url_prefix};
+      my $api_token = $app->config->{account_token};
+      http_post
+          url => qq<$prefix/token>,
+          header_fields => {Authorization => 'Bearer ' . $api_token},
+          params => {
+            sk => $app->http->request_cookies->{sk},
+            sk_context => $app->config->{account_sk_context},
+            server => 'github',
+          },
+          anyevent => 1,
+          cb => sub {
+            my (undef, $res) = @_;
+            if ($res->code == 200) {
+              $ok->(json_bytes2perl $res->content);
+            } else {
+              $ng->($res->status_line);
+            }
+          };
+    })->then (sub {
+      my $json = $_[0];
+      my $token = $json->{access_token} // return {};
+      return Promise->new (sub {
+        my ($ok, $ng) = @_;
+        http_get
+            url => q<https://api.github.com/user/repos>,
+            header_fields => {Authorization => 'token ' . $token},
+            anyevent => 1,
+            cb => sub {
+              my (undef, $res) = @_;
+              if ($res->code == 200) {
+                $ok->(json_bytes2perl $res->content);
+              } else {
+                $ng->($res->status_line);
+              }
+            };
+      })->then (sub {
+        my $json = $_[0];
+        return $app->send_json ({XXX => $json});
+      });
+    });
+  } # /remote/github/repos.json
 
   if (@$path == 2 and
       {js => 1, css => 1, data => 1, images => 1, fonts => 1}->{$path->[0]} and
