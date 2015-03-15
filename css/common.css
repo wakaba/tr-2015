@@ -46,6 +46,52 @@ header.site nav a {
   color: inherit;
 }
 
+header.site .account {
+  display: inline-block;
+  position: relative;
+}
+
+header.site .account .account-menu-button {
+  display: inline-block;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  min-width: 3em;
+  border: none;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  text-decoration: underline;
+  text-align: center;
+  vertical-align: inherit;
+}
+
+header.site .account .account-menu-button::after {
+  content: " \25BC";
+  font-size: 40%;
+}
+
+header.site .account menu:not([hidden]) {
+  position: absolute;
+  right: 0;
+  width: 10em;
+  max-width: 100vw;
+  box-sizing: border-box;
+  margin: 0;
+  border: 2px solid #ccc;
+  padding: 0.5rem;
+  background: white;
+  color: black;
+  z-index: 10000;
+}
+
+header.site .account.has-account .login {
+  display: none;
+}
+
 header.site::after {
   content: "";
   clear: both;

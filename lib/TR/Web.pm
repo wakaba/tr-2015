@@ -913,6 +913,7 @@ sub main ($$) {
       my $json = $_[0];
       return $app->send_json ({name => $json->{name}, # or undef
                                account_id => $json->{account_id}}); # or undef
+      # XXX icon
     });
     # XXX report remote API error
   } # /account
