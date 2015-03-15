@@ -1,4 +1,4 @@
-<html t:params="$tr $app $branches">
+<html t:params="$app">
 <t:include path=_macro.html.tm />
 <t:call x="use Wanage::URL">
 <title>XXX</title>
@@ -7,34 +7,52 @@
 
 <t:include path=_header.html.tm />
 
-<section>
+<section id=github>
+  <h1>GitHub リポジトリー</h1>
 
-  <header class=textset itemscope itemtype=data>
-    <hgroup> 
-      <h1 title=Repository><a href="./" rel=bookmark><code itemprop=url><t:text value="$tr->url"></code></a></h1>
-    </hgroup>
-  </header>
+  <form action=/account/login method=post class=login>
+    <input type=hidden name=server value=github>
+    <button type=submit>GitHub アカウントでログイン</button>
+  </form>
 
-  <section id=branches>
-    <h1>Branches</h1>
-
-    <table class=branches>
-      <thead>
-        <tr>
-          <th>Branch
-          <th>Last updated
-          <th>Commit
-      <tbody>
-        <t:for as=$branch x="[sort { $a->{name} cmp $b->{name} } values %$branches]">
-          <tr onclick=" querySelector ('a[href]').click () ">
-            <t:if x="$branch->{selected}"><t:class name="'default'"></t:if>
-            <th><a pl:href="'./'.(percent_encode_c $branch->{name}).'/'"><code><t:text value="$branch->{name}"></code></a>
-            <td><m:timestamp m:value="$branch->{commit_log}->{author}->{time}"/>
-            <td><span class=commit-message><t:text value="$branch->{commit_message}"></span>
-        </t:for>
-    </table>
-  </section>
-
+  <!-- XXX <p><button type=button>更新</button>-->
+  <ul class=repos>
+  </ul>
+  <template class=repo-template>
+    <a data-href="/tr/{url}/{branch}/{path}/">{label}</a>
+    <p class=desc>{desc}
+  </template>
+  <script>
+    var ghSection = document.querySelector ('#github');
+    var xhr = new XMLHttpRequest;
+    xhr.open ('GET', '/remote/github/repos.json', true);
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 4) {
+        if (xhr.status === 200) {
+          var json = JSON.parse (xhr.responseText);
+          var repos = ghSection.querySelector ('.repos');
+          repos.textContent = '';
+          var repoTemplate = ghSection.querySelector ('.repo-template');
+          for (var key in json.repos) {
+            var repo = json.repos[key];
+            var li = document.createElement ('li');
+            li.innerHTML = repoTemplate.innerHTML;
+            var a = li.querySelector ('a');
+            a.href = a.getAttribute ('data-href')
+                .replace (/\{url\}/g, encodeURIComponent (repo.url))
+                .replace (/\{branch\}/g, encodeURIComponent (repo.default_branch))
+                .replace (/\{path\}/g, encodeURIComponent ('/'));
+            a.textContent = repo.label;
+            li.querySelector ('.desc').textContent = repo.desc;
+            repos.appendChild (li);
+          } // repo
+        } else {
+          // XXX
+        }
+      }
+    };
+    xhr.send (null);
+  </script>
 </section>
 
 <t:include path=_footer.html.tm />

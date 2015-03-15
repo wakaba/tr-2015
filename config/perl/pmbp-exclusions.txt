@@ -4,6 +4,7 @@
 - "../../modules/web-dom" tests build
 - "../../modules/web-markup" tests build
 - "../../modules/web-url" tests build
+- "../../modules/web-datetime" tests build
 - "../../modules/web-encodings" tests build
 - "../../modules/ooutils" tests test build classdiamondgenerator classregistry operationresponse
 - "../../modules/swml-parser" tests build

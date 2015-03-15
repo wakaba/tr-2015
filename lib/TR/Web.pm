@@ -52,6 +52,13 @@ sub main ($$) {
     return $app->temma ('index.html.tm');
   }
 
+  if (@$path == 1 and $path->[0] eq 'tr') {
+    # /tr
+    return $app->temma ('tr.html.tm', {
+      app => $app,
+    });
+  }
+
   if ($path->[0] eq 'tr' and $path->[2] eq '' and @$path == 3) {
     # /tr/{url}/
 
@@ -69,7 +76,7 @@ sub main ($$) {
         for (values %{$parsed1->{branches}}) {
           $_->{commit_log} = $sha_to_commit->{$_->{commit}};
         }
-        return $app->temma ('tr.html.tm', {
+        return $app->temma ('tr.repo.html.tm', {
           app => $app,
           tr => $tr,
           branches => $parsed1->{branches},
@@ -953,9 +960,12 @@ sub main ($$) {
       my $token = $json->{access_token} // return {};
       return Promise->new (sub {
         my ($ok, $ng) = @_;
+        # XXX paging support
         http_get
-            url => q<https://api.github.com/user/repos>,
-            header_fields => {Authorization => 'token ' . $token},
+            url => q<https://api.github.com/user/repos?per_page=100>,
+            header_fields => {Authorization => 'token ' . $token,
+                              Accept => 'application/vnd.github.moondragon+json'},
+            timeout => 60,
             anyevent => 1,
             cb => sub {
               my (undef, $res) = @_;
@@ -967,7 +977,16 @@ sub main ($$) {
             };
       })->then (sub {
         my $json = $_[0];
-        return $app->send_json ({XXX => $json});
+        return $app->send_json ({repos => {map { $_->{url} => $_ } map { +{
+          label => $_->{full_name},
+          url => qq{https://github.com/$_->{full_name}},
+          default_branch => $_->{default_branch},
+          private => !!$_->{private},
+          read => !!$_->{permissions}->{pull},
+          write => !!$_->{permissions}->{push},
+          updated => $_->{updated_at}, # XXX conversion
+          desc => $_->{description},
+        } } @$json}});
       });
     });
   } # /remote/github/repos.json

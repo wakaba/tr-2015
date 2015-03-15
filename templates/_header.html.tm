@@ -8,6 +8,8 @@
       menu.hidden = !menu.hidden;
     ">アカウント</button>
     <menu hidden>
+      <p><a href=/tr>リポジトリー一覧</a>
+      <hr>
       <form action=/account/login method=post class=login>
         <input type=hidden name=server value=github>
         <button type=submit>GitHub アカウントでログイン</button>
