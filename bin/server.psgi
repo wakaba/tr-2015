@@ -23,6 +23,8 @@ $config->{account_url_prefix} = decode_base64 $key_path->child ('account-url-pre
 $config->{account_token} = decode_base64 $key_path->child ('account-token.txt')->slurp;
 $config->{account_sk_context} = 'tr';
 
+$config->{mongolab_api_key} = decode_base64 $key_path->child ('mongolab-api-key.txt')->slurp;
+
 return TR::Web->psgi_app ($config);
 
 =head1 LICENSE

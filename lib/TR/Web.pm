@@ -896,30 +896,10 @@ sub main ($$) {
     });
   } elsif (@$path == 2 and $path->[0] eq 'account' and $path->[1] eq 'info.json') {
     # /account/info.json
-    my $prefix = $app->config->{account_url_prefix};
-    my $api_token = $app->config->{account_token};
-    return Promise->new (sub {
-      my ($ok, $ng) = @_;
-      http_post
-          url => qq<$prefix/info>,
-          header_fields => {Authorization => 'Bearer ' . $api_token},
-          params => {
-            sk => $app->http->request_cookies->{sk},
-            sk_context => $app->config->{account_sk_context},
-          },
-          anyevent => 1,
-          cb => sub {
-            my (undef, $res) = @_;
-            if ($res->code == 200) {
-              $ok->(json_bytes2perl $res->content);
-            } else {
-              $ng->($res->status_line);
-            }
-          };
-    })->then (sub {
-      my $json = $_[0];
-      return $app->send_json ({name => $json->{name}, # or undef
-                               account_id => $json->{account_id}}); # or undef
+    return $class->session ($app)->then (sub {
+      my $account = $_[0];
+      return $app->send_json ({name => $account->{name}, # or undef
+                               account_id => $account->{account_id}}); # or undef
       # XXX icon
     });
     # XXX report remote API error
@@ -932,62 +912,85 @@ sub main ($$) {
     # /remote/github/repos.json
 
     # XXX Cache-Control
-    # XXX caching of remote JSON
 
-    return Promise->new (sub {
-      my ($ok, $ng) = @_;
-      my $prefix = $app->config->{account_url_prefix};
-      my $api_token = $app->config->{account_token};
-      http_post
-          url => qq<$prefix/token>,
-          header_fields => {Authorization => 'Bearer ' . $api_token},
-          params => {
-            sk => $app->http->request_cookies->{sk},
-            sk_context => $app->config->{account_sk_context},
-            server => 'github',
-          },
-          anyevent => 1,
-          cb => sub {
-            my (undef, $res) = @_;
-            if ($res->code == 200) {
-              $ok->(json_bytes2perl $res->content);
-            } else {
-              $ng->($res->status_line);
-            }
-          };
+    return $class->session ($app)->then (sub {
+      my $account = $_[0];
+      return [] unless defined $account->{account_id};
+      require TR::MongoLab;
+      my $mongo = TR::MongoLab->new_from_api_key ($app->config->{mongolab_api_key});
+      return (((not $app->bare_param ('update')) ? do {
+        $mongo->get_docs_by_query ('user', 'github-repos', {_id => $account->{account_id}})->then (sub {
+          my $data = $_[0];
+          return $data->[0]->{repos} if defined $data->[0]->{repos};
+          return undef;
+        });
+      } : Promise->resolve (undef))->then (sub {
+        my $json = $_[0];
+        return $json if defined $json;
+
+        return Promise->new (sub {
+          my ($ok, $ng) = @_;
+          my $prefix = $app->config->{account_url_prefix};
+          my $api_token = $app->config->{account_token};
+          http_post
+              url => qq<$prefix/token>,
+              header_fields => {Authorization => 'Bearer ' . $api_token},
+              params => {
+                sk => $app->http->request_cookies->{sk},
+                sk_context => $app->config->{account_sk_context},
+                server => 'github',
+              },
+              anyevent => 1,
+              cb => sub {
+                my (undef, $res) = @_;
+                if ($res->code == 200) {
+                  $ok->(json_bytes2perl $res->content);
+                } else {
+                  $ng->($res->status_line);
+                }
+              };
+        })->then (sub {
+          my $json = $_[0];
+          my $token = $json->{access_token} // return {};
+          return Promise->new (sub {
+            my ($ok, $ng) = @_;
+            # XXX paging support
+            http_get
+                url => q<https://api.github.com/user/repos?per_page=100>,
+                header_fields => {Authorization => 'token ' . $token,
+                                  Accept => 'application/vnd.github.moondragon+json'},
+                timeout => 100,
+                anyevent => 1,
+                cb => sub {
+                  my (undef, $res) = @_;
+                  if ($res->code == 200) {
+                    $ok->(json_bytes2perl $res->content);
+                  } else {
+                    $ng->($res->status_line);
+                  }
+                };
+          });
+        })->then (sub {
+          my $json = $_[0];
+          $json = {map { do { my $v = (percent_encode_c $_->{url}); $v =~ s/\./%2E/g; $v } => $_ } map { +{
+            label => $_->{full_name},
+            url => qq{https://github.com/$_->{full_name}},
+            default_branch => $_->{default_branch},
+            private => !!$_->{private},
+            read => !!$_->{permissions}->{pull},
+            write => !!$_->{permissions}->{push},
+            updated => $_->{updated_at}, # XXX conversion
+            desc => $_->{description},
+          } } @$json};
+          return $mongo->set_doc ('user', 'github-repos', {
+            _id => $account->{account_id},
+            repos => $json,
+          })->then (sub { return $json });
+        });
+      }));
     })->then (sub {
       my $json = $_[0];
-      my $token = $json->{access_token} // return {};
-      return Promise->new (sub {
-        my ($ok, $ng) = @_;
-        # XXX paging support
-        http_get
-            url => q<https://api.github.com/user/repos?per_page=100>,
-            header_fields => {Authorization => 'token ' . $token,
-                              Accept => 'application/vnd.github.moondragon+json'},
-            timeout => 60,
-            anyevent => 1,
-            cb => sub {
-              my (undef, $res) = @_;
-              if ($res->code == 200) {
-                $ok->(json_bytes2perl $res->content);
-              } else {
-                $ng->($res->status_line);
-              }
-            };
-      })->then (sub {
-        my $json = $_[0];
-        return $app->send_json ({repos => {map { $_->{url} => $_ } map { +{
-          label => $_->{full_name},
-          url => qq{https://github.com/$_->{full_name}},
-          default_branch => $_->{default_branch},
-          private => !!$_->{private},
-          read => !!$_->{permissions}->{pull},
-          write => !!$_->{permissions}->{push},
-          updated => $_->{updated_at}, # XXX conversion
-          desc => $_->{description},
-        } } @$json}});
-      });
+      return $app->send_json ({repos => $json});
     });
   } # /remote/github/repos.json
 
@@ -1008,6 +1011,31 @@ sub main ($$) {
 
   return $app->send_error (404);
 } # main
+
+sub session ($$) {
+  my ($class, $app) = @_;
+  my $prefix = $app->config->{account_url_prefix};
+  my $api_token = $app->config->{account_token};
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    http_post
+        url => qq<$prefix/info>,
+        header_fields => {Authorization => 'Bearer ' . $api_token},
+        params => {
+          sk => $app->http->request_cookies->{sk},
+          sk_context => $app->config->{account_sk_context},
+        },
+        anyevent => 1,
+        cb => sub {
+          my (undef, $res) = @_;
+          if ($res->code == 200) {
+            $ok->(json_bytes2perl $res->content);
+          } else {
+            $ng->($res->status_line);
+          }
+        };
+  });
+} # session
 
 1;
 
