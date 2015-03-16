@@ -30,8 +30,9 @@
             <label><input type=checkbox pl:value=$lang> <t:text value=$lang></label>
           </t:for>
           <hr>
-      <a href="#config-langs" onclick=" toggleLangsConfig (true) ">言語設定...</a>
-      <a href="#config-license" onclick=" toggleLicenseConfig (true) ">ライセンス設定...</a>
+      <p><a href="#config-langs" onclick=" toggleLangsConfig (true) ">言語設定...</a>
+      <p><a href="#config-license" onclick=" toggleLicenseConfig (true) ">ライセンス設定...</a>
+      <p><a href="#config-acl" onclick=" toggleACLConfig (true) ">編集権限...</a>
     </menu>
   </nav>
 
@@ -772,6 +773,57 @@ function saveArea (area, onsaved) { // XXX promise
       var f = decodeURIComponent (location.hash.replace (/^#/, ''));
       if (f === 'config-license') {
         toggleLicenseConfig (true);
+      }
+    }) ();
+  </script>
+</div>
+
+<div class=dialog id=config-acl hidden>
+  <section>
+    <header>
+      <h1>編集権限設定</h1>
+      <button type=button class=close title="保存せずに閉じる">閉じる</button>
+    </header>
+
+    <form action="acl" method=post>
+      <table class=config>
+        <tbody>
+          <tr>
+            <th>XXX
+            <td>XXX
+      </table>
+
+      <p class=buttons><button type=button class=save>保存して閉じる</button>
+    </form>
+    <p class=status hidden><progress></progress> <span class=message></span>
+  </section>
+  <script>
+    function toggleACLConfig (status) {
+      var panel = document.querySelector ('#config-acl');
+      if (status) {
+        panel.hidden = false;
+      } else {
+        panel.hidden = true;
+      }
+    } // toggleACLConfig
+
+    (function () {
+      var panel = document.querySelector ('#config-acl');
+      panel.trSync = function () {
+        toggleACLConfig (false);
+        history.replaceState (null, null, '#');
+      };
+      panel.querySelector ('button.save').onclick = function () {
+        saveArea (panel);
+      };
+      panel.querySelector ('button.close').onclick = function () {
+        toggleACLConfig (false);
+        history.replaceState (null, null, '#');
+      };
+
+      var f = decodeURIComponent (location.hash.replace (/^#/, ''));
+      if (f === 'config-acl') {
+        toggleACLConfig (true);
       }
     }) ();
   </script>

@@ -230,6 +230,10 @@ sub main ($$) {
              with_comments => $app->bare_param ('with_comments'));
       })->then (sub {
         my $json = $_[0];
+        $json->{permission} = { # XXX
+          read => 1,
+          write => 1,
+        };
         $json->{query} = $q->as_jsonalizable;
         return $app->send_json ($json);
       })->catch (sub {
@@ -731,6 +735,45 @@ sub main ($$) {
       })->then (sub {
         return $app->send_json ({});
       }, sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500);
+      })->then (sub {
+        return $tr->discard;
+      });
+
+    } elsif (@$path == 5 and $path->[4] eq 'acl') {
+      # .../acl
+      $app->requires_request_method ({POST => 1});
+      # XXX CSRF
+      return $class->session ($app)->then (sub {
+        my $account = $_[0];
+        return $app->throw_error (403) if not defined $account->{account_id};
+
+        require TR::MongoLab;
+        my $mongo = TR::MongoLab->new_from_api_key ($app->config->{mongolab_api_key});
+
+        my $key = percent_encode_c $tr->url;
+        $key =~ s/\./%2E/g;
+
+        return $mongo->update_doc_by_query ('repo', 'acl', $key, {'$set' => {
+          owner_account_id => $account->{account_id},
+        }}, {
+hoge => 1,
+          owner_account_id => {'$exists' => 0},
+        })->then (sub {
+          return $mongo->get_docs_by_query ('repo', 'acl', {
+            _id => $key,
+          })->then (sub {
+            my $doc = $_[0]->[0];
+            if (defined $doc->{owner_account_id} and
+                $doc->{owner_account_id} == $account->{account_id}) {
+              return $app->send_json ({});
+            } else {
+              return $app->send_error (403);
+            }
+          });
+        });
+      })->catch (sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);
       })->then (sub {
