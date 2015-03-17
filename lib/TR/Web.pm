@@ -756,29 +756,22 @@ sub main ($$) {
         my $account = $_[0];
         return $app->throw_error (403) if not defined $account->{account_id};
 
-        require TR::MongoLab;
-        my $mongo = TR::MongoLab->new_from_api_key ($app->config->{mongolab_api_key});
+        # XXX check repo access control... ->then
 
-        my $key = percent_encode_c $tr->url;
-        $key =~ s/\./%2E/g;
-
-        return $mongo->update_doc_by_query ('repo', 'acl', $key, {'$set' => {
-          owner_account_id => $account->{account_id},
-        }}, {
-hoge => 1,
-          owner_account_id => {'$exists' => 0},
+        return $app->db->insert ('repo_owner', [{
+          repo_url => Dongry::Type->serialize ('text', $tr->url),
+          account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+          created => time,
+        }], duplicate => 'ignore')->then (sub {
+          return $app->db->select ('repo_owner', {
+            repo_url => Dongry::Type->serialize ('text', $tr->url),
+          }, fields => ['account_id'], source_name => 'master');
         })->then (sub {
-          return $mongo->get_docs_by_query ('repo', 'acl', {
-            _id => $key,
-          })->then (sub {
-            my $doc = $_[0]->[0];
-            if (defined $doc->{owner_account_id} and
-                $doc->{owner_account_id} == $account->{account_id}) {
-              return $app->send_json ({});
-            } else {
-              return $app->send_error (403);
-            }
-          });
+          my $d = $_[0]->first;
+          unless (defined $d and $d->{account_id} eq $account->{account_id}) {
+            return $app->throw_error (403, reason_phrase => 'There is another owner');
+          }
+          return $app->send_json ({});
         });
       })->catch (sub {
         $app->error_log ($_[0]);
@@ -966,7 +959,7 @@ hoge => 1,
     return $class->session ($app)->then (sub {
       my $account = $_[0];
       return [] unless defined $account->{account_id};
-      require TR::MongoLab;
+      require TR::MongoLab; # XXX replace by MySQL
       my $mongo = TR::MongoLab->new_from_api_key ($app->config->{mongolab_api_key});
       return (((not $app->bare_param ('update')) ? do {
         $mongo->get_docs_by_query ('user', 'github-repos', {_id => $account->{account_id}})->then (sub {

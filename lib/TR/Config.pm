@@ -49,9 +49,9 @@ $Dongry::Types->{json} = {
 }; # json
 
 my $Schema = {
-  session => {
-    type => {data => 'json'},
-    primary_keys => ['sk'],
+  repo_owner => {
+    type => {repo_url => 'text'},
+    primary_keys => ['repo_url'],
   },
 };
 
@@ -59,11 +59,11 @@ sub get_db ($) {
   my $config = $_[0]->{json};
   my $sources = {};
   $sources->{master} = {
-    dsn => (encode 'utf-8', $config->{alt_dsns}->{master}->{account}),
+    dsn => (encode 'utf-8', $config->{alt_dsns}->{master}->{tr}),
     writable => 1, anyevent => 1,
   };
   $sources->{default} = {
-    dsn => (encode 'utf-8', $config->{dsns}->{account}),
+    dsn => (encode 'utf-8', $config->{dsns}->{tr}),
     anyevent => 1,
   };
   return Dongry::Database->new (sources => $sources, schema => $Schema);
