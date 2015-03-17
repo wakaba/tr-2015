@@ -368,17 +368,13 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'import') {
       # .../import
 
-      # XXX
-      my $auth = $app->http->request_auth;
-      unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
-        $app->http->set_response_auth ('basic', realm => $path->[1]);
-        return $app->send_error (401);
-      }
-
-      return $tr->prepare_mirror->then (sub {
-        return $tr->clone_from_mirror;
-      })->then (sub {
-        return $tr->make_pushable ($auth->{userid}, $auth->{password});
+      return $class->get_push_token ($app, $tr)->then (sub {
+        my $token = $_[0];
+        return $tr->prepare_mirror->then (sub {
+          return $tr->clone_from_mirror;
+        })->then (sub {
+          return $tr->make_pushable ($token, '');
+        });
       })->then (sub {
         my $format = $app->text_param ('format') // '';
         my $arg_format = $app->text_param ('arg_format') // '';
@@ -479,21 +475,16 @@ sub main ($$) {
         $app->requires_request_method ({POST => 1});
         # XXX CSRF
 
-        # XXX access control
-
         my $id = $path->[5]; # XXX validation
-
-        # XXX
-        my $auth = $app->http->request_auth;
-        unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
-          $app->http->set_response_auth ('basic', realm => $path->[1]);
-          return $app->send_error (401);
-        }
         my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
-        return $tr->prepare_mirror->then (sub {
-          return $tr->clone_from_mirror;
-        })->then (sub {
-          return $tr->make_pushable ($auth->{userid}, $auth->{password});
+
+        return $class->get_push_token ($app, $tr)->then (sub {
+          my $token = $_[0];
+          return $tr->prepare_mirror->then (sub {
+            return $tr->clone_from_mirror;
+          })->then (sub {
+            return $tr->make_pushable ($token, '');
+          });
         })->then (sub {
           return $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt');
         })->then (sub {
@@ -524,21 +515,16 @@ sub main ($$) {
         $app->requires_request_method ({POST => 1});
         # XXX CSRF
 
-        # XXX access control
-
         my $id = $path->[5]; # XXX validation
 
-        # XXX
-        my $auth = $app->http->request_auth;
-        unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
-          $app->http->set_response_auth ('basic', realm => $path->[1]);
-          return $app->send_error (401);
-        }
         my $te;
-        return $tr->prepare_mirror->then (sub {
-          return $tr->clone_from_mirror;
-        })->then (sub {
-          return $tr->make_pushable ($auth->{userid}, $auth->{password});
+        return $class->get_push_token ($app, $tr)->then (sub {
+          my $token = $_[0];
+          return $tr->prepare_mirror->then (sub {
+            return $tr->clone_from_mirror;
+          })->then (sub {
+            return $tr->make_pushable ($token, '');
+          });
         })->then (sub {
           return $tr->read_file_by_text_id_and_suffix ($id, 'dat');
         })->then (sub {
@@ -585,20 +571,15 @@ sub main ($$) {
         $app->requires_request_method ({POST => 1});
         # XXX CSRF
 
-        # XXX access control
-
         my $id = $path->[5]; # XXX validation
 
-        # XXX
-        my $auth = $app->http->request_auth;
-        unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
-          $app->http->set_response_auth ('basic', realm => $path->[1]);
-          return $app->send_error (401);
-        }
-        return $tr->prepare_mirror->then (sub {
-          return $tr->clone_from_mirror;
-        })->then (sub {
-          return $tr->make_pushable ($auth->{userid}, $auth->{password});
+        return $class->get_push_token ($app, $tr)->then (sub {
+          my $token = $_[0];
+          return $tr->prepare_mirror->then (sub {
+            return $tr->clone_from_mirror;
+          })->then (sub {
+            return $tr->make_pushable ($token, '');
+          });
         })->then (sub {
           my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
           $te->set (id => $tr->generate_section_id);
@@ -660,8 +641,6 @@ sub main ($$) {
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
 
-      # XXX access control
-
       my $data = {texts => {}};
       return $class->get_push_token ($app, $tr)->then (sub {
         my $token = $_[0];
@@ -706,25 +685,19 @@ sub main ($$) {
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
 
-      # XXX access control
-
-      # XXX
-      my $auth = $app->http->request_auth;
-      unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
-        $app->http->set_response_auth ('basic', realm => $path->[1]);
-        return $app->send_error (401);
-      }
-
       my %found; # XXX lang validation & normalization
       my $langs = [grep { length and not $found{$_}++ } @{$app->text_param_list ('lang')}];
       unless (@$langs) {
         return $app->send_error (400, reason_phrase => 'Bad |lang|');
       }
 
-      return $tr->prepare_mirror->then (sub {
-        return $tr->clone_from_mirror;
-      })->then (sub {
-        return $tr->make_pushable ($auth->{userid}, $auth->{password});
+      return $class->get_push_token ($app, $tr)->then (sub {
+        my $token = $_[0];
+        return $tr->prepare_mirror->then (sub {
+          return $tr->clone_from_mirror;
+        })->then (sub {
+          return $tr->make_pushable ($token, '');
+        });
       })->then (sub {
         return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
       })->then (sub {
@@ -833,19 +806,13 @@ sub main ($$) {
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
 
-      # XXX access control
-
-      # XXX
-      my $auth = $app->http->request_auth;
-      unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
-        $app->http->set_response_auth ('basic', realm => $path->[1]);
-        return $app->send_error (401);
-      }
-
-      return $tr->prepare_mirror->then (sub {
-        return $tr->clone_from_mirror;
-      })->then (sub {
-        return $tr->make_pushable ($auth->{userid}, $auth->{password});
+      return $class->get_push_token ($app, $tr)->then (sub {
+        my $token = $_[0];
+        return $tr->prepare_mirror->then (sub {
+          return $tr->clone_from_mirror;
+        })->then (sub {
+          return $tr->make_pushable ($token, '');
+        });
       })->then (sub {
         return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
       })->then (sub {
@@ -1128,11 +1095,24 @@ sub session ($$) {
 # XXX support for non-github repos
 sub get_push_token ($$$) {
   my ($class, $app, $tr) = @_;
-  return $app->db->select ('repo_owner', {
-    repo_url => Dongry::Type->serialize ('text', $tr->url),
-  }, fields => ['account_id'])->then (sub {
+  my $account_id;
+  return $class->session ($app)->then (sub {
+    my $session = $_[0];
+    return $app->throw_error (403, reason_phrase => 'Need to login')
+        unless defined ($account_id = $session->{account_id});
+  })->then (sub {
+    return $app->db->select ('repo_owner', {
+      repo_url => Dongry::Type->serialize ('text', $tr->url),
+    }, fields => ['account_id']);
+  })->then (sub {
     my $owner = $_[0]->first;
     return $app->throw_error (403, reason_phrase => 'The repository has no owner') unless defined $owner;
+
+    unless ($owner->{account_id} eq $account_id) {
+      return $app->throw_error (403, reason_phrase => 'No write permission');
+    }
+    # XXX non-owner writable users
+
     return Promise->new (sub {
       my ($ok, $ng) = @_;
       my $prefix = $app->config->{account_url_prefix};
