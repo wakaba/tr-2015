@@ -663,39 +663,8 @@ sub main ($$) {
       # XXX access control
 
       my $data = {texts => {}};
-      return $app->db->select ('repo_owner', {
-        repo_url => Dongry::Type->serialize ('text', $tr->url),
-      }, fields => ['account_id'])->then (sub {
-        my $owner = $_[0]->first;
-        return $app->throw_error (403, reason_phrase => 'The repository has no owner') unless defined $owner;
-
-        return Promise->new (sub {
-          my ($ok, $ng) = @_;
-          my $prefix = $app->config->{account_url_prefix};
-          my $api_token = $app->config->{account_token};
-          http_post
-              url => qq<$prefix/token>,
-              header_fields => {Authorization => 'Bearer ' . $api_token},
-              params => {
-                account_id => $owner->{account_id},
-                server => 'github',
-              },
-              anyevent => 1,
-              cb => sub {
-                my (undef, $res) = @_;
-                if ($res->code == 200) {
-                  $ok->(json_bytes2perl $res->content);
-                } else {
-                  $ng->($res->status_line);
-                }
-              };
-        });
-      })->then (sub {
-        my $json = $_[0];
-        my $token = $json->{access_token};
-        return $app->throw_error (403, reason_phrase => 'The repository owner has no GitHub access token')
-            unless defined $token;
-
+      return $class->get_push_token ($app, $tr)->then (sub {
+        my $token = $_[0];
         return $tr->prepare_mirror->then (sub {
           return $tr->clone_from_mirror;
         })->then (sub {
@@ -1155,6 +1124,44 @@ sub session ($$) {
         };
   });
 } # session
+
+# XXX support for non-github repos
+sub get_push_token ($$$) {
+  my ($class, $app, $tr) = @_;
+  return $app->db->select ('repo_owner', {
+    repo_url => Dongry::Type->serialize ('text', $tr->url),
+  }, fields => ['account_id'])->then (sub {
+    my $owner = $_[0]->first;
+    return $app->throw_error (403, reason_phrase => 'The repository has no owner') unless defined $owner;
+    return Promise->new (sub {
+      my ($ok, $ng) = @_;
+      my $prefix = $app->config->{account_url_prefix};
+      my $api_token = $app->config->{account_token};
+      http_post
+          url => qq<$prefix/token>,
+          header_fields => {Authorization => 'Bearer ' . $api_token},
+          params => {
+            account_id => $owner->{account_id},
+            server => 'github',
+          },
+          anyevent => 1,
+          cb => sub {
+            my (undef, $res) = @_;
+            if ($res->code == 200) {
+              $ok->(json_bytes2perl $res->content);
+            } else {
+              $ng->($res->status_line);
+            }
+          };
+    });
+  })->then (sub {
+    my $json = $_[0];
+    my $token = $json->{access_token};
+    return $app->throw_error (403, reason_phrase => 'The repository owner has no GitHub access token')
+        unless defined $token;
+    return $token;
+  });
+} # get_push_token
 
 1;
 
