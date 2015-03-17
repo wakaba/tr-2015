@@ -756,6 +756,8 @@ sub main ($$) {
         my $account = $_[0];
         return $app->throw_error (403) if not defined $account->{account_id};
 
+        ## Changing the owner
+
         # XXX check repo access control... ->then
 
         return $app->db->insert ('repo_owner', [{
@@ -778,6 +780,49 @@ sub main ($$) {
         return $app->send_error (500);
       })->then (sub {
         return $tr->discard;
+      });
+    } elsif (@$path == 5 and $path->[4] eq 'acl.json') {
+      # .../acl.json
+
+      # XXX access control
+
+      my $json = {};
+      return $app->db->select ('repo_owner', {
+        repo_url => Dongry::Type->serialize ('text', $tr->url),
+      }, fields => ['account_id'])->then (sub {
+        my $owner = $_[0]->first;
+        my @account_id;
+        if (defined $owner->{account_id}) {
+          $json->{owner_account_id} = $owner->{account_id};
+          push @account_id, $owner->{account_id};
+        }
+        
+        my $prefix = $app->config->{account_url_prefix};
+        my $api_token = $app->config->{account_token};
+        return Promise->new (sub {
+          my ($ok, $ng) = @_;
+          return $ok->({accounts => []}) unless @account_id;
+          http_post
+              url => qq<$prefix/profiles>,
+              header_fields => {Authorization => 'Bearer ' . $api_token},
+              params => {
+                account_id => \@account_id,
+              },
+              anyevent => 1,
+              cb => sub {
+                my (undef, $res) = @_;
+                if ($res->code == 200) {
+                  $ok->(json_bytes2perl $res->content);
+                } else {
+                  $ng->($res->status_line);
+                }
+              };
+        })->then (sub {
+          my $j = $_[0];
+          $json->{accounts} = $j->{accounts};
+        });
+      })->then (sub {
+        return $app->send_json ($json);
       });
 
     } elsif (@$path == 5 and $path->[4] eq 'LICENSE') {

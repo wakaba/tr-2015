@@ -789,8 +789,10 @@ function saveArea (area, onsaved) { // XXX promise
       <table class=config>
         <tbody>
           <tr>
-            <th>XXX
-            <td>XXX
+            <th>所有者
+            <td><span class=owner data-no-owner="未設定"></span>
+              <p class=info>Git リポジトリーへの変更は所有者の権限で保存
+                (<code>git push</code>) されます。
       </table>
 
       <p class=buttons><button type=button class=save>保存して閉じる</button>
@@ -802,6 +804,28 @@ function saveArea (area, onsaved) { // XXX promise
       var panel = document.querySelector ('#config-acl');
       if (status) {
         panel.hidden = false;
+
+        // XXX progress
+        var xhr = new XMLHttpRequest;
+        xhr.open ('GET', 'acl.json', true);
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 4) {
+            if (xhr.status === 200) {
+              var json = JSON.parse (xhr.responseText);
+              var ownerEl = panel.querySelector ('.owner');
+              if (json.owner_account_id) {
+                var owner = json.accounts[json.owner_account_id] || {};
+                ownerEl.textContent = owner.name;
+                // XXX icon, link
+              } else {
+                ownerEl.textContent = ownerEl.getAttribute ('data-no-owner');
+              }
+            } else {
+              // XXX
+            }
+          }
+        };
+        xhr.send (null);
       } else {
         panel.hidden = true;
       }
