@@ -11,7 +11,11 @@
 - "../../modules/charclass" tests build
 - "../../modules/vcutils" tests viewvc rcs
 - "../../modules/temma" tests
+- "../../modules/dongry" tests datetime mp dbi
+- "../../modules/anyevent-mysql-client" tests
 - "../../modules/web-ua" tests oauth wsse testws cli curl anyeventsocks
 - "../../modules/promised-command" tests
+- "../../modules/promised-file" tests
 - "../../t_deps/modules/promised-plackup" tests
+- "../../t_deps/modules/promised-mysqld" tests
 - "../../t_deps/modules/promised-docker-webdriver" tests

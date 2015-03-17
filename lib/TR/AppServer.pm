@@ -21,6 +21,10 @@ sub config ($) {
   return $_[0]->{config};
 } # config
 
+sub db ($) {
+  return $_[0]->{db} ||= $_[0]->config->get_db;
+} # db
+
 sub error_log ($$) {
   #$_[0]->ikachan (1, $_[1]);
   warn "ERROR: $_[1]\n"; # XXX blocking I/O
@@ -97,6 +101,11 @@ sub temma ($$$) {
 
   return $p;
 } # temma
+
+sub shutdown ($) {
+  return $_[0]->{db}->disconnect if defined $_[0]->{db};
+  return Promise->resolve;
+} # shutdown
 
 package TR::AppServer::TemmaPrinter;
 

@@ -3,6 +3,7 @@ HTTP::Status~6.03
 IO::HTML~1.001
 Encode~2.72
 HTTP::Tiny~0.054
+File::Path~2.09
 HTTP::Daemon~6.01
 List::MoreUtils~0.404
 Devel::StackTrace~2.00
@@ -11,8 +12,8 @@ POSIX::strftime::Compiler~0.41
 Path::Class~0.35
 common::sense~3.73
 URI::Escape~3.31
-LWP::MediaTypes~6.02
 IO::Handle~1.28
+LWP::MediaTypes~6.02
 Unicode::Normalize~1.18
 HTML::Entities~3.69
 Parallel::Prefork~0.17
@@ -44,18 +45,19 @@ Time::Local~1.2300
 Test::SharedFork~0.29
 Try::Tiny~0.22
 AnyEvent~7.08
+Term::ANSIColor~4.03
 Exporter::Lite~0.06
 Server::Starter~0.19
 Twiggy~0.1025
-HTTP::Cookies~6.01
 AnyEvent::HTTP~2.21
+HTTP::Cookies~6.01
 File::Temp~0.2304
 Signal::Mask~0.008
 Class::Inspector~1.28
 WWW::RobotRules~6.02
 Unicode::Stringprep~1.105
-Test::Requires~0.08
 Scalar::Util~1.41
+Test::Requires~0.08
 Scope::Guard~0.20
 IPC::Signal~1.00
 File::Spec~3.47
@@ -68,5 +70,6 @@ Hash::MultiValue~0.15
 IO::Socket::SSL~2.012
 Digest::SHA1~2.13
 Apache::LogFormat::Compiler~0.32
+Time::HiRes~1.9726
 HTTP::Date~6.02
 Mozilla::CA~20141217

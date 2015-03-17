@@ -35,7 +35,14 @@ sub psgi_app ($$) {
       #my $origin = $app->http->url->ascii_origin;
       #if ($origin eq $app->config->{web_origin}) {
       # XXX HSTS
-        return $class->main ($app);
+
+      return Promise->resolve ($class->main ($app))->then (sub {
+        return $app->shutdown;
+      }, sub {
+        my $error = $_[0];
+        return $app->shutdown->then (sub { die $error });
+      });
+
       #} else {
       #  return $app->send_error (400, reason_phrase => 'Bad |Host:|');
       #}

@@ -1,15 +1,23 @@
 # -*- perl -*-
 use strict;
 use warnings;
+use AnyEvent;
+use TR::Config;
 use TR::Web;
 
 $ENV{LANG} = 'C';
 $ENV{TZ} = 'UTC';
 
-my $config = {
-  #XXX
-  #web_origin => 'http://localhost:5000',
-};
+my $config_file_name = $ENV{APP_CONFIG}
+    // die "Usage: APP_CONFIG=config.json ./plackup bin/server.psgi";
+my $cv = AE::cv;
+TR::Config->from_file_name ($config_file_name)->then (sub {
+  $cv->send ($_[0]);
+}, sub {
+  $cv->croak ($_[0]);
+});
+my $config = $cv->recv;
+
 
 #XXX
 use Path::Tiny;
