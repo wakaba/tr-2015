@@ -200,6 +200,7 @@
               <a href=... class=tag onclick=" return openQueryAnchor (this) ">...</a>
               <input type=hidden name=tag>
             </template>
+        <!-- XXX メイン言語でのテキスト -->
       </table>
         <p class=buttons><button type=submit>追加</button>
         <p class=help><a href="/help/XXX" rel=help target=help>How to add lots of texts at once</a>

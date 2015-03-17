@@ -121,7 +121,7 @@ sub make_pushable ($$$) {
   return Promise->new (sub {
     my ($ok, $ng) = @_;
     my $url = $self->url;
-    $url =~ s{^https://github\.com/}{'https://'.(percent_encode_c $userid).':'.(percent_encode_c $password).'@github.com/'}e;
+    $url =~ s{^https://github\.com/}{'https://'.(percent_encode_c $userid).':'.(percent_encode_c $password).'@github.com/'}e; # XXX
     my $path = $self->repo_path;
     (run_cmd "cd \Q$path\E && git remote add remoterepo \Q$url\E")->cb (sub {
       my $status = $_[0]->recv;

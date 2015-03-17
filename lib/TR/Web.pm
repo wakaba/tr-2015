@@ -662,18 +662,45 @@ sub main ($$) {
 
       # XXX access control
 
-      # XXX
-      my $auth = $app->http->request_auth;
-      unless (defined $auth->{auth_scheme} and $auth->{auth_scheme} eq 'basic') {
-        $app->http->set_response_auth ('basic', realm => $path->[1]);
-        return $app->send_error (401);
-      }
-
       my $data = {texts => {}};
-      return $tr->prepare_mirror->then (sub {
-        return $tr->clone_from_mirror;
+      return $app->db->select ('repo_owner', {
+        repo_url => Dongry::Type->serialize ('text', $tr->url),
+      }, fields => ['account_id'])->then (sub {
+        my $owner = $_[0]->first;
+        return $app->throw_error (403, reason_phrase => 'The repository has no owner') unless defined $owner;
+
+        return Promise->new (sub {
+          my ($ok, $ng) = @_;
+          my $prefix = $app->config->{account_url_prefix};
+          my $api_token = $app->config->{account_token};
+          http_post
+              url => qq<$prefix/token>,
+              header_fields => {Authorization => 'Bearer ' . $api_token},
+              params => {
+                account_id => $owner->{account_id},
+                server => 'github',
+              },
+              anyevent => 1,
+              cb => sub {
+                my (undef, $res) = @_;
+                if ($res->code == 200) {
+                  $ok->(json_bytes2perl $res->content);
+                } else {
+                  $ng->($res->status_line);
+                }
+              };
+        });
       })->then (sub {
-        return $tr->make_pushable ($auth->{userid}, $auth->{password});
+        my $json = $_[0];
+        my $token = $json->{access_token};
+        return $app->throw_error (403, reason_phrase => 'The repository owner has no GitHub access token')
+            unless defined $token;
+
+        return $tr->prepare_mirror->then (sub {
+          return $tr->clone_from_mirror;
+        })->then (sub {
+          return $tr->make_pushable ($token, '');
+        });
       })->then (sub {
         my $id = $tr->generate_text_id;
         my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
@@ -682,6 +709,8 @@ sub main ($$) {
           # XXX check duplication
           $te->set (msgid => $msgid);
         }
+        my $desc = $app->text_param ('desc');
+        $te->set (desc => $desc) if defined $desc and length $desc;
         for (@{$app->text_param_list ('tag')}) {
           $te->enum ('tags')->{$_} = 1;
         }
@@ -898,6 +927,7 @@ sub main ($$) {
     unless ($server eq 'github') {
       return $app->send_error (400, reason_phrase => 'Bad |server|');
     }
+    my $server_scope = 'repo';
 
     my $prefix = $app->config->{account_url_prefix};
     my $api_token = $app->config->{account_token};
@@ -937,6 +967,7 @@ sub main ($$) {
               sk => $json->{sk},
               sk_context => $app->config->{account_sk_context},
               server => $server,
+              server_scope => $server_scope,
               callback_url => $app->http->url->resolve_string ('/account/cb')->stringify,
             },
             anyevent => 1,
