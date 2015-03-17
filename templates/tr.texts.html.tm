@@ -796,6 +796,16 @@ function saveArea (area, onsaved) { // XXX promise
                 (<code>git push</code>) されます。
       </table>
 
+      <p class=add-account>
+        <input>
+        <template class=datalist-item-template>
+          <template>
+            <span class=name>{name}</span> <span class=key>{key}</span>
+            <span class=service>{service}</span>
+          </template>
+        </template>
+        <span class=datalist></span>
+
       <p class=buttons><button type=button class=save>保存して閉じる</button>
     </form>
     <p class=status hidden><progress></progress> <span class=message></span>
@@ -827,6 +837,50 @@ function saveArea (area, onsaved) { // XXX promise
           }
         };
         xhr.send (null);
+
+        var add = panel.querySelector ('.add-account');
+        var addInput = add.querySelector ('input');
+        var addDatalist = add.querySelector ('.datalist');
+        var addDatalistTemplate = add.querySelector ('.datalist-item-template');
+        var updateAdd = function () {
+          if (!addInput.value) return;
+          var xhr = new XMLHttpRequest;
+          xhr.open ('POST', '/users/search.json?q=' + encodeURIComponent (addInput.value), true);
+          xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+              if (xhr.status === 200) {
+                //XXX ignore if next request is dispatched
+                var json = JSON.parse (xhr.responseText);
+                addDatalist.textContent = '';
+                for (var accountId in json.accounts) {
+                  var account = json.accounts[accountId];
+                  var option = document.createElement ('span');
+                  option.innerHTML = addDatalistTemplate.innerHTML;
+                  option.setAttribute ('data-value', accountId);
+                  var serviceTemplate = option.querySelector ('template');
+                  var services = [];
+                  for (var serviceName in account.services) {
+                    var serviceAccount = account.services[serviceName];
+                    var service = document.createElement ('span');
+                    service.className = 'service-account';
+                    service.innerHTML = serviceTemplate.innerHTML;
+                    service.querySelector ('.service').textContent = serviceName;
+                    service.querySelector ('.name').textContent = serviceAccount.name;
+                    service.querySelector ('.key').textContent = serviceAccount.key || serviceAccount.id;
+                    option.insertBefore (service, serviceTemplate);
+                  }
+                  addDatalist.appendChild (option);
+                }
+              }
+            }
+          };
+          xhr.send (null);
+        };
+        var addTimer;
+        addInput.oninput = function () {
+          clearTimeout (addTimer);
+          addTimer = setTimeout (updateAdd, 500);
+        };
       } else {
         panel.hidden = true;
       }

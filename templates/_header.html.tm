@@ -14,6 +14,10 @@
         <input type=hidden name=server value=github>
         <button type=submit>GitHub アカウントでログイン</button>
       </form>
+      <form action=/account/login method=post class=login>
+        <input type=hidden name=server value=hatena>
+        <button type=submit>はてなIDでログイン</button>
+      </form>
     </menu>
     <script>
       var xhr = new XMLHttpRequest;

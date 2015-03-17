@@ -757,6 +757,9 @@ sub main ($$) {
 
       # XXX access control
 
+      # XXX fail if the session's account has github write permission
+      # to the target repo
+
       my $json = {};
       return $app->db->select ('repo_owner', {
         repo_url => Dongry::Type->serialize ('text', $tr->url),
@@ -860,10 +863,10 @@ sub main ($$) {
     $app->requires_same_origin_or_referer_origin;
 
     my $server = $app->bare_param ('server') // '';
-    unless ($server eq 'github') {
+    unless ($server eq 'github' or $server eq 'hatena') {
       return $app->send_error (400, reason_phrase => 'Bad |server|');
     }
-    my $server_scope = 'repo';
+    my $server_scope = {github => 'repo'}->{$server};
 
     my $prefix = $app->config->{account_url_prefix};
     my $api_token = $app->config->{account_token};
@@ -960,12 +963,46 @@ sub main ($$) {
     # XXX report remote API error
   } # /account
 
+  if (@$path == 2 and
+      $path->[0] eq 'users' and
+      $path->[1] eq 'search.json') {
+    # /users/search.json
+    $app->requires_request_method ({POST => 1});
+    # XXX requires session?
+
+    return Promise->new (sub {
+      my ($ok, $ng) = @_;
+      my $prefix = $app->config->{account_url_prefix};
+      my $api_token = $app->config->{account_token};
+      http_post
+          url => qq<$prefix/search>,
+          header_fields => {Authorization => 'Bearer ' . $api_token},
+          params => {
+            q => $app->text_param ('q'),
+          },
+          anyevent => 1,
+          cb => sub {
+            my (undef, $res) = @_;
+            if ($res->code == 200) {
+              $ok->(json_bytes2perl $res->content);
+            } else {
+              $ng->($res->status_line);
+            }
+          };
+    })->then (sub {
+      my $json = $_[0];
+      return $app->send_json ($json);
+    });
+  } # /users/search.json
+
+
   if (@$path == 3 and
       $path->[0] eq 'remote' and
       $path->[1] eq 'github' and
       $path->[2] eq 'repos.json') {
     # /remote/github/repos.json
 
+    # XXX requires POST
     # XXX Cache-Control
 
     return $class->session ($app)->then (sub {
