@@ -61,8 +61,18 @@ sub main ($$) {
 
   if (@$path == 1 and $path->[0] eq 'tr') {
     # /tr
-    return $app->temma ('tr.html.tm', {
-      app => $app,
+    return $class->session ($app)->then (sub {
+      my $account = $_[0];
+      return ((defined $account->{account_id} ? $app->db->select ('repo_access', {
+        account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+      }, fields => ['repo_url', 'data'])->then (sub {
+        return $_[0]->all_as_rows;
+      }) : Promise->resolve ([]))->then (sub {
+        return $app->temma ('tr.html.tm', {
+          app => $app,
+          repo_access_rows => $_[0],
+        });
+      }));
     });
   }
 
@@ -1091,7 +1101,7 @@ sub main ($$) {
               };
         })->then (sub {
           my $json = $_[0];
-          my $token = $json->{access_token} // return {};
+          my $token = $json->{access_token} // return [];
           return Promise->new (sub {
             my ($ok, $ng) = @_;
             # XXX paging support

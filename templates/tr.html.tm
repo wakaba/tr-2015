@@ -1,4 +1,4 @@
-<html t:params="$app">
+<html t:params="$app $repo_access_rows">
 <t:include path=_macro.html.tm />
 <t:call x="use Wanage::URL">
 <title>XXX</title>
@@ -6,6 +6,29 @@
 <body>
 
 <t:include path=_header.html.tm />
+
+<section>
+  <h1>リポジトリーの一覧</h1>
+
+<section id=repos>
+  <h1>参加中のリポジトリー</h1>
+
+  <table>
+    <thead>
+      <tr>
+        <th>リポジトリー
+        <th>表示
+        <th>編集
+    <tbody>
+      <t:for as=$row x=$repo_access_rows>
+        <tr onclick=" querySelector ('a').click () ">
+          <t:my as=$scopes x="$row->get ('data')">
+          <th><a pl:href="'/tr/'.(percent_encode_c $row->get ('repo_url')).'/master/%2F/'; # XXX"><t:text value="$row->get ('repo_url'); # XXX label"></a>
+          <td><t:text value="$scopes->{read} ? '&#x2714;' : '-'">
+          <td><t:text value="$scopes->{edit} ? '&#x2714;' : '-'"><!-- XXX edit/{lang} -->
+      </t:for>
+  </table>
+</section>
 
 <section id=github>
   <h1>GitHub リポジトリー</h1>
@@ -61,6 +84,8 @@
     } // loadGitHubList
     loadGitHubList (false);
   </script>
+</section>
+
 </section>
 
 <t:include path=_footer.html.tm />

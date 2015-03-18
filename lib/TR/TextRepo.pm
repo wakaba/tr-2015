@@ -414,6 +414,7 @@ sub get_data_as_jsonalizable ($%) {
       my $avail_langs = {map { $_ => 1 } @$langs};
       @$selected_langs = grep { $avail_langs->{$_} } @$selected_langs;
     } else {
+      $langs = ['en'] unless @$langs;
       $selected_langs = $langs;
     }
 
