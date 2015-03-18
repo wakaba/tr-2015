@@ -27,7 +27,7 @@
           <th>権限
           <th>
       </thead>
-      <script type=text/html class=acl-row-template>
+      <template class=acl-row-template>
         <th><span class=account>{account}</span>
         <td>
           <form action=acl method=post>
@@ -47,7 +47,7 @@
         <td>
           <p><button type=button class=save-button>変更を保存</button>
           <p><button type=button class=delete-button>削除</button>
-      </script>
+      </template>
       <tbody>
     </table>
 

@@ -406,6 +406,7 @@ sub text_ids ($) {
 
 sub get_data_as_jsonalizable ($%) {
   my ($self, $query, $langs, %args) = @_;
+  my $data = {};
   return $self->read_file_by_path ($self->texts_path->child ('config.json'))->then (sub {
     my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
     $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
@@ -414,6 +415,14 @@ sub get_data_as_jsonalizable ($%) {
       my $avail_langs = {map { $_ => 1 } @$langs};
       @$specified_langs = grep { $avail_langs->{$_} } @$specified_langs;
       $langs = $specified_langs;
+    }
+
+    $data->{lang_keys} = $langs;
+    for my $lang (@$langs) {
+      $data->{langs}->{$lang}->{key} = $lang;
+      $data->{langs}->{$lang}->{id} = $lang; # XXX
+      $data->{langs}->{$lang}->{label} = $lang; # XXX
+      $data->{langs}->{$lang}->{label_short} = $lang; # XXX
     }
   })->then (sub {
     my $text_ids = $query->text_ids;
@@ -424,7 +433,6 @@ sub get_data_as_jsonalizable ($%) {
     }
   })->then (sub {
     # XXX
-    my $data = {};
     my $texts = {};
     my @id = keys %{$_[0]};
     my $tag_ors = $query->tag_ors;

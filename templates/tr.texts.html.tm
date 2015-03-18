@@ -45,18 +45,17 @@
   </form>
 </header>
 
-<table id=texts pl:data-all-langs="join ',', @{$tr->avail_langs}">
-  <t:my as=$lang_cell_count x="0+@{$tr->langs}">
+<table id=texts pl:data-all-langs="join ',', @{$tr->avail_langs} # XXX">
   <thead>
     <tr>
-      <t:for as=$lang x="$tr->langs">
-        <th><t:text value=$lang>
-      </t:for>
+      <template class=lang-header-template>
+        <span class=lang-label>{lang_label}</span>
+      </template>
       <th>コメント
   </thead>
-  <template class=text-header-template>
+  <template class=text-row-template>
     <tr class=text-header>
-      <th pl:colspan="$lang_cell_count+1">
+      <th data-colspan-delta=1>
         <a class=msgid onclick=" showCopyIdDialog (this.parentNode); return false "><code></code></a>
         <a class=text_id onclick=" showCopyIdDialog (this.parentNode); return false "><code></code></a>
         <span class=tags-area>
@@ -81,53 +80,7 @@
         <span class=desc></span>
         <span class=buttons><button type=button class=edit title="テキスト情報を編集" onclick=" showTextEditDialog (parentNode.parentNode) ">編集</button></span>
     <tr class=text-body>
-      <t:for as=$lang x="$tr->langs">
-        <td pl:data-lang=$lang class=lang-area>
-          <p class=header>
-            <strong class=lang><t:text value=$lang></strong>
-            <button type=button class=toggle-edit title=Edit>Edit</button>
-            <button type=button class=search title="Search this text">Search</button>
-          <div class=view>
-            <p class=body_0 data-form=0>
-            <p class=body_1 data-form=1>
-            <p class=body_2 data-form=2>
-            <p class=body_3 data-form=3>
-            <p class=body_4 data-form=4>
-            <menu class=text-form-tabs>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
-            </menu>
-          </div>
-          <p class=status hidden><progress></progress> <span class=message></span>
-          <form data-action="i/{text_id}/" method=post class=edit hidden>
-            <p class=buttons><button type=submit>保存</button>
-            <input type=hidden name=lang pl:value=$lang>
-            <!-- XXX hash -->
-            <p data-form=0><textarea name=body_0></textarea>
-            <p data-form=1><textarea name=body_1></textarea>
-            <p data-form=2><textarea name=body_2></textarea>
-            <p data-form=3><textarea name=body_3></textarea>
-            <p data-form=4><textarea name=body_4></textarea>
-            <menu class=text-form-tabs>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
-            </menu>
-            <p>
-              <select name=forms>
-                <option value=o data-fields=0>Only the default form
-                <option value=1o data-fields=0,1>Singular (1) and plural
-                <option value=0o data-fields=0,1>Singular (0, 1) and plural
-                <option value=test data-fields=0,2,3,4>Test
-              </select>
-            <p class=links><a pl:data-href="'i/{text_id}/history.json?lang='.$lang #XXX percent-encode ?" target=history>History</a>
-          </form>
-      </t:for>
+      <script class=lang-area-placeholder />
 
       <td class=comments-area>
         <p class=header><button type=button class=toggle-edit title="コメントを書く">コメントを書く</button>
@@ -148,14 +101,61 @@
           <p class=status hidden><progress></progress> <span class=message></span>
         </div>
   </template> 
+  <template class=lang-area-template>
+    <!-- data-lang={lang} class=lang-area -->
+    <p class=header>
+      <strong class=lang-label-short>{lang_label_short}</strong>
+      <button type=button class=toggle-edit title=Edit>Edit</button>
+      <button type=button class=search title="Search this text">Search</button>
+    <div class=view>
+            <p class=body_0 data-form=0>
+            <p class=body_1 data-form=1>
+            <p class=body_2 data-form=2>
+            <p class=body_3 data-form=3>
+            <p class=body_4 data-form=4>
+            <menu class=text-form-tabs>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
+            </menu>
+    </div>
+    <p class=status hidden><progress></progress> <span class=message></span>
+    <form data-action="i/{text_id}/" method=post class=edit hidden>
+            <p class=buttons><button type=submit>保存</button>
+            <input type=hidden name=lang value={lang_key} class=lang-key>
+            <!-- XXX hash -->
+            <p data-form=0><textarea name=body_0></textarea>
+            <p data-form=1><textarea name=body_1></textarea>
+            <p data-form=2><textarea name=body_2></textarea>
+            <p data-form=3><textarea name=body_3></textarea>
+            <p data-form=4><textarea name=body_4></textarea>
+            <menu class=text-form-tabs>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
+            </menu>
+            <p>
+              <select name=forms>
+                <option value=o data-fields=0>Only the default form
+                <option value=1o data-fields=0,1>Singular (1) and plural
+                <option value=0o data-fields=0,1>Singular (0, 1) and plural
+                <option value=test data-fields=0,2,3,4>Test
+              </select>
+            <p class=links><a pl:data-href="'i/{text_id}/history.json?lang={lang_key}'" target=history>History</a>
+    </form>
+  </template>
   <tbody>
   <tbody class=status hidden>
     <tr>
-      <td pl:colspan="$lang_cell_count+1">
+      <td data-colspan-delta=1>
         <progress></progress> <span class=message></span>
   <tfoot>
     <tr id=add>
-      <td pl:colspan="$lang_cell_count+1">
+      <td data-colspan-delta=1>
 
     <form action=add method=post onsubmit="
   var form = this;
@@ -214,6 +214,33 @@
     return '"' + v.replace (/([\u0022\u005C])/g, function (x) { return '\\' + x }) + '"';
   } // escapeQueryValue
 
+  function isEditMode () {
+    return !!document.querySelector ('.dialog:not([hidden]), .toggle-edit.active');
+  } // isEditMode
+
+  function setCurrentLangs (langKeys, langs) {
+    var mainTable = document.getElementById ('texts');
+    Array.prototype.slice.call (mainTable.querySelectorAll ('thead > tr > .lang-header')).forEach (function (cell) {
+      cell.parentNode.removeChild (cell);
+    });
+    var template = mainTable.querySelector ('thead > tr > .lang-header-template');
+    langKeys.forEach (function (langKey) {
+      var lang = langs[langKey];
+      var th = document.createElement ('th');
+      th.innerHTML = template.innerHTML;
+      th.abbr = lang.label_short;
+      th.className = 'lang-header';
+      th.setAttribute ('data-lang', lang.key);
+      th.querySelector ('.lang-label').textContent = lang.label;
+      template.parentNode.insertBefore (th, template);
+    });
+    Array.prototype.forEach.call (mainTable.querySelectorAll ('th[data-colspan-delta], td[data-colspan-delta]'), function (cell) {
+      cell.colSpan = langKeys.length + parseInt (cell.getAttribute ('data-colspan-delta'));
+    });
+    document.trLangKeys = langKeys;
+    document.trLangs = langs;
+  } // setCurrentLangs
+
   function updateTagsArea (tagsArea, tags) {
     var tagTemplate = tagsArea.querySelector ('template');
     var tagsContainer = tagsArea.querySelector ('.tags');
@@ -268,94 +295,112 @@
     argsArea.hidden = !((text.args || []).length > 0);
   } // showTextMetadata
 
-function isEditMode () {
-  return !!document.querySelector ('.dialog:not([hidden]), .toggle-edit.active');
-} // isEditMode
+  function addTexts (iTexts) {
+    var mainTable = document.getElementById ('texts');
+    var rowContainer = mainTable.querySelector ('tbody');
+    var rowTemplate = mainTable.querySelector ('.text-row-template');
+    var langKeys = document.trLangKeys;
+    var langs = document.trLangs;
+    var langAreaTemplate = mainTable.querySelector ('.lang-area-template');
 
-function addTexts (iTexts) {
-  var mainTable = document.getElementById ('texts');
-  var rowContainer = mainTable.querySelector ('tbody');
-  var rowTemplate = mainTable.querySelector ('template.text-header-template');
+    var texts = [];
+    for (var textId in iTexts) (function (text) {
+      text.textId = textId;
+      texts.push (text);
+    }) (iTexts[textId]);
+    texts.sort (function (a, b) {
+      var aMsgid = a.msgid || '';
+      var bMsgid = b.msgid || '';
+      return aMsgid > bMsgid ? 1 : aMsgid < bMsgid ? -1 :
+             a.textId > b.textId ? 1 : a.textId < b.textId ? -1 : 0;
+    }).forEach (function (text) {
+      var fragment = document.createElement ('tbody');
+      fragment.innerHTML = rowTemplate.innerHTML;
 
-  var texts = [];
-  for (var textId in iTexts) (function (text) {
-    text.textId = textId;
-    texts.push (text);
-  }) (iTexts[textId]);
-  texts.sort (function (a, b) {
-    var aMsgid = a.msgid || '';
-    var bMsgid = b.msgid || '';
-    return aMsgid > bMsgid ? 1 : aMsgid < bMsgid ? -1 :
-           a.textId > b.textId ? 1 : a.textId < b.textId ? -1 : 0;
-  }).forEach (function (text) {
-    var fragment = document.createElement ('tbody');
-    fragment.innerHTML = rowTemplate.innerHTML;
+      showTextMetadata (text.textId, text, fragment.querySelector ('.text-header > th'));
 
-    showTextMetadata (text.textId, text, fragment.querySelector ('.text-header > th'));
+      var langAreaPlaceholder = fragment.querySelector ('.lang-area-placeholder');
+      langKeys.forEach (function (langKey) {
+        var area = document.createElement ('td');
+        area.innerHTML = langAreaTemplate.innerHTML;
+        area.className = 'lang-area';
+        area.setAttribute ('data-lang', langKey);
 
-    Array.prototype.map.call (fragment.querySelectorAll ('.lang-area[data-lang]'), function (area) {
-      var toggle = area.querySelector ('button.toggle-edit');
-      toggle.onclick = function () {
-        toggleAreaEditor (area, !this.classList.contains ('active'));
+        Array.prototype.forEach.call (area.querySelectorAll ('input.lang-key'), function (input) {
+          input.value = langKey;
+        });
+        Array.prototype.forEach.call (area.querySelectorAll ('.lang-label-short'), function (el) {
+          el.textContent = document.trLangs[langKey].lang_label_short;
+        });
+
+        var toggle = area.querySelector ('button.toggle-edit');
+        toggle.onclick = function () {
+          toggleAreaEditor (area, !this.classList.contains ('active'));
+        };
+        area.querySelector ('form.edit').onsubmit = function () {
+          toggleAreaEditor (area, false);
+          return saveArea (area);
+        };
+        area.trSync = syncLangAreaView;
+
+        var langData = text.langs ? text.langs[langKey] : null;
+        var form = area.querySelector ('form.edit');
+        if (langData) {
+          if (langData.body_0) form.querySelector ('[name=body_0]').value = langData.body_0;
+          if (langData.body_1) form.querySelector ('[name=body_1]').value = langData.body_1;
+          if (langData.body_2) form.querySelector ('[name=body_2]').value = langData.body_2;
+          if (langData.body_3) form.querySelector ('[name=body_3]').value = langData.body_3;
+          if (langData.body_4) form.querySelector ('[name=body_4]').value = langData.body_4;
+          if (langData.forms) form.querySelector ('[name=forms]').value = langData.forms;
+        }
+        area.querySelector ('button.search').onclick = function () {
+          showSearchSidebar (form.querySelector ('[name=body_0]').value);
+        };
+
+        form.querySelector ('select[name=forms]').onchange = function () {
+          syncLangAreaTabs (area);
+        };
+
+        Array.prototype.forEach.call (area.querySelectorAll ('a[data-href]'), function (el) {
+          el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, text.textId).replace (/\{lang-key\}/g, langKey);
+        });
+
+        area.trSync (area);
+
+        langAreaPlaceholder.parentNode.insertBefore (area, langAreaPlaceholder);
+      }); // langKey
+
+      var comments = fragment.querySelector ('.comments-area');
+      comments.querySelector ('button.toggle-edit').onclick = function () {
+        toggleAreaEditor (comments, !this.classList.contains ('active'));
       };
-      area.querySelector ('form.edit').onsubmit = function () {
-        toggleAreaEditor (area, false);
-        return saveArea (area);
+      var commentForm = comments.querySelector ('form');
+      commentForm.onsubmit = function () {
+        toggleAreaEditor (comments, false);
+        return saveArea (comments);
       };
-      area.trSync = syncLangAreaView;
-
-      var lang = area.getAttribute ('data-lang');
-      var langData = text.langs ? text.langs[lang] : null;
-      var form = area.querySelector ('form.edit');
-      if (langData) {
-        if (langData.body_0) form.querySelector ('[name=body_0]').value = langData.body_0;
-        if (langData.body_1) form.querySelector ('[name=body_1]').value = langData.body_1;
-        if (langData.body_2) form.querySelector ('[name=body_2]').value = langData.body_2;
-        if (langData.body_3) form.querySelector ('[name=body_3]').value = langData.body_3;
-        if (langData.body_4) form.querySelector ('[name=body_4]').value = langData.body_4;
-        if (langData.forms) form.querySelector ('[name=forms]').value = langData.forms;
+      comments.trSync = function () {
+        var c = {body: commentForm.elements.body.value,
+                 last_modified: (new Date).valueOf () / 1000};
+        syncTextComments (comments, [c]);
+      };
+      if (text.comments && text.comments.length) {
+        syncTextComments (comments, text.comments);
       }
-      area.querySelector ('button.search').onclick = function () {
-        showSearchSidebar (form.querySelector ('[name=body_0]').value);
-      };
 
-      form.querySelector ('select[name=forms]').onchange = function () {
-        syncLangAreaTabs (area);
-      };
+      Array.prototype.forEach.call (fragment.querySelectorAll ('form[data-action]'), function (el) {
+        el.action = el.getAttribute ('data-action').replace (/\{text_id\}/g, text.textId);
+      });
 
-      area.trSync (area);
-    });
-
-    var comments = fragment.querySelector ('.comments-area');
-    comments.querySelector ('button.toggle-edit').onclick = function () {
-      toggleAreaEditor (comments, !this.classList.contains ('active'));
-    };
-    var commentForm = comments.querySelector ('form');
-    commentForm.onsubmit = function () {
-      toggleAreaEditor (comments, false);
-      return saveArea (comments);
-    };
-    comments.trSync = function () {
-      var c = {body: commentForm.elements.body.value,
-               last_modified: (new Date).valueOf () / 1000};
-      syncTextComments (comments, [c]);
-    };
-    if (text.comments && text.comments.length) {
-      syncTextComments (comments, text.comments);
-    }
-
-    Array.prototype.forEach.call (fragment.querySelectorAll ('form[data-action]'), function (el) {
-      el.action = el.getAttribute ('data-action').replace (/\{text_id\}/g, text.textId);
-    });
-    Array.prototype.forEach.call (fragment.querySelectorAll ('a[data-href]'), function (el) {
-      el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, text.textId);
-    });
+      Array.prototype.forEach.call (fragment.querySelectorAll ('th[data-colspan-delta], td[data-colspan-delta]'), function (cell) {
+        cell.colSpan = document.trLangKeys.length + parseInt (cell.getAttribute ('data-colspan-delta'));
+      });
           
-    Array.prototype.slice.call (fragment.children).forEach (function (el) {
-      rowContainer.appendChild (el);
+      Array.prototype.slice.call (fragment.children).forEach (function (el) {
+        rowContainer.appendChild (el);
+      });
     });
-  });
-} // addTexts
+  } // addTexts
 
 function updateTable () {
   var mainTable = document.getElementById ('texts');
@@ -376,6 +421,7 @@ function updateTable () {
     if (xhr.readyState === 4) {
       if (xhr.status < 400) {
         var json = JSON.parse (xhr.responseText);
+        setCurrentLangs (json.lang_keys, json.langs);
         addTexts (json.texts);
         var tagsArea = document.querySelector ('#add .tags-area');
         updateTagsArea (tagsArea, json.query.tags);
