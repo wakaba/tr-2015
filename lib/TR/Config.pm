@@ -49,9 +49,9 @@ $Dongry::Types->{json} = {
 }; # json
 
 my $Schema = {
-  repo_owner => {
-    type => {repo_url => 'text'},
-    primary_keys => ['repo_url'],
+  repo_access => {
+    type => {repo_url => 'text', data => 'json'},
+    primary_keys => ['repo_url', 'account_id'],
   },
 };
 

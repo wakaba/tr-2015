@@ -721,37 +721,105 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'acl') {
       # .../acl
-      $app->requires_request_method ({POST => 1});
-      # XXX CSRF
-      return $class->session ($app)->then (sub {
-        my $account = $_[0];
-        return $app->throw_error (403) if not defined $account->{account_id};
+      if ($app->http->request_method eq 'POST') {
+        # XXX CSRF
+        return $class->session ($app)->then (sub {
+          my $account = $_[0];
+          return $app->throw_error (403) if not defined $account->{account_id};
 
-        ## Changing the owner
+          my $op = $app->bare_param ('operation') // '';
+          if ($op eq 'update_account_privilege') {
+            my $account_id = $app->bare_param ('account_id')
+                // return $app->throw_error (400, reason_phrase => 'Bad |account_id|');
+            my $permissions = {read => 1};
+            for my $scope (@{$app->text_param_list ('scope')}) {
+              if ({
+                edit => 1, comment => 1, texts => 1, repo => 1,
+              }->{$scope}) {
+                $permissions->{$scope} = 1;
+              } elsif ($scope =~ m{\Aedit/[0-9a-z-]+\z}) {
+                $permissions->{$scope} = 1;
+              }
+            }
+            return $app->db->insert ('repo_access', [{
+              repo_url => Dongry::Type->serialize ('text', $tr->url),
+              account_id => Dongry::Type->serialize ('text', $account_id),
+              is_owner => 0,
+              data => Dongry::Type->serialize ('json', $permissions),
+              created => time,
+              updated => time,
+            }], duplicate => {
+              data => $app->db->bare_sql_fragment ('VALUES(data)'),
+              updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
+            })->then (sub {
+              return $app->send_error (204, reason_phrase => 'Saved');
+            });
+          } elsif ($op eq 'delete_account_privilege') {
+            my $account_id = $app->bare_param ('account_id')
+                // return $app->throw_error (400, reason_phrase => 'Bad |account_id|');
+            return $app->db->delete ('repo_access', {
+              repo_url => Dongry::Type->serialize ('text', $tr->url),
+              account_id => Dongry::Type->serialize ('text', $account_id),
+            })->then (sub {
+              return $app->send_error (204, reason_phrase => 'Deleted');
+            });
+          } elsif ($op eq 'get_ownership') {
 
-        # XXX check repo access control... ->then
+            # XXX check repo access control... ->then
 
-        return $app->db->insert ('repo_owner', [{
-          repo_url => Dongry::Type->serialize ('text', $tr->url),
-          account_id => Dongry::Type->serialize ('text', $account->{account_id}),
-          created => time,
-        }], duplicate => 'ignore')->then (sub {
-          return $app->db->select ('repo_owner', {
-            repo_url => Dongry::Type->serialize ('text', $tr->url),
-          }, fields => ['account_id'], source_name => 'master');
-        })->then (sub {
-          my $d = $_[0]->first;
-          unless (defined $d and $d->{account_id} eq $account->{account_id}) {
-            return $app->throw_error (403, reason_phrase => 'There is another owner');
+            return $app->db->insert ('repo_access', [{
+              repo_url => Dongry::Type->serialize ('text', $tr->url),
+              account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+              is_owner => 1,
+              data => '{"read":1,"edit":1,"texts":1,"comment":1,"repo":1}',
+              created => time,
+              updated => time,
+            }], duplicate => {
+              is_owner => $app->db->bare_sql_fragment ('VALUES(is_owner)'),
+              updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
+            })->then (sub {
+              return $app->db->execute ('UPDATE `repo_access` SET is_owner = 0 AND updated = ? WHERE repo_url = ? AND account_id != ?', {
+                repo_url => Dongry::Type->serialize ('text', $tr->url),
+                account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+                updated => time,
+              });
+            })->then (sub {
+              return $app->send_error (204, reason_phrase => 'Saved');
+            });
+          } else {
+            return $app->send_error (400, reason_phrase => 'Bad |operation|');
           }
-          return $app->send_json ({});
+        })->catch (sub {
+          unless (UNIVERSAL::isa ($_[0], 'Warabe::App::Done')) {
+            $app->error_log ($_[0]);
+            return $app->send_error (500);
+          }
+        })->then (sub {
+          return $tr->discard;
         });
-      })->catch (sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500);
-      })->then (sub {
-        return $tr->discard;
-      });
+      } else { # GET
+        # XXX access control
+        return $tr->prepare_mirror->then (sub {
+          return $tr->clone_from_mirror;
+        })->then (sub { # XXX branch
+          return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
+        })->then (sub {
+          my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
+          my $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
+          $tr->avail_langs ($langs);
+
+          return $app->temma ('tr.acl.html.tm', {
+            app => $app,
+            tr => $tr,
+            tr_config => $tr_config,
+          });
+        })->catch (sub {
+          $app->error_log ($_[0]);
+          return $app->send_error (500);
+        })->then (sub {
+          return $tr->discard;
+        });
+      }
     } elsif (@$path == 5 and $path->[4] eq 'acl.json') {
       # .../acl.json
 
@@ -761,26 +829,24 @@ sub main ($$) {
       # to the target repo
 
       my $json = {};
-      return $app->db->select ('repo_owner', {
+      return $app->db->select ('repo_access', {
         repo_url => Dongry::Type->serialize ('text', $tr->url),
-      }, fields => ['account_id'])->then (sub {
-        my $owner = $_[0]->first;
-        my @account_id;
-        if (defined $owner->{account_id}) {
-          $json->{owner_account_id} = $owner->{account_id};
-          push @account_id, $owner->{account_id};
-        }
+      }, fields => ['account_id', 'is_owner', 'data'])->then (sub {
+        my $accounts = $json->{accounts} = {map { $_->get ('account_id') => {
+          account_id => ''.$_->get ('account_id'),
+          permissions => $_->get ('data'),
+          is_owner => $_->get ('is_owner'),
+        } } @{$_[0]->all_as_rows}};
         
         my $prefix = $app->config->{account_url_prefix};
         my $api_token = $app->config->{account_token};
         return Promise->new (sub {
           my ($ok, $ng) = @_;
-          return $ok->({accounts => []}) unless @account_id;
           http_post
               url => qq<$prefix/profiles>,
               header_fields => {Authorization => 'Bearer ' . $api_token},
               params => {
-                account_id => \@account_id,
+                account_id => [keys %$accounts],
               },
               anyevent => 1,
               cb => sub {
@@ -791,11 +857,13 @@ sub main ($$) {
                   $ng->($res->status_line);
                 }
               };
-        })->then (sub {
-          my $j = $_[0];
-          $json->{accounts} = $j->{accounts};
         });
       })->then (sub {
+        my $j = $_[0];
+        for my $account_id (keys %{$j->{accounts}}) {
+          $json->{accounts}->{$account_id}->{name} = $j->{accounts}->{$account_id}->{name};
+          # XXX icon
+        }
         return $app->send_json ($json);
       });
 
@@ -957,7 +1025,7 @@ sub main ($$) {
     return $class->session ($app)->then (sub {
       my $account = $_[0];
       return $app->send_json ({name => $account->{name}, # or undef
-                               account_id => $account->{account_id}}); # or undef
+                               account_id => ''.$account->{account_id}}); # or undef
       # XXX icon
     });
     # XXX report remote API error
@@ -1138,9 +1206,10 @@ sub get_push_token ($$$) {
     return $app->throw_error (403, reason_phrase => 'Need to login')
         unless defined ($account_id = $session->{account_id});
   })->then (sub {
-    return $app->db->select ('repo_owner', {
+    return $app->db->select ('repo_access', {
       repo_url => Dongry::Type->serialize ('text', $tr->url),
-    }, fields => ['account_id']);
+      is_owner => 1,
+    }, fields => ['account_id'], limit => 1);
   })->then (sub {
     my $owner = $_[0]->first;
     return $app->throw_error (403, reason_phrase => 'The repository has no owner') unless defined $owner;

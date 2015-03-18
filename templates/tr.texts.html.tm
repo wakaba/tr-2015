@@ -32,7 +32,7 @@
           <hr>
       <p><a href="#config-langs" onclick=" toggleLangsConfig (true) ">言語設定...</a>
       <p><a href="#config-license" onclick=" toggleLicenseConfig (true) ">ライセンス設定...</a>
-      <p><a href="#config-acl" onclick=" toggleACLConfig (true) ">編集権限...</a>
+      <p><a href="acl" onclick=" /* XXX hidemenu */ " target=config-acl>編集権限...</a>
     </menu>
   </nav>
 
@@ -471,6 +471,7 @@ function saveArea (area, onsaved) { // XXX promise
   var formStatus = area.querySelector ('.status');
   formStatus.hidden = false;
   formStatus.querySelector ('.message').textContent = 'Saving...';
+  formStatus.querySelector ('progress').hidden = false;
   var editButton = area.querySelector ('button.toggle-edit');
   if (editButton) editButton.disabled = true;
 
@@ -483,9 +484,11 @@ function saveArea (area, onsaved) { // XXX promise
       if (xhr.status < 400) {
         if (onsaved) onsaved (JSON.parse (xhr.responseText));
         if (area.trSync) area.trSync (area);
+        formStatus.hidden = true;
       } else { // XXX
+        formStatus.querySelector ('.message').textContent = xhr.statusText;
+        formStatus.querySelector ('progress').hidden = true;
       }
-      formStatus.hidden = true;
       if (editButton) editButton.disabled = false;
     }
   };
@@ -774,135 +777,6 @@ function saveArea (area, onsaved) { // XXX promise
       var f = decodeURIComponent (location.hash.replace (/^#/, ''));
       if (f === 'config-license') {
         toggleLicenseConfig (true);
-      }
-    }) ();
-  </script>
-</div>
-
-<div class=dialog id=config-acl hidden>
-  <section>
-    <header>
-      <h1>編集権限設定</h1>
-      <button type=button class=close title="保存せずに閉じる">閉じる</button>
-    </header>
-
-    <form action="acl" method=post>
-      <table class=config>
-        <tbody>
-          <tr>
-            <th>所有者
-            <td><span class=owner data-no-owner="未設定"></span>
-              <p class=info>Git リポジトリーへの変更は所有者の権限で保存
-                (<code>git push</code>) されます。
-      </table>
-
-      <p class=add-account>
-        <input>
-        <template class=datalist-item-template>
-          <template>
-            <span class=name>{name}</span> <span class=key>{key}</span>
-            <span class=service>{service}</span>
-          </template>
-        </template>
-        <span class=datalist></span>
-
-      <p class=buttons><button type=button class=save>保存して閉じる</button>
-    </form>
-    <p class=status hidden><progress></progress> <span class=message></span>
-  </section>
-  <script>
-    function toggleACLConfig (status) {
-      var panel = document.querySelector ('#config-acl');
-      if (status) {
-        panel.hidden = false;
-
-        // XXX progress
-        var xhr = new XMLHttpRequest;
-        xhr.open ('GET', 'acl.json', true);
-        xhr.onreadystatechange = function () {
-          if (xhr.readyState === 4) {
-            if (xhr.status === 200) {
-              var json = JSON.parse (xhr.responseText);
-              var ownerEl = panel.querySelector ('.owner');
-              if (json.owner_account_id) {
-                var owner = json.accounts[json.owner_account_id] || {};
-                ownerEl.textContent = owner.name;
-                // XXX icon, link
-              } else {
-                ownerEl.textContent = ownerEl.getAttribute ('data-no-owner');
-              }
-            } else {
-              // XXX
-            }
-          }
-        };
-        xhr.send (null);
-
-        var add = panel.querySelector ('.add-account');
-        var addInput = add.querySelector ('input');
-        var addDatalist = add.querySelector ('.datalist');
-        var addDatalistTemplate = add.querySelector ('.datalist-item-template');
-        var updateAdd = function () {
-          if (!addInput.value) return;
-          var xhr = new XMLHttpRequest;
-          xhr.open ('POST', '/users/search.json?q=' + encodeURIComponent (addInput.value), true);
-          xhr.onreadystatechange = function () {
-            if (xhr.readyState === 4) {
-              if (xhr.status === 200) {
-                //XXX ignore if next request is dispatched
-                var json = JSON.parse (xhr.responseText);
-                addDatalist.textContent = '';
-                for (var accountId in json.accounts) {
-                  var account = json.accounts[accountId];
-                  var option = document.createElement ('span');
-                  option.innerHTML = addDatalistTemplate.innerHTML;
-                  option.setAttribute ('data-value', accountId);
-                  var serviceTemplate = option.querySelector ('template');
-                  var services = [];
-                  for (var serviceName in account.services) {
-                    var serviceAccount = account.services[serviceName];
-                    var service = document.createElement ('span');
-                    service.className = 'service-account';
-                    service.innerHTML = serviceTemplate.innerHTML;
-                    service.querySelector ('.service').textContent = serviceName;
-                    service.querySelector ('.name').textContent = serviceAccount.name;
-                    service.querySelector ('.key').textContent = serviceAccount.key || serviceAccount.id;
-                    option.insertBefore (service, serviceTemplate);
-                  }
-                  addDatalist.appendChild (option);
-                }
-              }
-            }
-          };
-          xhr.send (null);
-        };
-        var addTimer;
-        addInput.oninput = function () {
-          clearTimeout (addTimer);
-          addTimer = setTimeout (updateAdd, 500);
-        };
-      } else {
-        panel.hidden = true;
-      }
-    } // toggleACLConfig
-
-    (function () {
-      var panel = document.querySelector ('#config-acl');
-      panel.trSync = function () {
-        toggleACLConfig (false);
-        history.replaceState (null, null, '#');
-      };
-      panel.querySelector ('button.save').onclick = function () {
-        saveArea (panel);
-      };
-      panel.querySelector ('button.close').onclick = function () {
-        toggleACLConfig (false);
-        history.replaceState (null, null, '#');
-      };
-
-      var f = decodeURIComponent (location.hash.replace (/^#/, ''));
-      if (f === 'config-acl') {
-        toggleACLConfig (true);
       }
     }) ();
   </script>
