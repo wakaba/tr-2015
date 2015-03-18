@@ -110,7 +110,7 @@
 
         var form = row.querySelector ('form');
         Array.prototype.forEach.call (form.querySelectorAll ('input[name=scope]'), function (input) {
-          input.checked = !!account.permissions[input.value];
+          input.checked = !!account.scopes[input.value];
           input.onchange = function () {
             row.classList.add ('modified');
           };
@@ -165,7 +165,7 @@
         if (row) return row;
         return addAclItem ({account_id: accountId,
                             name: item.querySelector ('.name').textContent,
-                            permissions: {}});
+                            scopes: {}});
       } // addAclItemByDatalistItem
 
       (function () {

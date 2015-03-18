@@ -368,7 +368,7 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'import') {
       # .../import
 
-      return $class->get_push_token ($app, $tr)->then (sub {
+      return $class->get_push_token ($app, $tr, 'repo')->then (sub { # XXX scope
         my $token = $_[0];
         return $tr->prepare_mirror->then (sub {
           return $tr->clone_from_mirror;
@@ -478,7 +478,7 @@ sub main ($$) {
         my $id = $path->[5]; # XXX validation
         my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
 
-        return $class->get_push_token ($app, $tr)->then (sub {
+        return $class->get_push_token ($app, $tr, 'edit/' . $lang)->then (sub {
           my $token = $_[0];
           return $tr->prepare_mirror->then (sub {
             return $tr->clone_from_mirror;
@@ -518,7 +518,7 @@ sub main ($$) {
         my $id = $path->[5]; # XXX validation
 
         my $te;
-        return $class->get_push_token ($app, $tr)->then (sub {
+        return $class->get_push_token ($app, $tr, 'texts')->then (sub {
           my $token = $_[0];
           return $tr->prepare_mirror->then (sub {
             return $tr->clone_from_mirror;
@@ -573,7 +573,7 @@ sub main ($$) {
 
         my $id = $path->[5]; # XXX validation
 
-        return $class->get_push_token ($app, $tr)->then (sub {
+        return $class->get_push_token ($app, $tr, 'comment')->then (sub {
           my $token = $_[0];
           return $tr->prepare_mirror->then (sub {
             return $tr->clone_from_mirror;
@@ -642,7 +642,7 @@ sub main ($$) {
       # XXX CSRF
 
       my $data = {texts => {}};
-      return $class->get_push_token ($app, $tr)->then (sub {
+      return $class->get_push_token ($app, $tr, 'texts')->then (sub {
         my $token = $_[0];
         return $tr->prepare_mirror->then (sub {
           return $tr->clone_from_mirror;
@@ -691,7 +691,7 @@ sub main ($$) {
         return $app->send_error (400, reason_phrase => 'Bad |lang|');
       }
 
-      return $class->get_push_token ($app, $tr)->then (sub {
+      return $class->get_push_token ($app, $tr, 'repo')->then (sub {
         my $token = $_[0];
         return $tr->prepare_mirror->then (sub {
           return $tr->clone_from_mirror;
@@ -834,7 +834,7 @@ sub main ($$) {
       }, fields => ['account_id', 'is_owner', 'data'])->then (sub {
         my $accounts = $json->{accounts} = {map { $_->get ('account_id') => {
           account_id => ''.$_->get ('account_id'),
-          permissions => $_->get ('data'),
+          scopes => $_->get ('data'),
           is_owner => $_->get ('is_owner'),
         } } @{$_[0]->all_as_rows}};
         
@@ -877,7 +877,7 @@ sub main ($$) {
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
 
-      return $class->get_push_token ($app, $tr)->then (sub {
+      return $class->get_push_token ($app, $tr, 'repo')->then (sub {
         my $token = $_[0];
         return $tr->prepare_mirror->then (sub {
           return $tr->clone_from_mirror;
@@ -1198,8 +1198,8 @@ sub session ($$) {
 } # session
 
 # XXX support for non-github repos
-sub get_push_token ($$$) {
-  my ($class, $app, $tr) = @_;
+sub get_push_token ($$$$) {
+  my ($class, $app, $tr, $scope) = @_;
   my $account_id;
   return $class->session ($app)->then (sub {
     my $session = $_[0];
@@ -1208,16 +1208,29 @@ sub get_push_token ($$$) {
   })->then (sub {
     return $app->db->select ('repo_access', {
       repo_url => Dongry::Type->serialize ('text', $tr->url),
+      account_id => Dongry::Type->serialize ('text', $account_id),
+    }, fields => ['data'], limit => 1);
+  })->then (sub {
+    my $row = $_[0]->first_as_row;
+    my $ok = 0;
+    if (defined $row) {
+      my $scopes = $row->get ('data');
+      if ($scopes->{$scope}) {
+        $ok = 1;
+      } elsif ($scope =~ m{^edit/} and $scopes->{edit}) {
+        $ok = 1;
+      }
+    }
+    return $app->throw_error (403, reason_phrase => "Permission for the |$scope| scope is required by this operation")
+        unless $ok;
+  })->then (sub {
+    return $app->db->select ('repo_access', {
+      repo_url => Dongry::Type->serialize ('text', $tr->url),
       is_owner => 1,
     }, fields => ['account_id'], limit => 1);
   })->then (sub {
     my $owner = $_[0]->first;
     return $app->throw_error (403, reason_phrase => 'The repository has no owner') unless defined $owner;
-
-    unless ($owner->{account_id} eq $account_id) {
-      return $app->throw_error (403, reason_phrase => 'No write permission');
-    }
-    # XXX non-owner writable users
 
     return Promise->new (sub {
       my ($ok, $ng) = @_;
