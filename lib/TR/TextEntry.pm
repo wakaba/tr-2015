@@ -52,6 +52,14 @@ sub set ($$$) {
   }
 } # set
 
+sub set_or_delete ($$$) {
+  if (defined $_[2] and length $_[2]) {
+    $_[0]->{props}->{$_[1]} = $_[2];
+  } else {
+    delete $_[0]->{props}->{$_[1]};
+  }
+} # set_or_delete
+
 sub enum ($$) {
   return $_[0]->{enum_props}->{$_[1]} ||= {};
 } # enum

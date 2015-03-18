@@ -671,38 +671,91 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'langs') {
       # .../langs
+      if ($app->http->request_method eq 'POST') {
+        # XXX CSRF
 
-      $app->requires_request_method ({POST => 1});
-      # XXX CSRF
+        my $lang_keys = $app->text_param_list ('lang_key');
+        my $lang_ids = $app->text_param_list ('lang_id');
+        my $lang_labels = $app->text_param_list ('lang_label');
+        my $lang_label_shorts = $app->text_param_list ('lang_label_short');
 
-      my %found; # XXX lang validation & normalization
-      my $langs = [grep { length and not $found{$_}++ } @{$app->text_param_list ('lang')}];
-      unless (@$langs) {
-        return $app->send_error (400, reason_phrase => 'Bad |lang|');
-      }
-
-      return $class->get_push_token ($app, $tr, 'repo')->then (sub {
-        my $token = $_[0];
-        return $tr->prepare_mirror->then (sub {
-          return $tr->clone_from_mirror;
+        return $class->get_push_token ($app, $tr, 'repo')->then (sub {
+          my $token = $_[0];
+          return $tr->prepare_mirror->then (sub {
+            return $tr->clone_from_mirror;
+          })->then (sub {
+            return $tr->make_pushable ($token, '');
+          });
+          })->then (sub {
+          return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
         })->then (sub {
-          return $tr->make_pushable ($token, '');
+          my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
+
+          my %found;
+          my @lang_key;
+          for (0..$#$lang_keys) {
+            my $lang_key = $lang_keys->[$_];
+            next if $found{$lang_key}++;
+            push @lang_key, $lang_key;
+            $tr_config->set_or_delete ("lang.id.$lang_key" => $lang_ids->[$_]);
+            $tr_config->set_or_delete ("lang.label.$lang_key" => $lang_labels->[$_]);
+            $tr_config->set_or_delete ("lang.label_short.$lang_key" => $lang_label_shorts->[$_]);
+          }
+          $tr_config->set (langs => join ',', @lang_key);
+
+          return $tr->write_file_by_path ($tr->texts_path->child ('config.json'), $tr_config->as_source_text);
+        })->then (sub {
+          my $msg = $app->text_param ('commit_message') // '';
+          $msg = 'Added a message' unless length $msg;
+          return $tr->commit ($msg);
+        })->then (sub {
+          return $tr->push; # XXX failure
+        })->then (sub {
+          return $app->send_json ({});
+        }, sub {
+          $app->error_log ($_[0]);
+          return $app->send_error (500);
+        })->then (sub {
+          return $tr->discard;
         });
-      })->then (sub {
+      } else { # GET
+        # XXX access control
+        return $app->temma ('tr.texts.langs.html.tm', {
+          app => $app,
+          tr => $tr,
+        });
+      }
+    } elsif (@$path == 5 and $path->[4] eq 'langs.json') {
+      # .../langs.json
+      # XXX access control
+      return $tr->prepare_mirror->then (sub {
+        return $tr->clone_from_mirror;
+      })->then (sub { # XXX branch
         return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
       })->then (sub {
         my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
-        $tr_config->set (langs => join ',', @$langs);
-        return $tr->write_file_by_path ($tr->texts_path->child ('config.json'), $tr_config->as_source_text);
-      })->then (sub {
-        my $msg = $app->text_param ('commit_message') // '';
-        $msg = 'Added a message' unless length $msg;
-        return $tr->commit ($msg);
-      })->then (sub {
-        return $tr->push; # XXX failure
-      })->then (sub {
-        return $app->send_json ({});
-      }, sub {
+        my $lang_keys = [grep { length } split /,/, $tr_config->get ('langs') // ''];
+        $lang_keys = ['en'] unless @$lang_keys;
+        my $langs = {map {
+          my $id = $tr_config->get ("lang.id.$_") // $_;
+          my $label_raw = $tr_config->get ("lang.label.$_");
+          my $label = $label_raw // $_; # XXX system's default
+          my $label_short_raw = $tr_config->get ("lang.label_short.$_");
+          my $label_short = $label_short_raw // $label; # XXX system's default
+          $_ => +{
+            key => $_,
+            id => $id,
+            label_raw => $label_raw,
+            label => $label,
+            label_short_raw => $label_short_raw,
+            label_short => $label_short,
+          };
+        } @$lang_keys};
+        return $app->send_json ({
+          langs => $langs,
+          avail_lang_keys => $lang_keys,
+        });
+      })->catch (sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);
       })->then (sub {
@@ -711,6 +764,7 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'acl') {
       # .../acl
+      # XXX should be /tr/{repo}/acl
       if ($app->http->request_method eq 'POST') {
         # XXX CSRF
         return $class->session ($app)->then (sub {

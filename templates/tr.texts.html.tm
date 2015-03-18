@@ -664,29 +664,10 @@ function saveArea (area, onsaved) { // XXX promise
     <p class=buttons>
       <button type=button class=apply-button>選択した言語を表示</button>
 
+    <hr>
 
+    <p><a href="langs" target=config-langs onclick=" toggleLangsConfig (false) ">対象言語の設定</a>
 
-    XXX
-    <form action="langs" method=post>
-      <ul>
-        <li class=lang-new>
-          <template>
-            <span class=lang-id></span><input type=hidden name=lang>
-          </template>
-          <table class=config>
-            <tbody>
-              <tr>
-                <th>言語ID
-                <td><input name=lang_id required>
-              <tr>
-                <th>言語タグ
-                <td><input name=lang_tag required>
-          </table>
-          <p class=buttons><button type=button class=add>追加</button>
-      </ul>
-
-      <p class=buttons><button type=button class=save>保存して閉じる</button>
-    </form>
     <p class=status hidden><progress></progress> <span class=message></span>
   </section>
   <script>
@@ -738,6 +719,7 @@ function saveArea (area, onsaved) { // XXX promise
       }
     } // toggleLangsConfig
 
+    // XXX
       (function () {
         var langsMenuContainer = document.querySelector ('.langs-menu-container');
         var langsMenuButton = langsMenuContainer.querySelector ('button.settings');
@@ -758,35 +740,9 @@ function saveArea (area, onsaved) { // XXX promise
         });
 
         var langsPanel = document.querySelector ('#config-langs');
-        langsPanel.trSync = function () {
-          // XXX enable lang setting
-          toggleLangsConfig (false);
-          history.replaceState (null, null, '#');
-          // XXX sync langs in this page
-        };
-        langsPanel.querySelector ('button.save').onclick = function () {
-          // XXX disable lang setting
-          saveArea (langsPanel);
-          // XXX enable lang setting if save failed
-        };
         langsPanel.querySelector ('button.close').onclick = function () {
           toggleLangsConfig (false);
           history.replaceState (null, null, '#');
-        };
-        var newLang = langsPanel.querySelector ('.lang-new');
-        var langTemplate = newLang.querySelector ('template');
-        newLang.querySelector ('button.add').onclick = function () {
-          var item = document.createElement ('li');
-          item.innerHTML = langTemplate.innerHTML;
-          var langID = newLang.querySelector ('input[name=lang_id]').value;
-          var langTag = newLang.querySelector ('input[name=lang_tag]').value;
-          if (langID && langTag) {
-            item.querySelector ('.lang-id').textContent = langID;
-            item.querySelector ('input[name=lang]').value = langTag;
-            newLang.parentNode.insertBefore (item, newLang);
-            newLang.querySelector ('input[name=lang_id]').value = '';
-            newLang.querySelector ('input[name=lang_tag]').value = '';
-          }
         };
 
         var f = decodeURIComponent (location.hash.replace (/^#/, ''));
