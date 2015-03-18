@@ -405,19 +405,19 @@ sub text_ids ($) {
 } # text_ids
 
 sub get_data_as_jsonalizable ($%) {
-  my ($self, $query, $langs, %args) = @_;
+  my ($self, $query, $selected_langs, %args) = @_;
   my $data = {};
   return $self->read_file_by_path ($self->texts_path->child ('config.json'))->then (sub {
     my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
-    $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
-    my $specified_langs = $langs;
-    if (@$specified_langs) {
+    my $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
+    if (@$selected_langs) {
       my $avail_langs = {map { $_ => 1 } @$langs};
-      @$specified_langs = grep { $avail_langs->{$_} } @$specified_langs;
-      $langs = $specified_langs;
+      @$selected_langs = grep { $avail_langs->{$_} } @$selected_langs;
+    } else {
+      $selected_langs = $langs;
     }
 
-    $data->{lang_keys} = $langs;
+    $data->{selected_lang_keys} = $selected_langs;
     for my $lang (@$langs) {
       $data->{langs}->{$lang}->{key} = $lang;
       $data->{langs}->{$lang}->{id} = $lang; # XXX
@@ -471,7 +471,7 @@ sub get_data_as_jsonalizable ($%) {
         my $entry = $te->as_jsonalizable;
         my @q;
         my $matched = not @$words;
-        for my $lang (@$langs) {
+        for my $lang (@$selected_langs) {
           push @q, $self->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
             return unless defined $_[0];
             my $e = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0]);

@@ -172,17 +172,6 @@ sub main ($$) {
         return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
       })->then (sub {
         my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
-        my $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
-        $langs = ['en'] unless @$langs;
-        my $all_langs = $langs;
-        my $specified_langs = $app->text_param_list ('lang');
-        if (@$specified_langs) {
-          my $avail_langs = {map { $_ => 1 } @$langs};
-          @$specified_langs = grep { $avail_langs->{$_} } @$specified_langs;
-          $langs = $specified_langs;
-        }
-        $tr->langs ($langs);
-        $tr->avail_langs ($all_langs);
 
         require TR::Query;
         my $q = TR::Query->parse_query (
@@ -194,20 +183,11 @@ sub main ($$) {
           tag_minuses => $app->text_param_list ('tag_minus'),
         );
 
-        my @param;
-        for my $k (qw(lang)) {
-          my $list = $app->text_param_list ($k);
-          for (@$list) {
-            push @param, (percent_encode_c $k) . '=' . (percent_encode_c $_);
-          }
-        }
-
         return $app->temma ('tr.texts.html.tm', {
           app => $app,
           tr => $tr,
           tr_config => $tr_config,
           query => $q,
-          data_params => (join '&', @param),
         });
       })->catch (sub {
         $app->error_log ($_[0]);

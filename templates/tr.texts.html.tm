@@ -1,4 +1,5 @@
-<html t:params="$tr $tr_config $data_params $app $query">
+<html t:params="$tr $tr_config $app $query">
+<t:call x="use Wanage::URL">
 <title>XXX</title>
 <link rel=stylesheet href=/css/common.css>
 <body onbeforeunload=" if (isEditMode ()) return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
@@ -13,8 +14,9 @@
     <h2 title=Branch><a href="../" rel=up><code itemprop=branch><t:text value="$tr->branch"></code></a></h2>
     <h3 title=Path><a href="./" rel=bookmark><code itemprop=texts-path><t:text value="'/' . $tr->texts_dir"></code></a></h3>
   </hgroup>
-  <link itemprop=data-url pl:href="'data.json?'.$data_params.'&with_comments=1'">
-  <link itemprop=export-url pl:href="'export?'.$data_params">
+  <link itemprop=data-url pl:href="'data.json?with_comments=1'">
+  <link itemprop=export-url pl:href="'export?'">
+  <meta itemprop=lang-params pl:content="join '&', map { 'lang=' . percent_encode_c $_ } @{$app->text_param_list ('lang')}">
   <meta itemprop=license pl:content="$tr_config->get ('license') // ''">
   <meta itemprop=license-holders pl:content="$tr_config->get ('license_holders') // ''">
   <meta itemprop=additional-license-terms pl:content="$tr_config->get ('additional_license_terms') // ''">
@@ -25,11 +27,6 @@
     <a href="#config-export" onclick=" toggleExportDialog (true) " class=export title="テキスト集合からデータファイルを生成">Export</a>
     <button type=button class=settings title="テキスト集合全体の設定を変更">設定</button>
     <menu hidden>
-          <!-- XXX -->
-          <t:for as=$lang x="$tr->avail_langs">
-            <label><input type=checkbox pl:value=$lang> <t:text value=$lang></label>
-          </t:for>
-          <hr>
       <p><a href="#config-langs" onclick=" toggleLangsConfig (true) ">言語設定...</a>
       <p><a href="#config-license" onclick=" toggleLicenseConfig (true) ">ライセンス設定...</a>
       <p><a href="acl" onclick=" /* XXX hidemenu */ " target=config-acl>編集権限...</a>
@@ -45,7 +42,7 @@
   </form>
 </header>
 
-<table id=texts pl:data-all-langs="join ',', @{$tr->avail_langs} # XXX">
+<table id=texts>
   <thead>
     <tr>
       <template class=lang-header-template>
@@ -215,7 +212,7 @@
   } // escapeQueryValue
 
   function isEditMode () {
-    return !!document.querySelector ('.dialog:not([hidden]), .toggle-edit.active');
+    return !!document.querySelector ('.dialog:not([hidden]):not(#config-langs), .toggle-edit.active');
   } // isEditMode
 
   function setCurrentLangs (langKeys, langs) {
@@ -330,7 +327,7 @@
           input.value = langKey;
         });
         Array.prototype.forEach.call (area.querySelectorAll ('.lang-label-short'), function (el) {
-          el.textContent = document.trLangs[langKey].lang_label_short;
+          el.textContent = document.trLangs[langKey].label_short;
         });
 
         var toggle = area.querySelector ('button.toggle-edit');
@@ -413,6 +410,9 @@ function updateTable () {
 
   var item = document.querySelector ('[itemtype=data]');
   var url = item.querySelector ('[itemprop=data-url]').href;
+  var langQuery = item.querySelector ('[itemprop=lang-params]').content;
+  if (langQuery) langQuery = '&' + langQuery;
+  url += langQuery;
   var form = item.querySelector ('form');
   var query = form.elements.q.value;
   var xhr = new XMLHttpRequest;
@@ -421,13 +421,13 @@ function updateTable () {
     if (xhr.readyState === 4) {
       if (xhr.status < 400) {
         var json = JSON.parse (xhr.responseText);
-        setCurrentLangs (json.lang_keys, json.langs);
+        setCurrentLangs (json.selected_lang_keys, json.langs);
         addTexts (json.texts);
         var tagsArea = document.querySelector ('#add .tags-area');
         updateTagsArea (tagsArea, json.query.tags);
         mainTableData.hidden = false;
         mainTableStatus.hidden = true;
-        history.replaceState (null, null, './?q=' + encodeURIComponent (query)); // XXX lang=...
+        history.replaceState (null, null, './?q=' + encodeURIComponent (query) + langQuery);
       } else {
         // XXX
       }
@@ -652,13 +652,23 @@ function saveArea (area, onsaved) { // XXX promise
       <button type=button class=close title="保存せずに閉じる">閉じる</button>
     </header>
 
+    <ul class=langs />
+    <template class=lang-template><!-- data-lang={lang_key} -->
+      <label>
+        <input type=checkbox>
+        <span class=lang-label>{lang_label}</span>
+      </label>
+      <button type=button class=up-button>上に移動</button>
+      <button type=button class=down-button>下に移動</button>
+    </template>
+    <p class=buttons>
+      <button type=button class=apply-button>選択した言語を表示</button>
+
+
+
+    XXX
     <form action="langs" method=post>
       <ul>
-        <t:for as=$lang x="$tr->avail_langs">
-          <li>
-            <span class=lang-id><t:text value=$lang></span>
-            <input type=hidden name=lang pl:value=$lang>
-        </t:for>
         <li class=lang-new>
           <template>
             <span class=lang-id></span><input type=hidden name=lang>
@@ -683,6 +693,45 @@ function saveArea (area, onsaved) { // XXX promise
     function toggleLangsConfig (status) {
       var langsPanel = document.querySelector ('#config-langs');
       if (status) {
+        // XXX wait until document.trLangKeys available
+        var list = langsPanel.querySelector ('.langs');
+        var template = langsPanel.querySelector ('.lang-template');
+        Array.prototype.slice.call (list.querySelectorAll ('li')).forEach (function (li) {
+          list.removeChild (li);
+        });
+        var langKeys = [];
+        var isSelected = {};
+        document.trLangKeys.forEach (function (_) { isSelected[_] = true; langKeys.push (_) });
+        for (var lang in document.trLangs) {
+          if (!isSelected[lang]) langKeys.push (lang);
+        }
+        langKeys.forEach (function (langKey) {
+          var lang = document.trLangs[langKey];
+          var li = document.createElement ('li');
+          li.innerHTML = template.innerHTML;
+          li.setAttribute ('data-lang', langKey);
+          li.querySelector ('.lang-label').textContent = lang.label;
+          li.querySelector ('input[type=checkbox]').checked = isSelected[langKey];
+          li.querySelector ('.up-button').onclick = function () {
+            var prev = li.previousElementSibling;
+            if (prev) li.parentNode.insertBefore (li, prev);
+          };
+          li.querySelector ('.down-button').onclick = function () {
+            var next = li.nextElementSibling;
+            if (next) next.parentNode.insertBefore (next, li);
+          };
+          list.appendChild (li);
+        });
+        langsPanel.querySelector ('.apply-button').onclick = function () {
+          var item = document.querySelector ('[itemtype=data]');
+          item.querySelector ('[itemprop=lang-params]').content
+              = Array.prototype.filter.call (langsPanel.querySelectorAll ('.langs > li[data-lang]'), function (li) { return li.querySelector ('input[type=checkbox]').checked })
+              .map (function (li) { return 'lang=' + encodeURIComponent (li.getAttribute ('data-lang')) })
+              .join ('&');
+          updateTable ();
+          toggleLangsConfig (false);
+        };
+
         langsPanel.hidden = false;
       } else {
         langsPanel.hidden = true;
@@ -1053,9 +1102,9 @@ function saveArea (area, onsaved) { // XXX promise
           <th><label for=export-lang>Language</label>
           <td>
             <select id=export-lang name=lang>
-              <t:for as=$lang x="$tr->avail_langs">
-                <option pl:value=$lang pl:label=$lang><!-- XXX label -->
-              </t:for>
+              <!-- XXX -->
+              <option value=en label=English>
+              <option value=ja label=Japanese>
             </select>
         <tr>
           <th><label for=export-format>Output format</label>
@@ -1093,9 +1142,8 @@ function saveArea (area, onsaved) { // XXX promise
           <th><label for=import-lang>Language</label>
           <td>
             <select id=import-lang name=lang>
-              <t:for as=$lang x="$tr->avail_langs">
-                <option pl:value=$lang pl:label=$lang><!-- XXX label -->
-              </t:for>
+              <option value=en label=English>
+              <option value=ja label=Japanese>
             </select>
         <tr>
           <th><label for=import-format>Input format</label>
