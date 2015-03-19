@@ -1,4 +1,4 @@
-<html t:params="$tr $tr_config $app $query">
+<html t:params="$tr $app $query">
 <t:call x="use Wanage::URL">
 <title>XXX</title>
 <link rel=stylesheet href=/css/common.css>
@@ -17,9 +17,11 @@
   <link itemprop=data-url pl:href="'data.json?with_comments=1'">
   <link itemprop=export-url pl:href="'export?'">
   <meta itemprop=lang-params pl:content="join '&', map { 'lang=' . percent_encode_c $_ } @{$app->text_param_list ('lang')}">
+  <!-- XXX
   <meta itemprop=license pl:content="$tr_config->get ('license') // ''">
   <meta itemprop=license-holders pl:content="$tr_config->get ('license_holders') // ''">
   <meta itemprop=additional-license-terms pl:content="$tr_config->get ('additional_license_terms') // ''">
+  -->
 
   <nav class=langs-menu-container>
     <a href="#share" onclick=" showShareDialog () " class=share title="共有">Share</a>

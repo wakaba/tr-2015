@@ -73,13 +73,14 @@ sub texts_path ($) {
   };
 } # texts_path
 
-sub prepare_mirror ($) {
+sub prepare_mirror ($$) {
   my $self = $_[0];
+  my $token = $_[1]; # XXX
   return Promise->new (sub {
     my ($ok, $ng) = @_;
     my $mirror_path = $self->mirror_repo_path;
     if ($mirror_path->child ('config')->is_file) {
-      (run_cmd "cd \Q$mirror_path\E && git fetch", '<' => \'')->cb (sub { # XXXtimeout
+      (run_cmd "cd \Q$mirror_path\E && git fetch < /dev/null", '<' => \'')->cb (sub { # XXXtimeout
         my $status = $_[0]->recv;
         if ($status >> 8) {
           $ng->("Can't clone <".$self->url.">"); # XXX
@@ -88,7 +89,10 @@ sub prepare_mirror ($) {
         }
       });
     } else {
-      (run_cmd ['git', 'clone', '--mirror', $self->url, $mirror_path], '<' => \'')->cb (sub { # XXX timeout
+      my $url = $self->url;
+      $token //= '';
+      $url =~ s{^https://github.com/}{https://$token:\@github.com/}; # XXX
+      (run_cmd ['git', 'clone', '--mirror', $url, $mirror_path], '<' => \'')->cb (sub { # XXX timeout
         my $status = $_[0]->recv;
         if ($status >> 8) {
           $ng->("Can't clone <".$self->url.">"); # XXX

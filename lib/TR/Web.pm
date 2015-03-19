@@ -82,7 +82,10 @@ sub main ($$) {
     my $tr = TR::TextRepo->new_from_mirror_and_temp_path ($app->mirror_path, Path::Tiny->tempdir);
     $tr->url ($path->[1]); # XXX validation & normalization
 
-    return $tr->prepare_mirror->then (sub {
+    return $class->check_read_access ($app, $tr, access_token => 1, html => 1)->then (sub {
+      my $token = $_[0];
+      return $tr->prepare_mirror ($token);
+    })->then (sub {
       return $tr->get_branches;
     })->then (sub {
       my $parsed1 = $_[0];
@@ -114,12 +117,15 @@ sub main ($$) {
     $tr->url ($path->[1]); # XXX validation & normalization
     $tr->branch ($path->[2]); # XXX validation
 
-    return $tr->prepare_mirror->then (sub {
-      return $tr->get_commit_logs ([$tr->branch]);
-    })->then (sub {
-      my $parsed = $_[0]; # XXX if branch not found
-      my $tree = $parsed->{commits}->[0]->{tree};
-      return $tr->get_ls_tree ($tree, recursive => 1)->then (sub {
+    return $class->check_read_access ($app, $tr, access_token => 1, html => 1)->then (sub {
+      my $token = $_[0];
+      return $tr->prepare_mirror ($token)->then (sub {
+        return $tr->get_commit_logs ([$tr->branch]);
+      })->then (sub {
+        my $parsed = $_[0]; # XXX if branch not found
+        my $tree = $parsed->{commits}->[0]->{tree};
+        return $tr->get_ls_tree ($tree, recursive => 1);
+      })->then (sub {
         my $parsed = $_[0];
 
         my $text_sets = {};
@@ -151,12 +157,12 @@ sub main ($$) {
             text_sets => $text_sets,
           });
         });
+      })->catch (sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500);
+      })->then (sub {
+        return $tr->discard;
       });
-    })->catch (sub {
-      $app->error_log ($_[0]);
-      return $app->send_error (500);
-    })->then (sub {
-      return $tr->discard;
     });
   }
 
@@ -176,13 +182,7 @@ sub main ($$) {
 
     if (@$path == 5 and $path->[4] eq '') {
       # .../
-      return $tr->prepare_mirror->then (sub {
-        return $tr->clone_from_mirror;
-      })->then (sub { # XXX branch
-        return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
-      })->then (sub {
-        my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
-
+      return $class->check_read_access ($app, $tr, html => 1)->then (sub {
         require TR::Query;
         my $q = TR::Query->parse_query (
           query => $app->text_param ('q'),
@@ -192,24 +192,20 @@ sub main ($$) {
           tags => $app->text_param_list ('tag'),
           tag_minuses => $app->text_param_list ('tag_minus'),
         );
-
         return $app->temma ('tr.texts.html.tm', {
           app => $app,
           tr => $tr,
-          tr_config => $tr_config,
           query => $q,
         });
-      })->catch (sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500);
-      })->then (sub {
-        return $tr->discard;
       });
 
     } elsif (@$path == 5 and $path->[4] eq 'data.json') {
       # .../data.json
       my $q;
-      return $tr->prepare_mirror->then (sub {
+      return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
+        my $token = $_[0];
+        return $tr->prepare_mirror ($token);
+      })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
         require TR::Query;
@@ -243,9 +239,11 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'XXXupdate-index') {
       # .../XXXupdate-index
       # XXX request method
-      # XXX branch
       my $tr_config;
-      return $tr->prepare_mirror->then (sub {
+      return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
+        my $token = $_[0];
+        return $tr->prepare_mirror ($token);
+      })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
         return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
@@ -273,7 +271,10 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'export') {
       # .../export
-      return $tr->prepare_mirror->then (sub {
+      return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
+        my $token = $_[0];
+        return $tr->prepare_mirror ($token);
+      })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
         my $format = $app->text_param ('format') // '';
@@ -596,12 +597,13 @@ sub main ($$) {
       } elsif (@$path == 7 and $path->[6] eq 'history.json') {
         # .../i/{text_id}/history.json
 
-        # XXX access control
-
         my $id = $path->[5]; # XXX validation
 
         my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX validation
-        return $tr->prepare_mirror->then (sub {
+        return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
+          my $token = $_[0];
+          return $tr->prepare_mirror ($token);
+        })->then (sub {
           return $tr->git_log_for_text_id_and_lang
               ($id, $lang, with_file_text => 1);
         })->then (sub {
@@ -719,16 +721,19 @@ sub main ($$) {
           return $tr->discard;
         });
       } else { # GET
-        # XXX access control
-        return $app->temma ('tr.texts.langs.html.tm', {
-          app => $app,
-          tr => $tr,
+        return $class->check_read_access ($app, $tr, html => 1)->then (sub {
+          return $app->temma ('tr.texts.langs.html.tm', {
+            app => $app,
+            tr => $tr,
+          });
         });
       }
     } elsif (@$path == 5 and $path->[4] eq 'langs.json') {
       # .../langs.json
-      # XXX access control
-      return $tr->prepare_mirror->then (sub {
+      return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
+        my $token = $_[0];
+        return $tr->prepare_mirror ($token);
+      })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub { # XXX branch
         return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
@@ -833,13 +838,13 @@ sub main ($$) {
                   };
             })->then (sub {
               my $json = $_[0];
-              my $token = $json->{access_token} // return [];
+              my $token = $json->{access_token};
               return Promise->new (sub {
                 my ($ok, $ng) = @_;
                 $tr->url =~ m{^https://github.com/([^/]+/[^/]+)} or die;
                 http_get
                     url => qq<https://api.github.com/repos/$1>,
-                    header_fields => {Authorization => 'token ' . $token},
+                    header_fields => (defined $token ? {Authorization => 'token ' . $token} : undef),
                     timeout => 100,
                     anyevent => 1,
                     cb => sub {
@@ -853,7 +858,7 @@ sub main ($$) {
               });
             })->then (sub {
               my $json = $_[0];
-              my $is_owner = $json->{permissions}->{push};
+              my $is_owner = !!$json->{permissions}->{push};
               my $is_public = not $json->{private};
               my $time = time;
               return $app->db->insert ('repo_access', [{
@@ -907,16 +912,19 @@ sub main ($$) {
           return $tr->discard;
         });
       } else { # GET
-        # XXX access control
-        return $app->temma ('tr.acl.html.tm', {
-          app => $app,
-          tr => $tr,
+        return $class->check_read_access ($app, $tr, html => 1)->then (sub {
+          return $app->temma ('tr.acl.html.tm', {
+            app => $app,
+            tr => $tr,
+          });
         });
       }
     } elsif (@$path == 5 and $path->[4] eq 'acl.json') {
       # .../acl.json
 
       # XXX access control
+      #return $class->check_read_access ($app, $tr)->then (sub {
+
       # XXX 404 if no |repo| row
 
       # XXX fail if the session's account has github write permission
@@ -976,6 +984,7 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'LICENSE') {
       # .../LICENSE
+      # XXX access token
       return $app->send_plain_text ('XXX');
 
     } elsif (@$path == 5 and $path->[4] eq 'license') {
@@ -1303,6 +1312,88 @@ sub session ($$) {
         };
   });
 } # session
+
+sub check_read_access ($$$;%) {
+  my ($class, $app, $tr, %args) = @_;
+  return $app->db->select ('repo', {
+    repo_url => Dongry::Type->serialize ('text', $tr->url),
+  }, fields => ['is_public'])->then (sub {
+    my $repo = $_[0]->first;
+    if (defined $repo) {
+      if ($repo->{is_public}) {
+        return 1;
+      } else {
+        return $class->session ($app)->then (sub {
+          my $account = $_[0];
+          return 0 if not defined $account->{account_id};
+          return $app->db->select ('repo_access', {
+            account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+            repo_url => Dongry::Type->serialize ('text', $tr->url),
+          }, fields => ['data'])->then (sub {
+            my $row = $_[0]->first_as_row;
+            return (defined $row and $row->get ('data')->{read});
+          });
+        });
+      }
+    } else {
+      # XXX this is unsafe for private repos
+      return $tr->prepare_mirror->then (sub {
+        return 1;
+      }, sub {
+        # XXX if error, ...
+        return 0;
+      });
+    }
+  })->then (sub {
+    if ($_[0]) { # can be read
+      if ($args{access_token}) {
+        return $app->db->select ('repo_access', {
+          repo_url => Dongry::Type->serialize ('text', $tr->url),
+          is_owner => 1,
+        }, fields => ['account_id'], limit => 1)->then (sub {
+          my $owner = $_[0]->first;
+          return $app->throw_error (403, reason_phrase => 'The repository has no owner') unless defined $owner;
+          return Promise->new (sub {
+            my ($ok, $ng) = @_;
+            my $prefix = $app->config->{account_url_prefix};
+            my $api_token = $app->config->{account_token};
+            http_post
+                url => qq<$prefix/token>,
+                header_fields => {Authorization => 'Bearer ' . $api_token},
+                params => {
+                  account_id => $owner->{account_id},
+                  server => 'github',
+                },
+                anyevent => 1,
+                cb => sub {
+                  my (undef, $res) = @_;
+                  if ($res->code == 200) {
+                    $ok->(json_bytes2perl $res->content);
+                  } else {
+                    $ng->($res->status_line);
+                  }
+                };
+          });
+        })->then (sub {
+          my $json = $_[0];
+          my $token = $json->{access_token};
+          return $app->throw_error (403, reason_phrase => 'The repository owner has no GitHub access token')
+              unless defined $token;
+          return $token;
+        });
+      } else {
+        return;
+      }
+    } else { # cannot be read
+      return $app->throw_error (404, reason_phrase => 'Repository not found or not accessible') unless $args{html};
+      $app->http->set_status (404, reason_phrase => 'Repository not found or not accessible');
+      return $app->temma ('tr.repo_not_found.html.tm', {
+        app => $app,
+        tr => $tr,
+      })->then (sub { return $app->throw });
+    }
+  });
+} # check_read_access
 
 # XXX support for non-github repos
 sub get_push_token ($$$$) {
