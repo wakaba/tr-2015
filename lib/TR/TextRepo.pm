@@ -79,7 +79,7 @@ sub prepare_mirror ($) {
     my ($ok, $ng) = @_;
     my $mirror_path = $self->mirror_repo_path;
     if ($mirror_path->child ('config')->is_file) {
-      (run_cmd "cd \Q$mirror_path\E && git fetch")->cb (sub { # XXXtimeout
+      (run_cmd "cd \Q$mirror_path\E && git fetch", '<' => \'')->cb (sub { # XXXtimeout
         my $status = $_[0]->recv;
         if ($status >> 8) {
           $ng->("Can't clone <".$self->url.">"); # XXX
@@ -88,7 +88,7 @@ sub prepare_mirror ($) {
         }
       });
     } else {
-      (run_cmd ['git', 'clone', '--mirror', $self->url, $mirror_path])->cb (sub { # XXX timeout
+      (run_cmd ['git', 'clone', '--mirror', $self->url, $mirror_path], '<' => \'')->cb (sub { # XXX timeout
         my $status = $_[0]->recv;
         if ($status >> 8) {
           $ng->("Can't clone <".$self->url.">"); # XXX
@@ -105,7 +105,7 @@ sub clone_from_mirror ($) {
   return Promise->new (sub {
     my ($ok, $ng) = @_;
     # XXX default branch
-    (run_cmd ['git', 'clone', '-b', $self->branch, $self->mirror_repo_path, $self->repo_path])->cb (sub {
+    (run_cmd ['git', 'clone', '-b', $self->branch, $self->mirror_repo_path, $self->repo_path], '<' => \'')->cb (sub {
       my $status = $_[0]->recv;
       if ($status >> 8) {
         $ng->("Can't clone");

@@ -809,26 +809,91 @@ sub main ($$) {
             });
           } elsif ($op eq 'get_ownership') {
 
-            # XXX check repo access control... ->then
-
-            return $app->db->insert ('repo_access', [{
-              repo_url => Dongry::Type->serialize ('text', $tr->url),
-              account_id => Dongry::Type->serialize ('text', $account->{account_id}),
-              is_owner => 1,
-              data => '{"read":1,"edit":1,"texts":1,"comment":1,"repo":1}',
-              created => time,
-              updated => time,
-            }], duplicate => {
-              is_owner => $app->db->bare_sql_fragment ('VALUES(is_owner)'),
-              updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
+            # XXX non-github support
+            return Promise->new (sub {
+              my ($ok, $ng) = @_;
+              my $prefix = $app->config->{account_url_prefix};
+              my $api_token = $app->config->{account_token};
+              http_post
+                  url => qq<$prefix/token>,
+                  header_fields => {Authorization => 'Bearer ' . $api_token},
+                  params => {
+                    sk => $app->http->request_cookies->{sk},
+                    sk_context => $app->config->{account_sk_context},
+                    server => 'github',
+                  },
+                  anyevent => 1,
+                  cb => sub {
+                    my (undef, $res) = @_;
+                    if ($res->code == 200) {
+                      $ok->(json_bytes2perl $res->content);
+                    } else {
+                      $ng->($res->status_line);
+                    }
+                  };
             })->then (sub {
-              return $app->db->execute ('UPDATE `repo_access` SET is_owner = 0 AND updated = ? WHERE repo_url = ? AND account_id != ?', {
-                repo_url => Dongry::Type->serialize ('text', $tr->url),
-                account_id => Dongry::Type->serialize ('text', $account->{account_id}),
-                updated => time,
+              my $json = $_[0];
+              my $token = $json->{access_token} // return [];
+              return Promise->new (sub {
+                my ($ok, $ng) = @_;
+                $tr->url =~ m{^https://github.com/([^/]+/[^/]+)} or die;
+                http_get
+                    url => qq<https://api.github.com/repos/$1>,
+                    header_fields => {Authorization => 'token ' . $token},
+                    timeout => 100,
+                    anyevent => 1,
+                    cb => sub {
+                      my (undef, $res) = @_;
+                      if ($res->code == 200) {
+                        $ok->(json_bytes2perl $res->content);
+                      } else {
+                        $ng->([$res->code, $res->status_line]);
+                      }
+                    };
               });
             })->then (sub {
-              return $app->send_error (204, reason_phrase => 'Saved');
+              my $json = $_[0];
+              my $is_owner = $json->{permissions}->{push};
+              my $is_public = not $json->{private};
+              my $time = time;
+              return $app->db->insert ('repo_access', [{
+                repo_url => Dongry::Type->serialize ('text', $tr->url),
+                account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+                is_owner => $is_owner,
+                data => ($is_owner ? '{"read":1,"edit":1,"texts":1,"comment":1,"repo":1}' : '{"read":1}'),
+                created => $time,
+                updated => $time,
+              }], duplicate => {
+                is_owner => $app->db->bare_sql_fragment ('VALUES(is_owner)'),
+                updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
+              })->then (sub {
+                return $app->db->execute ('UPDATE `repo_access` SET is_owner = 0 AND updated = ? WHERE repo_url = ? AND account_id != ?', {
+                  repo_url => Dongry::Type->serialize ('text', $tr->url),
+                  account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+                  updated => $time,
+                }) if $is_owner;
+              })->then (sub {
+                return $app->db->insert ('repo', [{
+                  repo_url => Dongry::Type->serialize ('text', $tr->url),
+                  is_public => $is_public,
+                  created => time,
+                  updated => time,
+                }], duplicate => {
+                  is_public => $app->db->bare_sql_fragment ('VALUES(is_public)'),
+                  updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
+                });
+              })->then (sub {
+                return $app->send_json ({is_public => $is_public,
+                                         is_owner => $is_owner});
+              });
+            }, sub {
+              die $_[0] unless ref $_[0] eq 'ARRAY';
+              my ($status, $status_line) = @{$_[0]};
+              if ($status == 404) {
+                return $app->send_error (403, reason_phrase => "Can't access to the remote repository");
+              } else {
+                die $status_line;
+              }
             });
           } else {
             return $app->send_error (400, reason_phrase => 'Bad |operation|');
@@ -843,31 +908,16 @@ sub main ($$) {
         });
       } else { # GET
         # XXX access control
-        return $tr->prepare_mirror->then (sub {
-          return $tr->clone_from_mirror;
-        })->then (sub { # XXX branch
-          return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
-        })->then (sub {
-          my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
-          my $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
-          $tr->avail_langs ($langs);
-
-          return $app->temma ('tr.acl.html.tm', {
-            app => $app,
-            tr => $tr,
-            tr_config => $tr_config,
-          });
-        })->catch (sub {
-          $app->error_log ($_[0]);
-          return $app->send_error (500);
-        })->then (sub {
-          return $tr->discard;
+        return $app->temma ('tr.acl.html.tm', {
+          app => $app,
+          tr => $tr,
         });
       }
     } elsif (@$path == 5 and $path->[4] eq 'acl.json') {
       # .../acl.json
 
       # XXX access control
+      # XXX 404 if no |repo| row
 
       # XXX fail if the session's account has github write permission
       # to the target repo
@@ -881,32 +931,45 @@ sub main ($$) {
           scopes => $_->get ('data'),
           is_owner => $_->get ('is_owner'),
         } } @{$_[0]->all_as_rows}};
-        
-        my $prefix = $app->config->{account_url_prefix};
-        my $api_token = $app->config->{account_token};
-        return Promise->new (sub {
-          my ($ok, $ng) = @_;
-          http_post
-              url => qq<$prefix/profiles>,
-              header_fields => {Authorization => 'Bearer ' . $api_token},
-              params => {
-                account_id => [keys %$accounts],
-              },
-              anyevent => 1,
-              cb => sub {
-                my (undef, $res) = @_;
-                if ($res->code == 200) {
-                  $ok->(json_bytes2perl $res->content);
-                } else {
-                  $ng->($res->status_line);
-                }
-              };
-        });
+
+        return Promise->all ([
+          do {
+            my $prefix = $app->config->{account_url_prefix};
+            my $api_token = $app->config->{account_token};
+            Promise->new (sub {
+              my ($ok, $ng) = @_;
+              http_post
+                  url => qq<$prefix/profiles>,
+                  header_fields => {Authorization => 'Bearer ' . $api_token},
+                  params => {
+                    account_id => [keys %$accounts],
+                  },
+                  anyevent => 1,
+                  cb => sub {
+                    my (undef, $res) = @_;
+                    if ($res->code == 200) {
+                      $ok->(json_bytes2perl $res->content);
+                    } else {
+                      $ng->($res->status_line);
+                    }
+                  };
+            });
+          },
+          $app->db->select ('repo', {
+            repo_url => Dongry::Type->serialize ('text', $tr->url),
+          }, fields => ['is_public']),
+        ]);
       })->then (sub {
-        my $j = $_[0];
+        my $j = $_[0]->[0];
         for my $account_id (keys %{$j->{accounts}}) {
           $json->{accounts}->{$account_id}->{name} = $j->{accounts}->{$account_id}->{name};
           # XXX icon
+        }
+        my $repo_data = $_[0]->[1]->first;
+        if (defined $repo_data) {
+          $json->{is_public} = 1 if $repo_data->{is_public};
+        } else {
+          $json->{is_public} = 1;
         }
         return $app->send_json ($json);
       });
