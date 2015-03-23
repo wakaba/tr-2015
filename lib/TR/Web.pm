@@ -80,6 +80,7 @@ sub main ($$) {
     # /tr/{url}/
 
     my $tr = TR::TextRepo->new_from_mirror_and_temp_path ($app->mirror_path, Path::Tiny->tempdir);
+    $tr->config ($app->config);
     $tr->url ($path->[1]); # XXX validation & normalization
 
     return $class->check_read_access ($app, $tr, access_token => 1, html => 1)->then (sub {
@@ -114,6 +115,7 @@ sub main ($$) {
     # /tr/{url}/{branch}/
 
     my $tr = TR::TextRepo->new_from_mirror_and_temp_path ($app->mirror_path, Path::Tiny->tempdir);
+    $tr->config ($app->config);
     $tr->url ($path->[1]); # XXX validation & normalization
     $tr->branch ($path->[2]); # XXX validation
 
@@ -176,6 +178,7 @@ sub main ($$) {
     }
 
     my $tr = TR::TextRepo->new_from_mirror_and_temp_path ($app->mirror_path, Path::Tiny->tempdir);
+    $tr->config ($app->config);
     $tr->url ($path->[1]); # XXX validation & normalization
     $tr->branch ($path->[2]); # XXX validation
     $tr->texts_dir (substr $path->[3], 1);
@@ -359,12 +362,13 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'import') {
       # .../import
 
+      my $account;
       return $class->get_push_token ($app, $tr, 'repo')->then (sub { # XXX scope
-        my $token = $_[0];
+        my $account = $_[0];
         return $tr->prepare_mirror->then (sub {
           return $tr->clone_from_mirror;
         })->then (sub {
-          return $tr->make_pushable ($token, '');
+          return $tr->make_pushable ($account->{access_token}, '');
         });
       })->then (sub {
         my $format = $app->text_param ('format') // '';
@@ -447,8 +451,8 @@ sub main ($$) {
         return Promise->all (\@q);
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
-        $msg = 'Added a message' unless length $msg;
-        return $tr->commit ($msg);
+        $msg = 'Added a message' unless length $msg; # XXX
+        return $tr->commit ($account, $msg);
       })->then (sub {
         return $tr->push; # XXX failure
       })->then (sub {
@@ -469,12 +473,13 @@ sub main ($$) {
         my $id = $path->[5]; # XXX validation
         my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
 
+        my $account;
         return $class->get_push_token ($app, $tr, 'edit/' . $lang)->then (sub {
-          my $token = $_[0];
+          $account = $_[0];
           return $tr->prepare_mirror->then (sub {
             return $tr->clone_from_mirror;
           })->then (sub {
-            return $tr->make_pushable ($token, '');
+            return $tr->make_pushable ($account->{access_token}, '');
           });
         })->then (sub {
           return $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt');
@@ -488,8 +493,8 @@ sub main ($$) {
           return $tr->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
         })->then (sub {
           my $msg = $app->text_param ('commit_message') // '';
-          $msg = 'Added a message' unless length $msg;
-          return $tr->commit ($msg);
+          $msg = 'Added a message' unless length $msg; # XXX
+          return $tr->commit ($account, $msg);
         })->then (sub {
           return $tr->push; # XXX failure
         })->then (sub {
@@ -508,13 +513,14 @@ sub main ($$) {
 
         my $id = $path->[5]; # XXX validation
 
+        my $account;
         my $te;
         return $class->get_push_token ($app, $tr, 'texts')->then (sub {
-          my $token = $_[0];
+          $account = $_[0];
           return $tr->prepare_mirror->then (sub {
             return $tr->clone_from_mirror;
           })->then (sub {
-            return $tr->make_pushable ($token, '');
+            return $tr->make_pushable ($account->{access_token}, '');
           });
         })->then (sub {
           return $tr->read_file_by_text_id_and_suffix ($id, 'dat');
@@ -544,8 +550,8 @@ sub main ($$) {
           return $tr->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
         })->then (sub {
           my $msg = $app->text_param ('commit_message') // '';
-          $msg = 'Added a message' unless length $msg;
-          return $tr->commit ($msg);
+          $msg = 'Added a message' unless length $msg; # XXX
+          return $tr->commit ($account, $msg);
         })->then (sub {
           return $tr->push; # XXX failure
         })->then (sub {
@@ -564,12 +570,13 @@ sub main ($$) {
 
         my $id = $path->[5]; # XXX validation
 
+        my $account;
         return $class->get_push_token ($app, $tr, 'comment')->then (sub {
-          my $token = $_[0];
+          $account = $_[0];
           return $tr->prepare_mirror->then (sub {
             return $tr->clone_from_mirror;
           })->then (sub {
-            return $tr->make_pushable ($token, '');
+            return $tr->make_pushable ($account->{access_token}, '');
           });
         })->then (sub {
           my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
@@ -581,8 +588,8 @@ sub main ($$) {
               ($id, 'comments' => $te->as_source_text);
         })->then (sub {
           my $msg = $app->text_param ('commit_message') // '';
-          $msg = 'Added a comment' unless length $msg;
-          return $tr->commit ($msg);
+          $msg = 'Added a comment' unless length $msg; # XXX
+          return $tr->commit ($account, $msg);
         })->then (sub {
           return $tr->push; # XXX failure
         })->then (sub {
@@ -633,13 +640,14 @@ sub main ($$) {
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
 
+      my $account;
       my $data = {texts => {}};
       return $class->get_push_token ($app, $tr, 'texts')->then (sub {
-        my $token = $_[0];
+        $account = $_[0];
         return $tr->prepare_mirror->then (sub {
           return $tr->clone_from_mirror;
         })->then (sub {
-          return $tr->make_pushable ($token, '');
+          return $tr->make_pushable ($account->{access_token}, '');
         });
       })->then (sub {
         my $id = $tr->generate_text_id;
@@ -658,8 +666,8 @@ sub main ($$) {
         return $tr->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
-        $msg = 'Added a message' unless length $msg;
-        return $tr->commit ($msg);
+        $msg = 'Added a message' unless length $msg; # XXX
+        return $tr->commit ($account, $msg);
       })->then (sub {
         return $tr->push; # XXX failure
       })->then (sub {
@@ -681,12 +689,13 @@ sub main ($$) {
         my $lang_labels = $app->text_param_list ('lang_label');
         my $lang_label_shorts = $app->text_param_list ('lang_label_short');
 
+        my $account;
         return $class->get_push_token ($app, $tr, 'repo')->then (sub {
-          my $token = $_[0];
+          $account = $_[0];
           return $tr->prepare_mirror->then (sub {
             return $tr->clone_from_mirror;
           })->then (sub {
-            return $tr->make_pushable ($token, '');
+            return $tr->make_pushable ($account->{access_token}, '');
           });
           })->then (sub {
           return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
@@ -708,8 +717,8 @@ sub main ($$) {
           return $tr->write_file_by_path ($tr->texts_path->child ('config.json'), $tr_config->as_source_text);
         })->then (sub {
           my $msg = $app->text_param ('commit_message') // '';
-          $msg = 'Added a message' unless length $msg;
-          return $tr->commit ($msg);
+          $msg = 'Added a message' unless length $msg; # XXX
+          return $tr->commit ($account, $msg);
         })->then (sub {
           return $tr->push; # XXX failure
         })->then (sub {
@@ -993,12 +1002,13 @@ sub main ($$) {
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
 
+      my $account;
       return $class->get_push_token ($app, $tr, 'repo')->then (sub {
-        my $token = $_[0];
+        $account = $_[0];
         return $tr->prepare_mirror->then (sub {
           return $tr->clone_from_mirror;
         })->then (sub {
-          return $tr->make_pushable ($token, '');
+          return $tr->make_pushable ($account->{access_token}, '');
         });
       })->then (sub {
         return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
@@ -1015,8 +1025,8 @@ sub main ($$) {
         });
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
-        $msg = 'Added a message' unless length $msg;
-        return $tr->commit ($msg);
+        $msg = 'Added a message' unless length $msg; # XXX
+        return $tr->commit ($account, $msg);
       })->then (sub {
         return $tr->push; # XXX failure
       })->then (sub {
@@ -1399,8 +1409,10 @@ sub check_read_access ($$$;%) {
 sub get_push_token ($$$$) {
   my ($class, $app, $tr, $scope) = @_;
   my $account_id;
+  my $name;
   return $class->session ($app)->then (sub {
     my $session = $_[0];
+    $name = $session->{name};
     return $app->throw_error (403, reason_phrase => 'Need to login')
         unless defined ($account_id = $session->{account_id});
   })->then (sub {
@@ -1453,9 +1465,11 @@ sub get_push_token ($$$$) {
     });
   })->then (sub {
     my $json = $_[0];
-    my $token = $json->{access_token};
+    my $token = {access_token => $json->{access_token},
+                 name => $name, account_id => $account_id};
     return $app->throw_error (403, reason_phrase => 'The repository owner has no GitHub access token')
-        unless defined $token;
+        unless defined $token->{access_token};
+    # XXX name/email for git author
     return $token;
   });
 } # get_push_token

@@ -15,7 +15,7 @@ use TR::GitWorkingTree;
 
 sub new_from_mirror_and_temp_path ($$$) {
   return bless {mirror_path => $_[1], temp_path => $_[2]}, $_[0];
-} # new_from_mirror_and_temp_path
+} # new_from_mirror_and_temp_pat
 
 sub url ($;$) {
   if (@_ > 1) {
@@ -23,6 +23,13 @@ sub url ($;$) {
   }
   return $_[0]->{url};
 } # url
+
+sub config ($;$) {
+  if (@_ > 1) {
+    $_[0]->{config} = $_[1];
+  }
+  return $_[0]->{config};
+} # config
 
 sub path_name ($) {
   my $self = $_[0];
@@ -441,11 +448,20 @@ sub add_by_paths ($$) {
   return $self->repo->git ('add', [map { quotemeta $_->relative ($repo_path) } @$paths]);
 } # add_by_paths
 
-sub commit ($$) {
-  my ($self, $msg) = @_;
-  # XXX author/committer
+sub commit ($$$) {
+  my ($self, $account, $msg) = @_;
   $msg = ' ' unless length $msg;
-  return $self->repo->git ('commit', ['-m', $msg]);
+  my $name = $account->{name};
+  $name = $account->{account_id} unless length $name;
+  my $email = $self->config->get ('git.author.email_pattern');
+  $email =~ s/\{account_id\}/$account->{account_id}/g;
+  return $self->repo->commit (
+    message => $msg,
+    author_email => $email,
+    author_name => $name,
+    committer_email => $self->config->get ('git.committer.email'),
+    committer_name => $self->config->get ('git.committer.name'),
+  );
   # XXX ignore nothing-to-commit error
 } # commit
 
