@@ -886,7 +886,7 @@ sub main ($$) {
                 }], duplicate => {
                   is_public => $app->db->bare_sql_fragment ('VALUES(is_public)'),
                   updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
-                });
+                }); # XXXupdate-index
               })->then (sub {
                 return $app->send_json ({is_public => $is_public,
                                          is_owner => $is_owner});

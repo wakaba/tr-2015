@@ -5,9 +5,11 @@ use Path::Tiny;
 use AnyEvent::Util qw(run_cmd);
 use Encode;
 use Promise;
+use Promised::Command;
 use Digest::SHA qw(sha1_hex);
 use Wanage::URL;
 use TR::TextEntry;
+use TR::Git;
 
 sub new_from_mirror_and_temp_path ($$$) {
   return bless {mirror_path => $_[1], temp_path => $_[2]}, $_[0];
@@ -76,131 +78,65 @@ sub texts_path ($) {
 sub prepare_mirror ($$) {
   my $self = $_[0];
   my $token = $_[1]; # XXX
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    my $mirror_path = $self->mirror_repo_path;
-    if ($mirror_path->child ('config')->is_file) {
-      (run_cmd "cd \Q$mirror_path\E && git fetch < /dev/null", '<' => \'')->cb (sub { # XXXtimeout
-        my $status = $_[0]->recv;
-        if ($status >> 8) {
-          $ng->("Can't clone <".$self->url.">"); # XXX
-        } else {
-          $ok->();
-        }
-      });
-    } else {
-      my $url = $self->url;
-      $token //= '';
-      $url =~ s{^https://github.com/}{https://$token:\@github.com/}; # XXX
-      (run_cmd ['git', 'clone', '--mirror', $url, $mirror_path], '<' => \'')->cb (sub { # XXX timeout
-        my $status = $_[0]->recv;
-        if ($status >> 8) {
-          $ng->("Can't clone <".$self->url.">"); # XXX
-        } else {
-          $ok->();
-        }
-      });
-    }
-  });
+  my $mirror_path = $self->mirror_repo_path;
+  if ($mirror_path->child ('config')->is_file) {
+    return git ($mirror_path, 'fetch', []);
+  } else {
+    my $url = $self->url;
+    $token //= '';
+    $url =~ s{^https://github.com/}{https://$token:\@github.com/}; # XXX
+    return git_clone (['--mirror', $url, $mirror_path]);
+  }
 } # prepare_mirror
 
 sub clone_from_mirror ($) {
   my $self = $_[0];
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    # XXX default branch
-    (run_cmd ['git', 'clone', '-b', $self->branch, $self->mirror_repo_path, $self->repo_path], '<' => \'')->cb (sub {
-      my $status = $_[0]->recv;
-      if ($status >> 8) {
-        $ng->("Can't clone");
-      } else {
-        $ok->();
-      }
-    });
-  });
+  # XXX default branch
+  return git_clone (['-b', $self->branch, $self->mirror_repo_path, $self->repo_path]);
 } # clone_from_mirror
 
 sub make_pushable ($$$) {
   my ($self, $userid, $password) = @_;
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    my $url = $self->url;
-    $url =~ s{^https://github\.com/}{'https://'.(percent_encode_c $userid).':'.(percent_encode_c $password).'@github.com/'}e; # XXX
-    my $path = $self->repo_path;
-    (run_cmd "cd \Q$path\E && git remote add remoterepo \Q$url\E")->cb (sub {
-      my $status = $_[0]->recv;
-      if ($status >> 8) {
-        $ng->("Can't config");
-      } else {
-        $ok->();
-      }
-    });
-  });
+  my $url = $self->url;
+  $url =~ s{^https://github\.com/}{'https://'.(percent_encode_c $userid).':'.(percent_encode_c $password).'@github.com/'}e; # XXX
+  return git ($self->repo_path, 'remote', ['add', 'remoterepo', $url]);
 } # make_pushable
 
 sub get_branches ($) {
   my $self = $_[0];
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    my $log;
-    my $mirror_path = $self->mirror_repo_path;
-    (run_cmd "cd \Q$mirror_path\E && git branch -v --no-abbrev", '>' => \$log)->cb (sub {
-      my $status = $_[0]->recv;
-      if ($status >> 8) {
-        $ng->("failed");
-      } else {
-        my $parsed = {branches => {}};
-        for (split /\x0A/, decode 'utf-8', $log) {
-          if (/^(\* |  )(\S+)\s+(\S+) (.*)$/) {
-            my $d = {name => $2, commit => $3, commit_message => $4};
-            $d->{selected} = 1 if $1 eq '* ';
-            $parsed->{branches}->{$2} = $d;
-          }
-        }
-        $ok->($parsed);
+  return git ($self->mirror_repo_path, 'branch', ['-v', '--no-abbrev'])->then (sub {
+    my $result = $_[0];
+    my $parsed = {branches => {}};
+    for (split /\x0A/, decode 'utf-8', $result->{stdout}) {
+      if (/^(\* |  )(\S+)\s+(\S+) (.*)$/) {
+        my $d = {name => $2, commit => $3, commit_message => $4};
+        $d->{selected} = 1 if $1 eq '* ';
+        $parsed->{branches}->{$2} = $d;
       }
-    });
+    }
+    return $parsed;
   });
 } # get_branches
 
 sub get_commit_logs ($$) {
   my ($self, $commits) = @_;
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    my $log;
-    my $mirror_path = $self->mirror_repo_path;
-    (run_cmd "cd \Q$mirror_path\E && git show --raw --format=raw " . (join ' ', map { quotemeta $_ } @$commits), '>' => \$log)->cb (sub {
-      my $status = $_[0]->recv;
-      if ($status >> 8) {
-        $ng->("failed");
-      } else {
-        require Git::Parser::Log;
-        my $parsed = Git::Parser::Log->parse_format_raw (decode 'utf-8', $log);
-        $ok->($parsed);
-      }
-    });
+  return git ($self->mirror_repo_path, 'show', ['--raw', '--format=raw', @$commits])->then (sub {
+    my $result = $_[0];
+    require Git::Parser::Log;
+    return Git::Parser::Log->parse_format_raw (decode 'utf-8', $result->{stdout});
   });
 } # get_commit_logs
 
 sub get_logs_by_path ($$;%) {
   my ($self, $path, %args) = @_;
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    my $log;
-    my $mirror_path = $self->mirror_repo_path;
-    my $branch = $self->branch;
-    my $args = '';
-    $args = '-' . (0+$args{limit}) if $args{limit};
-    (run_cmd "cd \Q$mirror_path\E && git log $args --raw --format=raw \Q$branch\E -- \Q$path\E", '>' => \$log)->cb (sub {
-      my $status = $_[0]->recv;
-      if ($status >> 8) {
-        $ng->("failed");
-      } else {
-        require Git::Parser::Log;
-        my $parsed = Git::Parser::Log->parse_format_raw (decode 'utf-8', $log);
-        $ok->($parsed);
-      }
-    });
+  return git ($self->mirror_repo_path, 'log', [
+    ($args{limit} ? '-'.(0+$args{limit}) : ()),
+    '--raw', '--format=raw',
+    $self->branch, '--', $path,
+  ])->then (sub {
+    my $result = $_[0];
+    require Git::Parser::Log;
+    return Git::Parser::Log->parse_format_raw (decode 'utf-8', $result->{stdout});
   });
 } # get_logs_by_path
 
@@ -210,10 +146,10 @@ sub get_last_commit_logs_by_paths ($$) {
   my $result = {};
   for my $path (@$paths) {
     $p = $p->then (sub {
-      return $self->get_logs_by_path ($path, limit => 1)->then (sub {
-        my $parsed = $_[0]; # XXX if not found
-        $result->{$path} = $_[0]->{commits}->[0];
-      });
+      return $self->get_logs_by_path ($path, limit => 1);
+    })->then (sub {
+      my $parsed = $_[0]; # XXX if not found
+      $result->{$path} = $_[0]->{commits}->[0];
     });
   }
   return $p->then (sub { return $result });
@@ -221,28 +157,19 @@ sub get_last_commit_logs_by_paths ($$) {
 
 sub get_ls_tree ($$;%) {
   my ($self, $tree, %args) = @_;
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    my $log;
-    my $mirror_path = $self->mirror_repo_path;
-    my $args = '';
-    $args = '-r' if $args{recursive};
-    (run_cmd "cd \Q$mirror_path\E && git ls-tree $args \Q$tree\E", '>' => \$log)->cb (sub {
-      my $status = $_[0]->recv;
-      if ($status >> 8) {
-        $ng->("failed");
-      } else {
-        my $parsed = {};
-        for (split /\x0A/, decode 'utf-8', $log) {
-          if (/^([0-9]+) (\S+) (\S+)\s+(.+)$/) {
-            my $d = {mode => $1, type => $2, object => $3, file => $4};
-            $d->{file} =~ s/\\([tn\\])/{t => "\x09", n => "\x0A", "\\" => "\\"}->{$1}/ge;
-            $parsed->{items}->{$d->{file}} = $d;
-          }
-        }
-        $ok->($parsed);
+  return git ($self->mirror_repo_path, 'ls-tree', [
+    ($args{recursive} ? '-r' : ()),
+    $tree,
+  ])->then (sub {
+    my $result = $_[0];
+    my $parsed = {};
+    for (split /\x0A/, decode 'utf-8', $result->{stdout}) {
+      if (/^([0-9]+) (\S+) (\S+)\s+(.+)$/) {
+        my $d = {mode => $1, type => $2, object => $3, file => $4};
+        $d->{file} =~ s/\\([tn\\])/{t => "\x09", n => "\x0A", "\\" => "\\"}->{$1}/ge;
+        $parsed->{items}->{$d->{file}} = $d;
       }
-    });
+    }
   });
 } # get_ls_tree
 
@@ -293,59 +220,32 @@ sub git_log_for_text_id_and_lang ($$$;%) {
   my $rel_path = $self->text_id_and_suffix_to_relative_path ($id, $lang . '.txt');
   my $mirror_path = $self->mirror_repo_path;
   my $branch = $self->branch;
-  my $p = Promise->new (sub {
-    my ($ok, $ng) = @_;
-    my $log;
-    (run_cmd "cd \Q$mirror_path\E && git log --raw --format=raw \Q$branch\E -- \Q$rel_path\E", '>' => \$log)->cb (sub {
-      my $status = $_[0]->recv;
-      if ($status >> 8) {
-        $ng->("failed");
-      } else {
-        require Git::Parser::Log;
-        my $parsed = Git::Parser::Log->parse_format_raw (decode 'utf-8', $log);
-        $ok->($parsed);
-      }
-    });
+  my $p = git ($mirror_path, 'log', ['--raw', '--format=raw', $branch, '--', $rel_path])->then (sub {
+    my $result = $_[0];
+    require Git::Parser::Log;
+    return Git::Parser::Log->parse_format_raw (decode 'utf-8', $result->{stdout});
   });
 
   if ($args{with_file_text}) {
     $p = $p->then (sub {
       my $parsed = $_[0];
-      my @p;
+      my $q = Promise->resolve;
       for my $commit (@{$parsed->{commits}}) {
-        push @p, Promise->new (sub {
-          my ($ok, $ng) = @_;
-          my $ls;
-          (run_cmd "cd \Q$mirror_path\E && git ls-tree \Q$commit->{tree}\E \Q$rel_path\E", '>' => \$ls)->cb (sub {
-            my $status = $_[0]->recv;
-            if ($status >> 8) {
-              $ng->("failed");
-            } else {
-              if ($ls =~ /^\S+ blob ([0-9a-f]+)\s/m) {
-                $ok->($1);
-              } else {
-                $ng->("failed");
-              }
-            }
-          });
+        $q = $q->then (sub {
+          return git ($mirror_path, 'ls-tree', [$commit->{tree}, $rel_path]);
         })->then (sub {
-          my $blob = $_[0];
-          return Promise->new (sub {
-            my ($ok, $ng) = @_;
-            my $data;
-            (run_cmd "cd \Q$mirror_path\E && git show \Q$blob\E", '>' => \$data)->cb (sub {
-              my $status = $_[0]->recv;
-              if ($status >> 8) {
-                $ng->("failed");
-              } else {
-                $commit->{blob_data} = $data;
-                $ok->();
-              }
-            });
-          });
+          my $result = $_[0];
+          if ($result->{stdout} =~ /^\S+ blob ([0-9a-f]+)\s/m) {
+            return git ($mirror_path, 'show', [$1])
+          } else {
+            die "$commit->{tree} - $rel_path not found";
+          }
+        })->then (sub {
+          my $result = $_[0];
+          $commit->{blob_data} = $result->{stdout};
         });
       } # $commit
-      return Promise->all (\@p)->then (sub { return $parsed });
+      return $q->then (sub { return $parsed });
     });
   }
 
@@ -526,52 +426,21 @@ sub get_data_as_jsonalizable ($%) {
 
 sub add_by_paths ($$) {
   my ($self, $paths) = @_;
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    my $repo_path = $self->repo_path;
-    die "No file to add" unless @$paths;
-    (run_cmd "cd \Q$repo_path\E && git add " . join ' ', map { quotemeta $_->relative ($repo_path) } @$paths)->cb (sub {
-      my  $status = $_[0]->recv;
-      if ($status >> 8) {
-        $ng->("Can't add");
-      } else {
-        $ok->();
-      }
-    });
-  });
+  return Promise->reject ("No file to add") unless @$paths;
+  my $repo_path = $self->repo_path;
+  return git ($repo_path, 'add', [map { quotemeta $_->relative ($repo_path) } @$paths]);
 } # add_by_paths
 
 sub commit ($$) {
   my ($self, $msg) = @_;
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    my $repo_path = $self->repo_path;
-    $msg = ' ' unless length $msg;
-    (run_cmd "cd \Q$repo_path\E && git commit -m \Q$msg\E")->cb (sub { # XXX author/committer
-      my  $status = $_[0]->recv;
-      if ($status >> 8) {
-        $ng->("Can't commit");
-      } else {
-        $ok->();
-      }
-    });
-  });
+  # XXX author/committer
+  $msg = ' ' unless length $msg;
+  return git ($self->repo_path, 'commit', ['-m', $msg]);
 } # commit
 
 sub push ($) {
   my $self = $_[0];
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    my $repo_path = $self->repo_path;
-    (run_cmd "cd \Q$repo_path\E && git push remoterepo")->cb (sub {
-      my $status = $_[0]->recv;
-      if ($status >> 8) {
-        $ng->("Can't push");
-      } else {
-        $ok->();
-      }
-    });
-  });
+  return git ($self->repo_path, 'push', ['remoterepo']);
 } # push
 
 sub discard ($) {
