@@ -16,24 +16,6 @@ sub import ($;@) {
   }
 } # import
 
-push @EXPORT, qw(git);
-sub git ($$$) {
-  my ($repo_dir, $command, $args) = @_;
-  my $cmd = Promised::Command->new (['git', $command, @$args]);
-  $cmd->stdin (\'');
-  $cmd->stdout (\my $stdout);
-  $cmd->stderr (\my $stderr);
-  $cmd->wd ($repo_dir);
-  $cmd->timeout (100);
-  return $cmd->run->then (sub {
-    return $cmd->wait;
-  })->then (sub {
-    my $result = $_[0];
-    die $result unless $result->is_success and $result->exit_code == 0;
-    return {stdout => $stdout, stderr => $stderr};
-  });
-} # git
-
 push @EXPORT, qw(git_clone);
 sub git_clone ($) {
   my ($args) = @_;

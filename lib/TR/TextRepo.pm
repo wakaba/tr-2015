@@ -10,6 +10,8 @@ use Digest::SHA qw(sha1_hex);
 use Wanage::URL;
 use TR::TextEntry;
 use TR::Git;
+use TR::GitBareRepository;
+use TR::GitWorkingTree;
 
 sub new_from_mirror_and_temp_path ($$$) {
   return bless {mirror_path => $_[1], temp_path => $_[2]}, $_[0];
@@ -56,9 +58,17 @@ sub mirror_repo_path ($) {
   return $_[0]->{mirror_repo_path} ||= $_[0]->mirror_parent_path->child ($_[0]->path_name);
 } # mirror_repo_path
 
+sub mirror_repo ($) {
+  return $_[0]->{mirror_repo} ||= TR::GitBareRepository->new_from_dir_name ($_[0]->mirror_repo_path);
+} # mirror_repo
+
 sub repo_path ($) {
   return $_[0]->{repo_path} ||= $_[0]->{temp_path}->child ('text-repo-' . rand);
 } # repo_path
+
+sub repo ($) {
+  return $_[0]->{repo} ||= TR::GitWorkingTree->new_from_dir_name ($_[0]->repo_path);
+} # repo
 
 sub texts_dir ($;$) {
   if (@_ > 1) {
@@ -80,7 +90,7 @@ sub prepare_mirror ($$) {
   my $token = $_[1]; # XXX
   my $mirror_path = $self->mirror_repo_path;
   if ($mirror_path->child ('config')->is_file) {
-    return git ($mirror_path, 'fetch', []);
+    return $self->mirror_repo->fetch;
   } else {
     my $url = $self->url;
     $token //= '';
@@ -99,12 +109,12 @@ sub make_pushable ($$$) {
   my ($self, $userid, $password) = @_;
   my $url = $self->url;
   $url =~ s{^https://github\.com/}{'https://'.(percent_encode_c $userid).':'.(percent_encode_c $password).'@github.com/'}e; # XXX
-  return git ($self->repo_path, 'remote', ['add', 'remoterepo', $url]);
+  return $self->repo->git ('remote', ['add', 'remoterepo', $url]);
 } # make_pushable
 
 sub get_branches ($) {
   my $self = $_[0];
-  return git ($self->mirror_repo_path, 'branch', ['-v', '--no-abbrev'])->then (sub {
+  return $self->mirror_repo->git ('branch', ['-v', '--no-abbrev'])->then (sub {
     my $result = $_[0];
     my $parsed = {branches => {}};
     for (split /\x0A/, decode 'utf-8', $result->{stdout}) {
@@ -120,7 +130,7 @@ sub get_branches ($) {
 
 sub get_commit_logs ($$) {
   my ($self, $commits) = @_;
-  return git ($self->mirror_repo_path, 'show', ['--raw', '--format=raw', @$commits])->then (sub {
+  return $self->mirror_repo->git ('show', ['--raw', '--format=raw', @$commits])->then (sub {
     my $result = $_[0];
     require Git::Parser::Log;
     return Git::Parser::Log->parse_format_raw (decode 'utf-8', $result->{stdout});
@@ -129,7 +139,7 @@ sub get_commit_logs ($$) {
 
 sub get_logs_by_path ($$;%) {
   my ($self, $path, %args) = @_;
-  return git ($self->mirror_repo_path, 'log', [
+  return $self->mirror_repo->git ('log', [
     ($args{limit} ? '-'.(0+$args{limit}) : ()),
     '--raw', '--format=raw',
     $self->branch, '--', $path,
@@ -157,7 +167,7 @@ sub get_last_commit_logs_by_paths ($$) {
 
 sub get_ls_tree ($$;%) {
   my ($self, $tree, %args) = @_;
-  return git ($self->mirror_repo_path, 'ls-tree', [
+  return $self->mirror_repo->git ('ls-tree', [
     ($args{recursive} ? '-r' : ()),
     $tree,
   ])->then (sub {
@@ -218,9 +228,9 @@ sub text_id_and_suffix_to_relative_path ($$$) {
 sub git_log_for_text_id_and_lang ($$$;%) {
   my ($self, $id, $lang, %args) = @_;
   my $rel_path = $self->text_id_and_suffix_to_relative_path ($id, $lang . '.txt');
-  my $mirror_path = $self->mirror_repo_path;
+  my $mirror_repo = $self->mirror_repo;
   my $branch = $self->branch;
-  my $p = git ($mirror_path, 'log', ['--raw', '--format=raw', $branch, '--', $rel_path])->then (sub {
+  my $p = $mirror_repo->git ('log', ['--raw', '--format=raw', $branch, '--', $rel_path])->then (sub {
     my $result = $_[0];
     require Git::Parser::Log;
     return Git::Parser::Log->parse_format_raw (decode 'utf-8', $result->{stdout});
@@ -232,11 +242,11 @@ sub git_log_for_text_id_and_lang ($$$;%) {
       my $q = Promise->resolve;
       for my $commit (@{$parsed->{commits}}) {
         $q = $q->then (sub {
-          return git ($mirror_path, 'ls-tree', [$commit->{tree}, $rel_path]);
+          return $mirror_repo->git ('ls-tree', [$commit->{tree}, $rel_path]);
         })->then (sub {
           my $result = $_[0];
           if ($result->{stdout} =~ /^\S+ blob ([0-9a-f]+)\s/m) {
-            return git ($mirror_path, 'show', [$1])
+            return $mirror_repo->git ('show', [$1])
           } else {
             die "$commit->{tree} - $rel_path not found";
           }
@@ -428,19 +438,20 @@ sub add_by_paths ($$) {
   my ($self, $paths) = @_;
   return Promise->reject ("No file to add") unless @$paths;
   my $repo_path = $self->repo_path;
-  return git ($repo_path, 'add', [map { quotemeta $_->relative ($repo_path) } @$paths]);
+  return $self->repo->git ('add', [map { quotemeta $_->relative ($repo_path) } @$paths]);
 } # add_by_paths
 
 sub commit ($$) {
   my ($self, $msg) = @_;
   # XXX author/committer
   $msg = ' ' unless length $msg;
-  return git ($self->repo_path, 'commit', ['-m', $msg]);
+  return $self->repo->git ('commit', ['-m', $msg]);
+  # XXX ignore nothing-to-commit error
 } # commit
 
 sub push ($) {
   my $self = $_[0];
-  return git ($self->repo_path, 'push', ['remoterepo']);
+  return $self->repo->git ('push', ['remoterepo']);
 } # push
 
 sub discard ($) {

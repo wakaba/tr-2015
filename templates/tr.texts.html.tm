@@ -361,7 +361,7 @@
         };
 
         Array.prototype.forEach.call (area.querySelectorAll ('a[data-href]'), function (el) {
-          el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, text.textId).replace (/\{lang-key\}/g, langKey);
+          el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, text.textId).replace (/\{lang_key\}/g, langKey);
         });
 
         area.trSync (area);
