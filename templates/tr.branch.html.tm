@@ -25,12 +25,17 @@
           <th>Directory
           <th>Last updated
           <th>Commit
+          <th>
       <tbody>
         <t:for as=$text_set x="[sort { $a->{path} cmp $b->{cmp} } values %$text_sets]">
           <tr onclick=" querySelector ('a[href]').click () ">
             <th><a pl:href="'./'.(percent_encode_c $text_set->{path}).'/'"><code><t:text value="$text_set->{path}"></code></a>
             <td><m:timestamp m:value="$text_set->{commit_log}->{author}->{time}"/>
             <td><span class=commit-message><t:text value="$text_set->{commit_log}->{body}"></span>
+            <td>
+              <a pl:href="'./'.(percent_encode_c $text_set->{path}).'/edits'">Recent edits</a>
+              <a pl:href="'./'.(percent_encode_c $text_set->{path}).'/comments'">Recent comments</a>
+              <a pl:href="'./'.(percent_encode_c $text_set->{path}).'/config'">Settings</a>
         </t:for>
     </table>
 

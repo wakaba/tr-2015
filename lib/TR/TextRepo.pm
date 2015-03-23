@@ -146,15 +146,11 @@ sub get_commit_logs ($$) {
 
 sub get_logs_by_path ($$;%) {
   my ($self, $path, %args) = @_;
-  return $self->mirror_repo->git ('log', [
-    ($args{limit} ? '-'.(0+$args{limit}) : ()),
-    '--raw', '--format=raw',
-    $self->branch, '--', $path,
-  ])->then (sub {
-    my $result = $_[0];
-    require Git::Parser::Log;
-    return Git::Parser::Log->parse_format_raw (decode 'utf-8', $result->{stdout});
-  });
+  return $self->mirror_repo->log (
+    limit => $args{limit},
+    range => $self->branch,
+    paths => [$path],
+  );
 } # get_logs_by_path
 
 sub get_last_commit_logs_by_paths ($$) {
@@ -179,7 +175,7 @@ sub get_ls_tree ($$;%) {
     $tree,
   ])->then (sub {
     my $result = $_[0];
-    my $parsed = {};
+    my $parsed = {items => {}};
     for (split /\x0A/, decode 'utf-8', $result->{stdout}) {
       if (/^([0-9]+) (\S+) (\S+)\s+(.+)$/) {
         my $d = {mode => $1, type => $2, object => $3, file => $4};
@@ -187,8 +183,45 @@ sub get_ls_tree ($$;%) {
         $parsed->{items}->{$d->{file}} = $d;
       }
     }
+    return $parsed;
   });
 } # get_ls_tree
+
+sub get_recent_comments ($;%) {
+  my ($self, %args) = @_;
+  my $mirror_repo = $self->mirror_repo;
+  return $mirror_repo->log (
+    limit => $args{limit},
+    paths => [$self->comment_path_pattern],
+  )->then (sub {
+    my $json = {texts => []};
+    my $p = Promise->resolve;
+    my %id_found;
+    for my $commit (@{$_[0]->{commits}}) {
+      for my $comments_file_name (keys %{$commit->{files}}) {
+        $comments_file_name =~ m{([^/]+)/([^/]+)\.comments\z} or next;
+        my $id = $1.$2;
+        next if $id_found{$id}++;
+        my $dat_file_name = $comments_file_name;
+        $dat_file_name =~ s/\.comments\z/.dat/;
+        $p = $p->then (sub {
+          return $mirror_repo->show_blob_by_path ($commit->{tree}, $dat_file_name);
+        })->then (sub {
+          my $te = TR::TextEntry->new_from_text_id_and_source_bytes ($id, $_[0] // '');
+          my $entry = $te->as_jsonalizable;
+          push @{$json->{texts}}, $entry;
+          my $comments = $entry->{comments} = [];
+          return $mirror_repo->show_blob_by_path ($commit->{tree}, $comments_file_name)->then (sub {
+            for (grep { length } split /\x0D?\x0A\x0D?\x0A/, $_[0] // '') {
+              push @$comments, TR::TextEntry->new_from_text_id_and_source_bytes ($id, $_)->as_jsonalizable;
+            }
+          });
+        });
+      } # $file
+    } # $commit
+    return $p->then (sub { $json });
+  });
+} # get_recent_comments
 
 sub write_license_file ($%) {
   my ($self, %args) = @_;
@@ -232,16 +265,21 @@ sub text_id_and_suffix_to_relative_path ($$$) {
   return $path->child ((substr $id, 0, 2) . '/' . (substr $id, 2) . '.' . $suffix);
 } # text_id_and_suffix_to_relative_path
 
+sub comment_path_pattern ($$$) {
+  my ($self) = @_;
+  my $path = (defined $self->{texts_dir} and length $self->{texts_dir})
+      ? path ($self->{texts_dir}, 'texts') : path ('texts');
+  return $path->child ('*/*.comments');
+} # comment_path_pattern
+
 sub git_log_for_text_id_and_lang ($$$;%) {
   my ($self, $id, $lang, %args) = @_;
   my $rel_path = $self->text_id_and_suffix_to_relative_path ($id, $lang . '.txt');
   my $mirror_repo = $self->mirror_repo;
-  my $branch = $self->branch;
-  my $p = $mirror_repo->git ('log', ['--raw', '--format=raw', $branch, '--', $rel_path])->then (sub {
-    my $result = $_[0];
-    require Git::Parser::Log;
-    return Git::Parser::Log->parse_format_raw (decode 'utf-8', $result->{stdout});
-  });
+  my $p = $mirror_repo->log (
+    range => $self->branch,
+    paths => [$rel_path],
+  );
 
   if ($args{with_file_text}) {
     $p = $p->then (sub {
@@ -249,17 +287,10 @@ sub git_log_for_text_id_and_lang ($$$;%) {
       my $q = Promise->resolve;
       for my $commit (@{$parsed->{commits}}) {
         $q = $q->then (sub {
-          return $mirror_repo->git ('ls-tree', [$commit->{tree}, $rel_path]);
+          return $mirror_repo->show_blob_by_path ($commit->{tree}, $rel_path);
         })->then (sub {
-          my $result = $_[0];
-          if ($result->{stdout} =~ /^\S+ blob ([0-9a-f]+)\s/m) {
-            return $mirror_repo->git ('show', [$1])
-          } else {
-            die "$commit->{tree} - $rel_path not found";
-          }
-        })->then (sub {
-          my $result = $_[0];
-          $commit->{blob_data} = $result->{stdout};
+          my $result = $_[0] // '';
+          $commit->{blob_data} = $result;
         });
       } # $commit
       return $q->then (sub { return $parsed });

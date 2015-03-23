@@ -29,4 +29,54 @@ sub fetch ($) {
   return $_[0]->git ('fetch', []);
 } # fetch
 
+sub log ($;%) {
+  my ($self, %args) = @_;
+
+  my $args = [];
+  push @$args, '--raw', '--format=raw';
+  push @$args, '-'.(0+$args{limit}) if $args{limit};
+  push @$args, $args{range} if defined $args{range};
+  push @$args, '--', @{$args{paths}} if @{$args{paths} or []};
+
+  return $self->git ('log', $args)->then (sub {
+    require Git::Parser::Log;
+    require Encode;
+    return Git::Parser::Log->parse_format_raw
+        (Encode::decode ('utf-8', $_[0]->{stdout}));
+  });
+} # log
+
+sub ls_tree ($$;%) {
+  my ($self, $treeish, %args) = @_;
+
+  my $args = ['-z', '-l', '--full-name'];
+  push @$args, '-r' if $args{recursive};
+  push @$args, $treeish;
+  push @$args, @{$args{paths} or []};
+
+  return $self->git ('ls-tree', $args)->then (sub {
+    my $result = {};
+    for (split /\x00/, $_[0]->{stdout}) {
+      if (/\A([^ ]+) +([^ ]+) +([^ ]+) +([^ ]+)\t(.+)/s) {
+        $result->{$5} = {mode => $1, type => $2, object => $3, object_size => $4, file => $5};
+      }
+    }
+    return $result;
+  });
+} # ls_tree
+
+sub show_blob_by_path ($$$) {
+  my ($self, $treeish, $path) = @_;
+  return $self->ls_tree ($treeish, recursive => 1, paths => [$path])->then (sub {
+    my $file = $_[0]->{$path};
+    if (defined $file and $file->{type} eq 'blob') {
+      return $self->git ('show', [$file->{object}])->then (sub {
+        return $_[0]->{stdout};
+      });
+    } else {
+      return undef;
+    }
+  });
+} # show_blob_by_path
+
 1;

@@ -1037,6 +1037,24 @@ sub main ($$) {
       })->then (sub {
         return $tr->discard;
       });
+
+    } elsif (@$path == 5 and ($path->[4] eq 'comments' or $path->[4] eq 'comments.json')) {
+      # .../comments # XXX HTML view
+      # .../comments.json
+      return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
+        my $token = $_[0];
+        return $tr->prepare_mirror ($token);
+      })->then (sub {
+        return $tr->get_recent_comments (limit => 50);
+      })->then (sub {
+        return $app->send_json ($_[0]);
+      })->catch (sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500);
+      })->then (sub {
+        return $tr->discard;
+      });
+
     }
   }
 
