@@ -44,6 +44,17 @@
   </form>
 </header>
 
+<div class="banner if-readonly" hidden>
+  <p>このリポジトリーは<strong>読み取り専用</strong>です。
+
+  <ul class=switch>
+    <li>あなたがこのリポジトリーの管理者なら、<a href=acl target=config-acl>編集権限設定</a>を行ってください。
+    <li>あなたが管理者以外なら、<a href=XXX>管理者に編集権限を申請</a>してください。
+    <li class=guest-only>既に編集権限を持っている場合は、
+    <a href=XXX>ログイン</a>してください。
+  </ul>
+</div>
+
 <table id=texts>
   <thead>
     <tr>
@@ -449,6 +460,12 @@ function updateTable () {
     if (xhr.readyState === 4) {
       if (xhr.status < 400) {
         var json = JSON.parse (xhr.responseText);
+        var scopes = [];
+        for (var scope in json.scopes) {
+          scopes.push (scope);
+        }
+        document.documentElement.setAttribute ('data-scopes', scopes.join (' '));
+        document.querySelector ('.if-readonly').hidden = json.scopes.edit;
         setCurrentLangs (json.selected_lang_keys, json.langs);
         addTexts (json.texts);
         var tagsArea = document.querySelector ('#add .tags-area');

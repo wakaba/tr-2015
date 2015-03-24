@@ -481,6 +481,19 @@ button.search:active::before {
   text-decoration: underline;
 }
 
+html:not([data-scopes~=edit]) .lang-area button.toggle-edit {
+  display: none;
+}
+
+html:not([data-scopes~=comment]) .comments-area button.toggle-edit {
+  display: none;
+}
+
+html:not([data-scopes~=texts]) .text-header button.edit,
+html:not([data-scopes~=texts]) #add {
+  display: none;
+}
+
 .buttons {
   margin: 0.5em 0 0;
   text-align: center;

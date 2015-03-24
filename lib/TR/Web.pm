@@ -205,9 +205,13 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'data.json') {
       # .../data.json
       my $q;
-      return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
-        my $token = $_[0];
-        return $tr->prepare_mirror ($token);
+      my $scopes;
+      return $class->check_read_access (
+        $app, $tr,
+        access_token => 1, scopes => 1,
+      )->then (sub {
+        $scopes = $_[0]->{scopes};
+        return $tr->prepare_mirror ($scopes->{access_token});
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
@@ -226,10 +230,7 @@ sub main ($$) {
              with_comments => $app->bare_param ('with_comments'));
       })->then (sub {
         my $json = $_[0];
-        $json->{permission} = { # XXX
-          read => 1,
-          write => 1,
-        };
+        $json->{scopes} = $scopes;
         $json->{query} = $q->as_jsonalizable;
         return $app->send_json ($json);
       })->catch (sub {
@@ -1343,13 +1344,33 @@ sub session ($$) {
 
 sub check_read_access ($$$;%) {
   my ($class, $app, $tr, %args) = @_;
+  my $scopes;
   return $app->db->select ('repo', {
     repo_url => Dongry::Type->serialize ('text', $tr->url),
   }, fields => ['is_public'])->then (sub {
     my $repo = $_[0]->first;
     if (defined $repo) {
       if ($repo->{is_public}) {
-        return 1;
+        if ($args{scopes}) {
+          return $class->session ($app)->then (sub {
+            my $account = $_[0];
+            if (defined $account->{account_id}) {
+              return $app->db->select ('repo_access', {
+                account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+                repo_url => Dongry::Type->serialize ('text', $tr->url),
+              }, fields => ['data'])->then (sub {
+                my $row = $_[0]->first_as_row;
+                $scopes = $row->get ('data') if defined $row;
+                return (defined $scopes and $scopes->{read});
+              });
+            } else {
+              $scopes = {read => 1};
+              return 1;
+            }
+          });
+        } else {
+          return 1;
+        }
       } else {
         return $class->session ($app)->then (sub {
           my $account = $_[0];
@@ -1359,13 +1380,15 @@ sub check_read_access ($$$;%) {
             repo_url => Dongry::Type->serialize ('text', $tr->url),
           }, fields => ['data'])->then (sub {
             my $row = $_[0]->first_as_row;
-            return (defined $row and $row->get ('data')->{read});
+            $scopes = $row->get ('data') if defined $row;
+            return (defined $scopes and $scopes->{read});
           });
         });
       }
     } else {
       # XXX this is unsafe for private repos
       return $tr->prepare_mirror->then (sub {
+        $scopes = {read => 1};
         return 1;
       }, sub {
         # XXX if error, ...
@@ -1407,7 +1430,11 @@ sub check_read_access ($$$;%) {
           my $token = $json->{access_token};
           return $app->throw_error (403, reason_phrase => 'The repository owner has no GitHub access token')
               unless defined $token;
-          return $token;
+          if ($args{scopes}) {
+            return {scopes => $scopes, access_token => $token};
+          } else {
+            return $token;
+          }
         });
       } else {
         return;
