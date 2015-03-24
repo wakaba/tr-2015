@@ -20,12 +20,40 @@ hgroup a, h1 a {
   text-decoration: none;
 }
 
+hr.resizer {
+  position: absolute;
+  display: block;
+  box-sizing: border-box;
+  margin: 0;
+  border: none;
+  border-right: 3px double gray;
+  padding: 0;
+  cursor: ew-resize;
+  background: white;
+}
+
+html.resizing {
+  -webkit-user-select: none;
+}
+
+.resizer-transparent {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10000;
+  cursor: ew-resize;
+}
+
 header.site {
+  position: relative;
   display: block;
   margin: 0 0 0.5em 0;
   padding: 0.3em;
   background-color: black;
   color: white;
+  z-index: 100;
 }
 
 header.site h1 {
@@ -101,6 +129,7 @@ footer.site {
   display: block;
   min-height: 15em;
   margin: 1em 0 0 0;
+  padding-left: 0.3em;
   background-color: #eee;
   color: black;
   font-size: 90%;
@@ -168,6 +197,7 @@ header.textset nav > a {
 
 body > section {
   margin: 0.5em;
+  padding-left: 0.3em;
   min-height: 100vh;
 }
 
@@ -200,6 +230,34 @@ table#texts > * > tr > td {
 table#texts > thead > tr > th:nth-child(2n+1),
 table#texts > tbody > tr > td:nth-child(2n+1) {
   background-color: #ecffec;
+}
+
+.lang-header, .comment-header {
+  position: relative;
+}
+
+.lang-header > hr.resizer,
+.comment-header > hr.resizer {
+  display: none;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  border-color: green;
+}
+
+thead > tr:hover .lang-header > hr.resizer,
+thead > tr:hover .comment-header > hr.resizer {
+  display: block;
+}
+
+.lang-header > hr.resizer:hover,
+.comment-header > hr.resizer:hover,
+.lang-header > hr.resizer.resizing,
+.comment-header > hr.resizer.resizing {
+  display: block;
+  bottom: -100em;
+  bottom: -100vh;
+  z-index: 10001;
 }
 
 .text-header > th {
@@ -828,7 +886,6 @@ table.text-sets {
   display: block;
   top: 1.6em;
   left: 0;
-  width: 10em;
   bottom: 0;
 }
 
@@ -841,22 +898,16 @@ table.text-sets {
   display: none;
 }
 
-.sidebar > hr {
-  display: block;
+.sidebar > hr.resizer {
   position: absolute;
-  top: 0;
+  top: -3em;
+  bottom: 0;
   right: 0;
   width: 3px;
-  box-sizing: border-box;
-  bottom: 0;
-  margin: 0;
-  border: none;
   border-right: 3px double gray;
-  cursor: ew-resize;
-  background: white;
 }
 
-.sidebar[hidden] > hr {
+.sidebar[hidden] > hr.resizer {
   display: block;
   left: 0;
   width: auto;
@@ -866,14 +917,6 @@ table.text-sets {
   height: 100%;
   overflow: auto;
   margin-right: 3px;
-}
-
-.has-sidebar body > section {
-  margin-left: 10.3em;
-}
-
-.has-sidebar body > footer {
-  margin-left: 10.3em;
 }
 
 #sidebar-search {

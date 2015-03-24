@@ -49,8 +49,26 @@
     <tr>
       <template class=lang-header-template>
         <span class=lang-label>{lang_label}</span>
+        <hr class=resizer data-th-style="width: %%WIDTH%%" data-td-selector="#texts tbody td.lang-area[data-lang='{lang_key}']">
+        <script type=text/plain class=resize-css>
+          %%SELECTOR%% > .view p {
+            width: %%WIDTH%%;
+          }
+          %%SELECTOR%% .edit textarea {
+            width: %%WIDTH%%;
+          }
+        </script>
       </template>
-      <th>コメント
+      <th class=comment-header>コメント
+        <hr class=resizer data-th-style="width: %%WIDTH%%" data-td-selector="#texts tbody td.comments-area">
+        <script type=text/plain class=resize-css>
+          %%SELECTOR%% article {
+            max-width: %%WIDTH%%;
+          }
+          %%SELECTOR%% .edit textarea {
+            width: %%WIDTH%%;
+          }
+        </script>
   </thead>
   <template class=text-row-template>
     <tr class=text-header>
@@ -220,6 +238,9 @@
   function setCurrentLangs (langKeys, langs) {
     var mainTable = document.getElementById ('texts');
     Array.prototype.slice.call (mainTable.querySelectorAll ('thead > tr > .lang-header')).forEach (function (cell) {
+      if (cell.trResizeCSS && cell.trResizeCSS.parentNode) {
+        cell.trResizeCSS.parentNode.removeChild (cell.trResizeCSS);
+      }
       cell.parentNode.removeChild (cell);
     });
     var template = mainTable.querySelector ('thead > tr > .lang-header-template');
@@ -231,7 +252,12 @@
       th.className = 'lang-header';
       th.setAttribute ('data-lang', lang.key);
       th.querySelector ('.lang-label').textContent = lang.label;
+      var sel = th.querySelector ('hr.resizer[data-td-selector]');
+      if (sel) {
+        sel.setAttribute ('data-td-selector', sel.getAttribute ('data-td-selector').replace (/\{lang_key\}/g, langKey));
+      }
       template.parentNode.insertBefore (th, template);
+      resizer (th);
     });
     Array.prototype.forEach.call (mainTable.querySelectorAll ('th[data-colspan-delta], td[data-colspan-delta]'), function (cell) {
       cell.colSpan = langKeys.length + parseInt (cell.getAttribute ('data-colspan-delta'));
@@ -548,8 +574,20 @@ function saveArea (area, onsaved) { // XXX promise
 </section>
 
 <aside class=sidebar hidden>
-  <hr tabindex=0 onclick=" parentNode.hidden = !parentNode.hidden; document.documentElement.classList.toggle ('has-sidebar', !parentNode.hidden) " title="サイドバーの表示の切り替え">
-  <!-- XXX resize -->
+  <hr class=resizer tabindex=0 onclick=" parentNode.hidden = !parentNode.hidden; document.documentElement.classList.toggle ('has-sidebar', !parentNode.hidden) " title="サイドバーの表示の切り替え">
+  <script type=text/plain class=resize-css>
+.sidebar {
+  width: %%WIDTH%%;
+}
+
+.has-sidebar body > section {
+  margin-left: %%WIDTH%%;
+}
+
+.has-sidebar body > footer {
+  margin-left: %%WIDTH%%;
+}
+  </script>
   <section id=sidebar-search>
     <header>
       <h1>用例を探す</h1>
@@ -1146,5 +1184,65 @@ function saveArea (area, onsaved) { // XXX promise
     }) ();
   </script>
 </div>
+
+<script>
+  function resizer (root) {
+    Array.prototype.forEach.call (root.querySelectorAll ('hr.resizer'), function (resizer) {
+      var resized = resizer.parentNode;
+      resizer.onmousedown = function (ev) {
+        document.trCurrentResizer = resizer;
+        document.trResizeStart = (new Date).valueOf ();
+        document.trTransparent = document.createElement ('div');
+        document.trTransparent.className = 'resizer-transparent';
+        document.body.appendChild (document.trTransparent);
+        resizer.classList.add ('resizing');
+        document.documentElement.classList.add ('resizing');
+        var style = resized.trResizeCSS;
+        if (!style) {
+          var cssTemplate = resized.querySelector ('.resize-css');
+          if (cssTemplate) {
+            style = resized.trResizeCSS = document.createElement ('style');
+            style.trTemplate = cssTemplate.textContent.replace (/%%SELECTOR%%/g, resizer.getAttribute ('data-td-selector'));
+            style.textContent = style.trTemplate.replace (/%%WIDTH%%/g, '10rem');
+            document.body.appendChild (style);
+          }
+        }
+        if (resized.trResizeStyle !== "") {
+          resized.trResizeStyle = resizer.getAttribute ('data-th-style') || "";
+        }
+        if (resized.hidden) {
+          resizer.onclick ();
+          resizer.trResize (ev);
+        }
+      }; // onmousedown
+      resizer.onselectstart = function () { return false };
+      resizer.trResize = function (ev) {
+        if (document.trResizeStart + 200 > (new Date).valueOf ()) return;
+        var resizedWidth = ev.pageX - resized.offsetLeft;
+        if (resizedWidth < 16) resizedWidth = 16;
+        if (resized.trResizeCSS) {
+          resized.trResizeCSS.textContent = resized.trResizeCSS.trTemplate.replace (/%%WIDTH%%/g, resizedWidth + 'px');
+        }
+        if (resized.trResizeStyle !== "") {
+          resized.setAttribute ("style", resized.trResizeStyle.replace (/%%WIDTH%%/g, resizedWidth + 'px'));
+        }
+      };
+    });
+    addEventListener ('mousemove', function (ev) {
+      if (document.trCurrentResizer) {
+        document.trCurrentResizer.trResize (ev);
+      }
+    });
+    addEventListener ('mouseup', function () {
+      if (document.trCurrentResizer) {
+        document.documentElement.classList.remove ('resizing');
+        document.trCurrentResizer.classList.remove ('resizing');
+        document.trCurrentResizer = null;
+        document.trTransparent.parentNode.removeChild (document.trTransparent);
+      }
+    });
+  } // resizer
+  resizer (document.body);
+</script>
 
 <t:include path=_footer.html.tm />
