@@ -224,7 +224,7 @@ table#texts > * > tr > th,
 table#texts > * > tr > td {
   padding: 0.1rem;
   vertical-align: top;
-  width: 10rem;
+  width: 15rem;
 }
 
 table#texts > thead > tr > th:nth-child(2n+1),
@@ -521,7 +521,7 @@ button.search:active::before {
 .lang-area .edit textarea,
 .comments-area .edit textarea {
   box-sizing: content-box;
-  width: 9.6rem;
+  width: 15rem;
   min-height: 10em;
   margin: 0;
   border: none;
@@ -555,14 +555,14 @@ button.search:active::before {
   font-family: sans-serif;
   font-size: 90%;
   min-height: 2rem;
-  width: 9.6rem;
+  width: 15rem;
 }
 
 .comments-area article {
   display: block;
   margin: 0 0 0.3em 0;
   font-size: 90%;
-  max-width: 9.5rem;
+  max-width: 15rem;
 }
 
 .comments-area.edit-mode article {

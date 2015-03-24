@@ -361,10 +361,12 @@ sub get_data_as_jsonalizable ($%) {
   my $data = {};
   return $self->read_file_by_path ($self->texts_path->child ('config.json'))->then (sub {
     my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
-    my $langs = [grep { length } split /,/, $tr_config->get ('langs') // ''];
+    my %found;
+    my $langs = [grep { not $found{$_}++ } grep { length } split /,/, $tr_config->get ('langs') // ''];
     if (@$selected_langs) {
       my $avail_langs = {map { $_ => 1 } @$langs};
-      @$selected_langs = grep { $avail_langs->{$_} } @$selected_langs;
+      my %found;
+      @$selected_langs = grep { not $found{$_}++ } grep { $avail_langs->{$_} } @$selected_langs;
     } else {
       $langs = ['en'] unless @$langs;
       $selected_langs = $langs;
