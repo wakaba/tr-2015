@@ -107,6 +107,7 @@ sub prepare_mirror ($$) {
     }
     return git_clone (['--mirror', $url, $mirror_path]);
   }
+  # XXX branch not found error
 } # prepare_mirror
 
 sub clone_from_mirror ($) {

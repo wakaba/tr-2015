@@ -7,6 +7,7 @@ use Encode;
 use Promise;
 use JSON::PS;
 use Wanage::HTTP;
+use Web::URL::Canonicalize;
 use Web::UserAgent::Functions qw(http_get http_post);
 use TR::AppServer;
 use TR::TextRepo;
@@ -1302,10 +1303,18 @@ sub create_text_repo ($$$) {
       ($app->mirror_path, Path::Tiny->tempdir);
   $tr->config ($app->config);
 
-  $tr->url ($url); # XXX validation & normalization
+  $url = url_to_canon_url $url, 'about:blank';
+  if ($url =~ m{\A(?:https?://|git://|git\@)github\.com[/:]([^/]+/[^/]+)(?:\.git|)\z}) {
+    $url = qq{https://github.com/$1};
+    $tr->url ($url);
+  } else {
+    return $app->throw_error (404, reason_phrase => 'Bad repository URL');
+  }
 
   if (defined $branch) {
-    $tr->branch ($branch); # XXX validation
+    return $app->throw_error (404, reason_phrase => 'Bad repository branch')
+        unless length $branch;
+    $tr->branch ($branch);
   }
 
   if (defined $path) {
@@ -1313,7 +1322,7 @@ sub create_text_repo ($$$) {
         not "$path/" =~ m{/\.\.?/}) {
       #
     } else {
-      return $app->throw_error (404, reason_phrase => 'Bad |path|');
+      return $app->throw_error (404, reason_phrase => 'Bad text set path');
     }
     $tr->texts_dir (substr $path, 1);
   }
