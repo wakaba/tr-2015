@@ -1303,13 +1303,19 @@ sub create_text_repo ($$$) {
       ($app->mirror_path, Path::Tiny->tempdir);
   $tr->config ($app->config);
 
+  return $app->throw_error (404, reason_phrase => 'Bad repository URL')
+      if $url =~ /[#?]/;
+  $url =~ s{^([^/:\@]+\@[^/:]+):}{ssh://$1/};
   $url = url_to_canon_url $url, 'about:blank';
-  if ($url =~ m{\A(?:https?://|git://|git\@)github\.com[/:]([^/]+/[^/]+)(?:\.git|)\z}) {
+  $url =~ s{\.git/?\z}{};
+  if ($url =~ m{\A(?:https?://|git://|ssh://git\@)github\.com/([^/]+/[^/]+)\z}) {
     $url = qq{https://github.com/$1};
-    $tr->url ($url);
+  } elsif ($url =~ m{\Assh://git\@melon/(/git/pub/.+)\z}) {
+    $url = qq{git\@melon:$1};
   } else {
     return $app->throw_error (404, reason_phrase => 'Bad repository URL');
   }
+  $tr->url ($url);
 
   if (defined $branch) {
     return $app->throw_error (404, reason_phrase => 'Bad repository branch')
@@ -1358,6 +1364,7 @@ sub session ($$) {
 sub check_read_access ($$$;%) {
   my ($class, $app, $tr, %args) = @_;
   my $scopes;
+  my $is_public;
   my $account = {};
   return $app->db->select ('repo', {
     repo_url => Dongry::Type->serialize ('text', $tr->url),
@@ -1365,6 +1372,7 @@ sub check_read_access ($$$;%) {
     my $repo = $_[0]->first;
     if (defined $repo) {
       if ($repo->{is_public}) {
+        $is_public = 1;
         if ($args{scopes}) {
           return $class->session ($app)->then (sub {
             my $acc = $_[0];
@@ -1403,6 +1411,7 @@ sub check_read_access ($$$;%) {
     } else {
       return $tr->prepare_mirror ({})->then (sub {
         $scopes = {read => 1};
+        $is_public = 1;
         return 1;
       }, sub {
         # XXX if error, ...
@@ -1412,6 +1421,10 @@ sub check_read_access ($$$;%) {
   })->then (sub {
     if ($_[0]) { # can be read
       if ($args{access_token}) {
+        if ($is_public) {
+          $account->{scopes} = $scopes if $args{scopes};
+          return $account;
+        }
         return $app->db->select ('repo_access', {
           repo_url => Dongry::Type->serialize ('text', $tr->url),
           is_owner => 1,
