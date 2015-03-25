@@ -31,7 +31,7 @@
         <dd>
           <p>「所有権の取得」すると、このリポジトリーを編集できるようになります。
         
-          <form action=acl method=post><!-- XXX path -->
+          <form action=../../acl method=post><!-- XXX path -->
             <input type=hidden name=operation value=get_ownership>
             <button type=submit>所有権を取得</button>
           </form><!-- XXX ajax -->

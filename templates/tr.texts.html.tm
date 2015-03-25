@@ -31,7 +31,7 @@
     <menu hidden>
       <p><a href="#config-langs" onclick=" toggleLangsConfig (true) ">言語設定...</a>
       <p><a href="#config-license" onclick=" toggleLicenseConfig (true) ">ライセンス設定...</a>
-      <p><a href="acl" onclick=" /* XXX hidemenu */ " target=config-acl>編集権限...</a>
+      <p><a href=../../acl onclick=" /* XXX hidemenu */ " target=config-acl>編集権限...</a>
     </menu>
   </nav>
 
@@ -48,7 +48,7 @@
   <p>このリポジトリーは<strong>読み取り専用</strong>です。
 
   <ul class=switch>
-    <li>あなたがこのリポジトリーの管理者なら、<a href=acl target=config-acl>編集権限設定</a>を行ってください。
+    <li>あなたがこのリポジトリーの管理者なら、<a href=../../acl target=config-acl>編集権限設定</a>を行ってください。
     <li>あなたが管理者以外なら、<a href=XXX>管理者に編集権限を申請</a>してください。
     <li class=guest-only>既に編集権限を持っている場合は、
     <a href=XXX>ログイン</a>してください。
