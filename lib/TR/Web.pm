@@ -120,6 +120,7 @@ sub main ($$) {
 
         my $op = $app->bare_param ('operation') // '';
         if ($op eq 'update_account_privilege') {
+          # XXX permission
           my $account_id = $app->bare_param ('account_id')
               // return $app->throw_error (400, reason_phrase => 'Bad |account_id|');
           my $permissions = {read => 1};
@@ -146,6 +147,7 @@ sub main ($$) {
             return $app->send_error (204, reason_phrase => 'Saved');
           });
         } elsif ($op eq 'delete_account_privilege') {
+          # XXX permission
           my $account_id = $app->bare_param ('account_id')
               // return $app->throw_error (400, reason_phrase => 'Bad |account_id|');
           return $app->db->delete ('repo_access', {
@@ -156,27 +158,10 @@ sub main ($$) {
           });
         } elsif ($op eq 'get_ownership') {
           # XXX non-github support
-          return Promise->new (sub {
-            my ($ok, $ng) = @_;
-            my $prefix = $app->config->{account_url_prefix};
-            my $api_token = $app->config->{account_token};
-            http_post
-                url => qq<$prefix/token>,
-                header_fields => {Authorization => 'Bearer ' . $api_token},
-                params => {
-                  sk => $app->http->request_cookies->{sk},
-                  sk_context => $app->config->{account_sk_context},
-                  server => 'github',
-                },
-                anyevent => 1,
-                cb => sub {
-                  my (undef, $res) = @_;
-                  if ($res->code == 200) {
-                    $ok->(json_bytes2perl $res->content);
-                  } else {
-                    $ng->($res->status_line);
-                  }
-                };
+          return $app->account_server (q</token>, {
+            sk => $app->http->request_cookies->{sk},
+            sk_context => $app->config->{account_sk_context},
+            server => 'github',
           })->then (sub {
             my $json = $_[0];
             my $token = $json->{access_token};
@@ -283,28 +268,9 @@ sub main ($$) {
         } } @{$_[0]->all_as_rows}};
 
         return Promise->all ([
-          do {
-            my $prefix = $app->config->{account_url_prefix};
-            my $api_token = $app->config->{account_token};
-            Promise->new (sub {
-              my ($ok, $ng) = @_;
-              http_post
-                  url => qq<$prefix/profiles>,
-                  header_fields => {Authorization => 'Bearer ' . $api_token},
-                  params => {
-                    account_id => [keys %$accounts],
-                  },
-                  anyevent => 1,
-                  cb => sub {
-                    my (undef, $res) = @_;
-                    if ($res->code == 200) {
-                      $ok->(json_bytes2perl $res->content);
-                    } else {
-                      $ng->($res->status_line);
-                    }
-                  };
-            });
-          },
+          $app->account_server (q</profiles>, {
+            account_id => [keys %$accounts],
+          }),
           $app->db->select ('repo', {
             repo_url => Dongry::Type->serialize ('text', $tr->url),
           }, fields => ['is_public']),
@@ -1060,26 +1026,9 @@ sub main ($$) {
     }
     my $server_scope = {github => 'repo'}->{$server};
 
-    my $prefix = $app->config->{account_url_prefix};
-    my $api_token = $app->config->{account_token};
-    return Promise->new (sub {
-      my ($ok, $ng) = @_;
-      http_post
-          url => qq<$prefix/session>,
-          header_fields => {Authorization => 'Bearer ' . $api_token},
-          params => {
-            sk => $app->http->request_cookies->{sk},
-            sk_context => $app->config->{account_sk_context},
-          },
-          anyevent => 1,
-          cb => sub {
-            my (undef, $res) = @_;
-            if ($res->code == 200) {
-              $ok->(json_bytes2perl $res->content);
-            } else {
-              $ng->($res->status_line);
-            }
-          };
+    return $app->account_server (q</session>, {
+      sk => $app->http->request_cookies->{sk},
+      sk_context => $app->config->{account_sk_context},
     })->then (sub {
       my $json = $_[0];
       $app->http->set_response_cookie
@@ -1089,27 +1038,12 @@ sub main ($$) {
            secure => 0, # XXX
            domain => undef, # XXX
            path => q</>) if $json->{set_sk};
-      return Promise->new (sub {
-        my ($ok, $ng) = @_;
-        http_post
-            url => qq<$prefix/login>,
-            header_fields => {Authorization => 'Bearer ' . $api_token},
-            params => {
-              sk => $json->{sk},
-              sk_context => $app->config->{account_sk_context},
-              server => $server,
-              server_scope => $server_scope,
-              callback_url => $app->http->url->resolve_string ('/account/cb')->stringify,
-            },
-            anyevent => 1,
-            cb => sub {
-              my (undef, $res) = @_;
-              if ($res->code == 200) {
-                $ok->(json_bytes2perl $res->content);
-              } else {
-                $ng->($res->status_line);
-              }
-            };
+      return $app->account_server (q</login>, {
+        sk => $json->{sk},
+        sk_context => $app->config->{account_sk_context},
+        server => $server,
+        server_scope => $server_scope,
+        callback_url => $app->http->url->resolve_string ('/account/cb')->stringify,
       });
     })->then (sub {
       my $json = $_[0];
@@ -1117,30 +1051,13 @@ sub main ($$) {
     });
   } elsif (@$path == 2 and $path->[0] eq 'account' and $path->[1] eq 'cb') {
     # /account/cb
-    my $prefix = $app->config->{account_url_prefix};
-    my $api_token = $app->config->{account_token};
-    return Promise->new (sub {
-      my ($ok, $ng) = @_;
-      http_post
-          url => qq<$prefix/cb>,
-          header_fields => {Authorization => 'Bearer ' . $api_token},
-          params => {
-            sk => $app->http->request_cookies->{sk},
-            sk_context => $app->config->{account_sk_context},
-            oauth_token => $app->http->query_params->{oauth_token},
-            oauth_verifier => $app->http->query_params->{oauth_verifier},
-            code => $app->http->query_params->{code},
-            state => $app->http->query_params->{state},
-          },
-          anyevent => 1,
-          cb => sub {
-            my (undef, $res) = @_;
-            if ($res->code == 200) {
-              $ok->(json_bytes2perl $res->content);
-            } else {
-              $ng->($res->status_line);
-            }
-          };
+    return $app->account_server (q</cb>, {
+      sk => $app->http->request_cookies->{sk},
+      sk_context => $app->config->{account_sk_context},
+      oauth_token => $app->http->query_params->{oauth_token},
+      oauth_verifier => $app->http->query_params->{oauth_verifier},
+      code => $app->http->query_params->{code},
+      state => $app->http->query_params->{state},
     })->then (sub {
       return $app->send_redirect ('/');
     });
@@ -1162,25 +1079,8 @@ sub main ($$) {
     $app->requires_request_method ({POST => 1});
     # XXX requires session?
 
-    return Promise->new (sub {
-      my ($ok, $ng) = @_;
-      my $prefix = $app->config->{account_url_prefix};
-      my $api_token = $app->config->{account_token};
-      http_post
-          url => qq<$prefix/search>,
-          header_fields => {Authorization => 'Bearer ' . $api_token},
-          params => {
-            q => $app->text_param ('q'),
-          },
-          anyevent => 1,
-          cb => sub {
-            my (undef, $res) = @_;
-            if ($res->code == 200) {
-              $ok->(json_bytes2perl $res->content);
-            } else {
-              $ng->($res->status_line);
-            }
-          };
+    return $app->account_server (q</search>, {
+      q => $app->text_param ('q'),
     })->then (sub {
       my $json = $_[0];
       return $app->send_json ($json);
@@ -1211,28 +1111,10 @@ sub main ($$) {
       } : Promise->resolve (undef))->then (sub {
         my $json = $_[0];
         return $json if defined $json;
-
-        return Promise->new (sub {
-          my ($ok, $ng) = @_;
-          my $prefix = $app->config->{account_url_prefix};
-          my $api_token = $app->config->{account_token};
-          http_post
-              url => qq<$prefix/token>,
-              header_fields => {Authorization => 'Bearer ' . $api_token},
-              params => {
-                sk => $app->http->request_cookies->{sk},
-                sk_context => $app->config->{account_sk_context},
-                server => 'github',
-              },
-              anyevent => 1,
-              cb => sub {
-                my (undef, $res) = @_;
-                if ($res->code == 200) {
-                  $ok->(json_bytes2perl $res->content);
-                } else {
-                  $ng->($res->status_line);
-                }
-              };
+        return $app->account_server (q</token>, {
+          sk => $app->http->request_cookies->{sk},
+          sk_context => $app->config->{account_sk_context},
+          server => 'github',
         })->then (sub {
           my $json = $_[0];
           my $token = $json->{access_token} // return [];
@@ -1338,26 +1220,9 @@ sub create_text_repo ($$$) {
 
 sub session ($$) {
   my ($class, $app) = @_;
-  my $prefix = $app->config->{account_url_prefix};
-  my $api_token = $app->config->{account_token};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_post
-        url => qq<$prefix/info>,
-        header_fields => {Authorization => 'Bearer ' . $api_token},
-        params => {
-          sk => $app->http->request_cookies->{sk},
-          sk_context => $app->config->{account_sk_context},
-        },
-        anyevent => 1,
-        cb => sub {
-          my (undef, $res) = @_;
-          if ($res->code == 200) {
-            $ok->(json_bytes2perl $res->content);
-          } else {
-            $ng->($res->status_line);
-          }
-        };
+  return $app->account_server (q</info>, {
+    sk => $app->http->request_cookies->{sk},
+    sk_context => $app->config->{account_sk_context},
   });
 } # session
 
@@ -1431,26 +1296,9 @@ sub check_read_access ($$$;%) {
         }, fields => ['account_id'], limit => 1)->then (sub {
           my $owner = $_[0]->first;
           return $app->throw_error (403, reason_phrase => 'The repository has no owner') unless defined $owner;
-          return Promise->new (sub {
-            my ($ok, $ng) = @_;
-            my $prefix = $app->config->{account_url_prefix};
-            my $api_token = $app->config->{account_token};
-            http_post
-                url => qq<$prefix/token>,
-                header_fields => {Authorization => 'Bearer ' . $api_token},
-                params => {
-                  account_id => $owner->{account_id},
-                  server => 'github',
-                },
-                anyevent => 1,
-                cb => sub {
-                  my (undef, $res) = @_;
-                  if ($res->code == 200) {
-                    $ok->(json_bytes2perl $res->content);
-                  } else {
-                    $ng->($res->status_line);
-                  }
-                };
+          return $app->account_server (q</token>, {
+            account_id => $owner->{account_id},
+            server => 'github',
           });
         })->then (sub {
           my $json = $_[0];
@@ -1511,27 +1359,9 @@ sub get_push_token ($$$$) {
   })->then (sub {
     my $owner = $_[0]->first;
     return $app->throw_error (403, reason_phrase => 'The repository has no owner') unless defined $owner;
-
-    return Promise->new (sub {
-      my ($ok, $ng) = @_;
-      my $prefix = $app->config->{account_url_prefix};
-      my $api_token = $app->config->{account_token};
-      http_post
-          url => qq<$prefix/token>,
-          header_fields => {Authorization => 'Bearer ' . $api_token},
-          params => {
-            account_id => $owner->{account_id},
-            server => 'github',
-          },
-          anyevent => 1,
-          cb => sub {
-            my (undef, $res) = @_;
-            if ($res->code == 200) {
-              $ok->(json_bytes2perl $res->content);
-            } else {
-              $ng->($res->status_line);
-            }
-          };
+    return $app->account_server (q</token>, {
+      account_id => $owner->{account_id},
+      server => 'github',
     });
   })->then (sub {
     my $json = $_[0];

@@ -7,6 +7,7 @@ use Path::Tiny;
 use JSON::PS;
 use AnyEvent::Handle;
 use Promise;
+use Web::UserAgent::Functions qw(http_get http_post);
 use Web::DOM::Document;
 use Temma::Parser;
 use Temma::Processor;
@@ -24,6 +25,28 @@ sub config ($) {
 sub db ($) {
   return $_[0]->{db} ||= $_[0]->config->get_db;
 } # db
+
+sub account_server ($$$) {
+  my ($self, $path, $params) = @_;
+  my $prefix = $self->config->{account_url_prefix};
+  my $api_token = $self->config->{account_token};
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    http_post
+        url => $prefix . $path,
+        header_fields => {Authorization => 'Bearer ' . $api_token},
+        params => $params,
+        anyevent => 1,
+        cb => sub {
+          my (undef, $res) = @_;
+          if ($res->code == 200) {
+            $ok->(json_bytes2perl $res->content);
+          } else {
+            $ng->($res->status_line);
+          }
+        };
+  });
+} # account_server
 
 sub error_log ($$) {
   #$_[0]->ikachan (1, $_[1]);
