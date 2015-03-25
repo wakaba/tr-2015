@@ -1100,6 +1100,36 @@ sub main ($$) {
       # XXX icon
     });
     # XXX report remote API error
+  } elsif (@$path == 2 and $path->[0] eq 'account' and $path->[1] eq 'sshkey.json') {
+    # /account/sshkey.json
+    if ($app->http->request_method eq 'POST') {
+      # XXX CSRF
+      my $comment = $app->config->get ('ssh_key.comment');
+      $comment =~ s/\{time\}/time/ge;
+      return $app->account_server (q</keygen>, {
+        sk => $app->http->request_cookies->{sk},
+        sk_context => $app->config->{account_sk_context},
+        server => 'ssh',
+        comment => $comment,
+      })->then (sub {
+        return $app->send_json ({});
+      });
+      # XXX error handling
+    } else { # GET
+      return $app->account_server (q</token>, {
+        sk => $app->http->request_cookies->{sk},
+        sk_context => $app->config->{account_sk_context},
+        server => 'ssh',
+      })->then (sub {
+        my $json = $_[0];
+        if (defined $json->{access_token} and
+            ref $json->{access_token} eq 'ARRAY') {
+          return $app->send_json ({public_key => $json->{access_token}->[0]});
+        } else {
+          return $app->send_json ({});
+        }
+      });
+    }
   } # /account
 
   if (@$path == 2 and
@@ -1304,6 +1334,7 @@ sub check_read ($$$;%) {
         });
       }
     } else { # no |repo| row
+      return 0 unless $tr->url =~ m{^(?:https?|git):};
       return $tr->prepare_mirror ({})->then (sub {
         $scopes = {read => 1};
         $is_public = 1;

@@ -49,6 +49,44 @@
 
   <ul class=switch>
     <li>あなたがこのリポジトリーの管理者なら、<a href=../../acl target=config-acl>編集権限設定</a>を行ってください。
+      <div class=XXX>
+        <p>SSH でアクセスするためには、公開鍵をサーバーに登録してください。
+          <form>
+            <input name=public_key>
+            <button type=button name=show_public_key onclick="
+              var form = this.form;
+              var xhr = new XMLHttpRequest;
+              xhr.open ('GET', '/account/sshkey.json', true);
+              xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                  if (xhr.status === 200) {
+                    var json = JSON.parse (xhr.responseText);
+                    form.elements.public_key.value = json.public_key || '(未生成)';
+                  } else {
+                    // XXX
+                  }
+                }
+              };
+              xhr.send (null);
+            ">公開鍵を表示</button>
+            <button type=button onclick="
+              if (!confirm (getAttribute ('data-confirm'))) return;
+              var form = this.form;
+              var xhr = new XMLHttpRequest;
+              xhr.open ('POST', '/account/sshkey.json', true);
+              xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                  if (xhr.status === 200) {
+                    form.elements.show_public_key.click ();
+                  } else {
+                    // XXX
+                  }
+                }
+              };
+              xhr.send (null);
+            " data-confirm="鍵を再生成すると、以前の鍵は破棄されます。">鍵を(再)生成</button>
+          </form>
+      </div>
     <li>あなたが管理者以外なら、<a href=XXX>管理者に編集権限を申請</a>してください。
     <li class=guest-only>既に編集権限を持っている場合は、
     <a href=XXX>ログイン</a>してください。

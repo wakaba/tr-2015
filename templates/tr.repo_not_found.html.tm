@@ -30,11 +30,50 @@
         <dt>あなたがこのリポジトリーの管理者の場合
         <dd>
           <p>「所有権の取得」すると、このリポジトリーを編集できるようになります。
-        
           <form action=../../acl method=post><!-- XXX path -->
             <input type=hidden name=operation value=get_ownership>
             <button type=submit>所有権を取得</button>
           </form><!-- XXX ajax -->
+        
+      <div class=XXX>
+        <p>SSH でアクセスするためには、公開鍵をサーバーに登録してください。
+          <form>
+            <input name=public_key>
+            <button type=button name=show_public_key onclick="
+              var form = this.form;
+              var xhr = new XMLHttpRequest;
+              xhr.open ('GET', '/account/sshkey.json', true);
+              xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                  if (xhr.status === 200) {
+                    var json = JSON.parse (xhr.responseText);
+                    form.elements.public_key.value = json.public_key || '(未生成)';
+                  } else {
+                    // XXX
+                  }
+                }
+              };
+              xhr.send (null);
+            ">公開鍵を表示</button>
+            <button type=button onclick="
+              if (!confirm (getAttribute ('data-confirm'))) return;
+              var form = this.form;
+              var xhr = new XMLHttpRequest;
+              xhr.open ('POST', '/account/sshkey.json', true);
+              xhr.onreadystatechange = function () {
+                if (xhr.readyState === 4) {
+                  if (xhr.status === 200) {
+                    form.elements.show_public_key.click ();
+                  } else {
+                    // XXX
+                  }
+                }
+              };
+              xhr.send (null);
+            " data-confirm="鍵を再生成すると、以前の鍵は破棄されます。">鍵を(再)生成</button>
+          </form>
+      </div>
+
 
         <dt>あなたがこのリポジトリーの管理者でない場合
         <dd>

@@ -99,7 +99,8 @@ sub prepare_mirror ($$) {
   $mirror_path = $mirror_path->child ($self->path_name);
   $self->{mirror_repo_path} = $mirror_path;
   if ($mirror_path->child ('config')->is_file) {
-    return $self->mirror_repo->fetch;
+    return Promise->resolve if $self->{fetched};
+    return $self->mirror_repo->fetch->then (sub { $self->{fetched} = 1 });
   } else {
     my $url = $self->url;
     if ($account->{requires_token_for_pull}) {
