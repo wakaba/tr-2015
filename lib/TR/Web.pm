@@ -81,7 +81,7 @@ sub main ($$) {
     # /tr/{url}/
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
 
-    return $class->check_read_access ($app, $tr, access_token => 1, html => 1)->then (sub {
+    return $class->check_read ($app, $tr, access_token => 1, html => 1)->then (sub {
       return $tr->prepare_mirror ($_[0]);
     })->then (sub {
       return $tr->get_branches;
@@ -120,39 +120,54 @@ sub main ($$) {
 
         my $op = $app->bare_param ('operation') // '';
         if ($op eq 'update_account_privilege') {
-          # XXX permission
           my $account_id = $app->bare_param ('account_id')
               // return $app->throw_error (400, reason_phrase => 'Bad |account_id|');
-          my $permissions = {read => 1};
-          for my $scope (@{$app->text_param_list ('scope')}) {
-            if ({
-              edit => 1, comment => 1, texts => 1, repo => 1,
-            }->{$scope}) {
-              $permissions->{$scope} = 1;
-            } elsif ($scope =~ m{\Aedit/[0-9a-z-]+\z}) {
-              $permissions->{$scope} = 1;
-            }
-          }
-          return $app->db->insert ('repo_access', [{
+          return $app->db->select ('repo_access', {
             repo_url => Dongry::Type->serialize ('text', $tr->url),
-            account_id => Dongry::Type->serialize ('text', $account_id),
-            is_owner => 0,
-            data => Dongry::Type->serialize ('json', $permissions),
-            created => time,
-            updated => time,
-          }], duplicate => {
-            data => $app->db->bare_sql_fragment ('VALUES(data)'),
-            updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
+            account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+          }, fields => ['data'], limit => 1)->then (sub {
+            my $row = $_[0]->first_as_row;
+            return $app->throw_error (403, reason_phrase => 'Bad privilege')
+                if not defined $row or not $row->get ('data')->{repo};
+            my $permissions = {read => 1};
+            for my $scope (@{$app->text_param_list ('scope')}) {
+              if ({
+                edit => 1, comment => 1, texts => 1, repo => 1,
+              }->{$scope}) {
+                $permissions->{$scope} = 1;
+              } elsif ($scope =~ m{\Aedit/[0-9a-z-]+\z}) {
+                $permissions->{$scope} = 1;
+              }
+            }
+            return $app->db->insert ('repo_access', [{
+              repo_url => Dongry::Type->serialize ('text', $tr->url),
+              account_id => Dongry::Type->serialize ('text', $account_id),
+              is_owner => 0,
+              data => Dongry::Type->serialize ('json', $permissions),
+              created => time,
+              updated => time,
+            }], duplicate => {
+              data => $app->db->bare_sql_fragment ('VALUES(data)'),
+              updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
+            });
           })->then (sub {
             return $app->send_error (204, reason_phrase => 'Saved');
           });
         } elsif ($op eq 'delete_account_privilege') {
-          # XXX permission
           my $account_id = $app->bare_param ('account_id')
               // return $app->throw_error (400, reason_phrase => 'Bad |account_id|');
-          return $app->db->delete ('repo_access', {
+          return $app->db->select ('repo_access', {
             repo_url => Dongry::Type->serialize ('text', $tr->url),
-            account_id => Dongry::Type->serialize ('text', $account_id),
+            account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+          }, fields => ['data'], limit => 1)->then (sub {
+            my $row = $_[0]->first_as_row;
+            return $app->throw_error (403, reason_phrase => 'Bad privilege')
+                if not defined $row or not $row->get ('data')->{repo};
+          })->then (sub {
+            return $app->db->delete ('repo_access', {
+              repo_url => Dongry::Type->serialize ('text', $tr->url),
+              account_id => Dongry::Type->serialize ('text', $account_id),
+            });
           })->then (sub {
             return $app->send_error (204, reason_phrase => 'Deleted');
           });
@@ -238,7 +253,17 @@ sub main ($$) {
         return $tr->discard;
       });
     } else { # GET
-      return $class->check_read_access ($app, $tr, html => 1)->then (sub { # XXX 403 base URL
+      return $class->session ($app)->then (sub {
+        my $account = $_[0];
+        return $app->throw_error (403) if not defined $account->{account_id}; # XXX custom 403
+        return $app->db->select ('repo_access', {
+          repo_url => Dongry::Type->serialize ('text', $tr->url),
+          account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+        }, fields => ['data'], limit => 1);
+      })->then (sub {
+        my $row = $_[0]->first_as_row;
+        return $app->throw_error (403, reason_phrase => 'Bad privilege')
+            if not defined $row or not $row->get ('data')->{repo}; # XXX custom 403
         return $app->temma ('tr.acl.html.tm', {
           app => $app,
           tr => $tr,
@@ -249,13 +274,17 @@ sub main ($$) {
     # /tr/{url}/acl.json
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
 
-    # XXX access control
-    #return $class->check_read_access ($app, $tr)->then (sub {
-
-      # XXX 404 if no |repo| row
-
-      # XXX fail if the session's account has github write permission
-      # to the target repo
+    return $class->session ($app)->then (sub {
+      my $account = $_[0];
+      return $app->throw_error (403) if not defined $account->{account_id}; # XXX custom 403
+      return $app->db->select ('repo_access', {
+        repo_url => Dongry::Type->serialize ('text', $tr->url),
+        account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+      }, fields => ['data'], limit => 1);
+    })->then (sub {
+      my $row = $_[0]->first_as_row;
+      return $app->throw_error (403, reason_phrase => 'Bad privilege')
+          if not defined $row or not $row->get ('data')->{repo}; # XXX custom 403
 
       my $json = {};
       return $app->db->select ('repo_access', {
@@ -289,13 +318,14 @@ sub main ($$) {
         }
         return $app->send_json ($json);
       });
+    });
   }
 
   if ($path->[0] eq 'tr' and $path->[3] eq '' and @$path == 4) {
     # /tr/{url}/{branch}/
     my $tr = $class->create_text_repo ($app, $path->[1], $path->[2], undef);
 
-    return $class->check_read_access ($app, $tr, access_token => 1, html => 1)->then (sub {
+    return $class->check_read ($app, $tr, access_token => 1, html => 1)->then (sub {
       return $tr->prepare_mirror ($_[0])->then (sub {
         return $tr->get_commit_logs ([$tr->branch]);
       })->then (sub {
@@ -350,7 +380,7 @@ sub main ($$) {
 
     if (@$path == 5 and $path->[4] eq '') {
       # .../
-      return $class->check_read_access ($app, $tr, html => 1)->then (sub {
+      return $class->check_read ($app, $tr, html => 1)->then (sub {
         require TR::Query;
         my $q = TR::Query->parse_query (
           query => $app->text_param ('q'),
@@ -371,7 +401,7 @@ sub main ($$) {
       # .../data.json
       my $q;
       my $scopes;
-      return $class->check_read_access (
+      return $class->check_read (
         $app, $tr,
         access_token => 1, scopes => 1,
       )->then (sub {
@@ -409,7 +439,7 @@ sub main ($$) {
       # .../XXXupdate-index
       # XXX request method
       my $tr_config;
-      return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
+      return $class->check_read ($app, $tr, access_token => 1)->then (sub {
         return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror;
@@ -439,7 +469,7 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'export') {
       # .../export
-      return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
+      return $class->check_read ($app, $tr, access_token => 1)->then (sub {
         return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror;
@@ -771,7 +801,7 @@ sub main ($$) {
         my $id = $path->[5]; # XXX validation
 
         my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX validation
-        return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
+        return $class->check_read ($app, $tr, access_token => 1)->then (sub {
           return $tr->prepare_mirror ($_[0]);
         })->then (sub {
           return $tr->git_log_for_text_id_and_lang
@@ -893,7 +923,7 @@ sub main ($$) {
           return $tr->discard;
         });
       } else { # GET
-        return $class->check_read_access ($app, $tr, html => 1)->then (sub {
+        return $class->check_read ($app, $tr, html => 1)->then (sub {
           return $app->temma ('tr.texts.langs.html.tm', {
             app => $app,
             tr => $tr,
@@ -902,7 +932,7 @@ sub main ($$) {
       }
     } elsif (@$path == 5 and $path->[4] eq 'langs.json') {
       # .../langs.json
-      return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
+      return $class->check_read ($app, $tr, access_token => 1)->then (sub {
         return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror;
@@ -988,7 +1018,7 @@ sub main ($$) {
     } elsif (@$path == 5 and ($path->[4] eq 'comments' or $path->[4] eq 'comments.json')) {
       # .../comments # XXX HTML view
       # .../comments.json
-      return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
+      return $class->check_read ($app, $tr, access_token => 1)->then (sub {
         return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->get_recent_comments (limit => 50);
@@ -1226,7 +1256,7 @@ sub session ($$) {
   });
 } # session
 
-sub check_read_access ($$$;%) {
+sub check_read ($$$;%) {
   my ($class, $app, $tr, %args) = @_;
   my $scopes;
   my $is_public;
@@ -1273,7 +1303,7 @@ sub check_read_access ($$$;%) {
           });
         });
       }
-    } else {
+    } else { # no |repo| row
       return $tr->prepare_mirror ({})->then (sub {
         $scopes = {read => 1};
         $is_public = 1;
@@ -1321,7 +1351,7 @@ sub check_read_access ($$$;%) {
       })->then (sub { return $app->throw });
     }
   });
-} # check_read_access
+} # check_read
 
 # XXX support for non-github repos
 sub get_push_token ($$$$) {
