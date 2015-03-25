@@ -78,10 +78,7 @@ sub main ($$) {
 
   if ($path->[0] eq 'tr' and $path->[2] eq '' and @$path == 3) {
     # /tr/{url}/
-
-    my $tr = TR::TextRepo->new_from_mirror_and_temp_path ($app->mirror_path, Path::Tiny->tempdir);
-    $tr->config ($app->config);
-    $tr->url ($path->[1]); # XXX validation & normalization
+    my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
 
     return $class->check_read_access ($app, $tr, access_token => 1, html => 1)->then (sub {
       return $tr->prepare_mirror ($_[0]);
@@ -112,11 +109,7 @@ sub main ($$) {
 
   if ($path->[0] eq 'tr' and @$path == 3 and $path->[2] eq 'acl') {
     # /tr/{url}/acl
-
-    my $tr = TR::TextRepo->new_from_mirror_and_temp_path
-        ($app->mirror_path, Path::Tiny->tempdir);
-    $tr->config ($app->config);
-    $tr->url ($path->[1]); # XXX validation & normalization
+    my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
 
     if ($app->http->request_method eq 'POST') {
       # XXX CSRF
@@ -268,10 +261,7 @@ sub main ($$) {
     }
   } elsif ($path->[0] eq 'tr' and @$path == 3 and $path->[2] eq 'acl.json') {
     # /tr/{url}/acl.json
-    my $tr = TR::TextRepo->new_from_mirror_and_temp_path
-        ($app->mirror_path, Path::Tiny->tempdir);
-    $tr->config ($app->config);
-    $tr->url ($path->[1]); # XXX validation & normalization
+    my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
 
     # XXX access control
     #return $class->check_read_access ($app, $tr)->then (sub {
@@ -336,11 +326,7 @@ sub main ($$) {
 
   if ($path->[0] eq 'tr' and $path->[3] eq '' and @$path == 4) {
     # /tr/{url}/{branch}/
-
-    my $tr = TR::TextRepo->new_from_mirror_and_temp_path ($app->mirror_path, Path::Tiny->tempdir);
-    $tr->config ($app->config);
-    $tr->url ($path->[1]); # XXX validation & normalization
-    $tr->branch ($path->[2]); # XXX validation
+    my $tr = $class->create_text_repo ($app, $path->[1], $path->[2], undef);
 
     return $class->check_read_access ($app, $tr, access_token => 1, html => 1)->then (sub {
       return $tr->prepare_mirror ($_[0])->then (sub {
@@ -392,18 +378,8 @@ sub main ($$) {
 
   if ($path->[0] eq 'tr' and @$path >= 4) {
     # /tr/{url}/{branch}/{path}
-    if (($path->[3] eq '/' or $path->[3] =~ m{\A(?:/[0-9A-Za-z_.-]+)+\z}) and
-        not "$path->[3]/" =~ m{/\.\.?/}) {
-      #
-    } else {
-      return $app->send_error (404);
-    }
-
-    my $tr = TR::TextRepo->new_from_mirror_and_temp_path ($app->mirror_path, Path::Tiny->tempdir);
-    $tr->config ($app->config);
-    $tr->url ($path->[1]); # XXX validation & normalization
-    $tr->branch ($path->[2]); # XXX validation
-    $tr->texts_dir (substr $path->[3], 1);
+    my $tr = $class->create_text_repo
+        ($app, $path->[1], $path->[2], $path->[3]);
 
     if (@$path == 5 and $path->[4] eq '') {
       # .../
@@ -1318,6 +1294,32 @@ sub main ($$) {
 
   return $app->send_error (404);
 } # main
+
+sub create_text_repo ($$$) {
+  my ($class, $app, $url, $branch, $path) = @_;
+
+  my $tr = TR::TextRepo->new_from_mirror_and_temp_path
+      ($app->mirror_path, Path::Tiny->tempdir);
+  $tr->config ($app->config);
+
+  $tr->url ($url); # XXX validation & normalization
+
+  if (defined $branch) {
+    $tr->branch ($branch); # XXX validation
+  }
+
+  if (defined $path) {
+    if (($path eq '/' or $path =~ m{\A(?:/[0-9A-Za-z_.-]+)+\z}) and
+        not "$path/" =~ m{/\.\.?/}) {
+      #
+    } else {
+      return $app->throw_error (404, reason_phrase => 'Bad |path|');
+    }
+    $tr->texts_dir (substr $path, 1);
+  }
+
+  return $tr;
+} # create_text_repo
 
 sub session ($$) {
   my ($class, $app) = @_;
