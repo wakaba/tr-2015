@@ -62,7 +62,7 @@ sub mirror_parent_path ($) {
 } # mirror_parent_path
 
 sub mirror_repo_path ($) {
-  return $_[0]->{mirror_repo_path} ||= $_[0]->mirror_parent_path->child ($_[0]->path_name);
+  return $_[0]->{mirror_repo_path} // die "mirror_repo_path is not set yet";
 } # mirror_repo_path
 
 sub mirror_repo ($) {
@@ -93,15 +93,18 @@ sub texts_path ($) {
 } # texts_path
 
 sub prepare_mirror ($$) {
-  my $self = $_[0];
-  my $token = $_[1]; # XXX
-  my $mirror_path = $self->mirror_repo_path;
+  my ($self, $account) = @_;
+  my $mirror_path = $self->mirror_parent_path;
+  $mirror_path = $mirror_path->child ('private') if $account->{requires_token_for_pull};
+  $mirror_path = $mirror_path->child ($self->path_name);
+  $self->{mirror_repo_path} = $mirror_path;
   if ($mirror_path->child ('config')->is_file) {
     return $self->mirror_repo->fetch;
   } else {
     my $url = $self->url;
-    $token //= '';
-    $url =~ s{^https://github.com/}{https://$token:\@github.com/}; # XXX
+    if ($account->{requires_token_for_pull}) {
+      $url =~ s{^https://github.com/}{https://$account->{access_token}:\@github.com/}; # XXX
+    }
     return git_clone (['--mirror', $url, $mirror_path]);
   }
 } # prepare_mirror

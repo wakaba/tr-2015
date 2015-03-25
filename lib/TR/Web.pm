@@ -84,8 +84,7 @@ sub main ($$) {
     $tr->url ($path->[1]); # XXX validation & normalization
 
     return $class->check_read_access ($app, $tr, access_token => 1, html => 1)->then (sub {
-      my $token = $_[0];
-      return $tr->prepare_mirror ($token);
+      return $tr->prepare_mirror ($_[0]);
     })->then (sub {
       return $tr->get_branches;
     })->then (sub {
@@ -120,8 +119,7 @@ sub main ($$) {
     $tr->branch ($path->[2]); # XXX validation
 
     return $class->check_read_access ($app, $tr, access_token => 1, html => 1)->then (sub {
-      my $token = $_[0];
-      return $tr->prepare_mirror ($token)->then (sub {
+      return $tr->prepare_mirror ($_[0])->then (sub {
         return $tr->get_commit_logs ([$tr->branch]);
       })->then (sub {
         my $parsed = $_[0]; # XXX if branch not found
@@ -211,7 +209,7 @@ sub main ($$) {
         access_token => 1, scopes => 1,
       )->then (sub {
         $scopes = $_[0]->{scopes};
-        return $tr->prepare_mirror ($scopes->{access_token});
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
@@ -245,8 +243,7 @@ sub main ($$) {
       # XXX request method
       my $tr_config;
       return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
-        my $token = $_[0];
-        return $tr->prepare_mirror ($token);
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
@@ -276,8 +273,7 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'export') {
       # .../export
       return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
-        my $token = $_[0];
-        return $tr->prepare_mirror ($token);
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
@@ -366,7 +362,7 @@ sub main ($$) {
       my $account;
       return $class->get_push_token ($app, $tr, 'repo')->then (sub { # XXX scope
         my $account = $_[0];
-        return $tr->prepare_mirror->then (sub {
+        return $tr->prepare_mirror ($account)->then (sub {
           return $tr->clone_from_mirror;
         })->then (sub {
           return $tr->make_pushable ($account->{access_token}, '');
@@ -477,7 +473,7 @@ sub main ($$) {
         my $account;
         return $class->get_push_token ($app, $tr, 'edit/' . $lang)->then (sub {
           $account = $_[0];
-          return $tr->prepare_mirror->then (sub {
+          return $tr->prepare_mirror ($account)->then (sub {
             return $tr->clone_from_mirror;
           })->then (sub {
             return $tr->make_pushable ($account->{access_token}, '');
@@ -518,7 +514,7 @@ sub main ($$) {
         my $te;
         return $class->get_push_token ($app, $tr, 'texts')->then (sub {
           $account = $_[0];
-          return $tr->prepare_mirror->then (sub {
+          return $tr->prepare_mirror ($account)->then (sub {
             return $tr->clone_from_mirror;
           })->then (sub {
             return $tr->make_pushable ($account->{access_token}, '');
@@ -574,7 +570,7 @@ sub main ($$) {
         my $account;
         return $class->get_push_token ($app, $tr, 'comment')->then (sub {
           $account = $_[0];
-          return $tr->prepare_mirror->then (sub {
+          return $tr->prepare_mirror ($account)->then (sub {
             return $tr->clone_from_mirror;
           })->then (sub {
             return $tr->make_pushable ($account->{access_token}, '');
@@ -609,8 +605,7 @@ sub main ($$) {
 
         my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX validation
         return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
-          my $token = $_[0];
-          return $tr->prepare_mirror ($token);
+          return $tr->prepare_mirror ($_[0]);
         })->then (sub {
           return $tr->git_log_for_text_id_and_lang
               ($id, $lang, with_file_text => 1);
@@ -645,7 +640,7 @@ sub main ($$) {
       my $data = {texts => {}};
       return $class->get_push_token ($app, $tr, 'texts')->then (sub {
         $account = $_[0];
-        return $tr->prepare_mirror->then (sub {
+        return $tr->prepare_mirror ($account)->then (sub {
           return $tr->clone_from_mirror;
         })->then (sub {
           return $tr->make_pushable ($account->{access_token}, '');
@@ -693,7 +688,7 @@ sub main ($$) {
         my $account;
         return $class->get_push_token ($app, $tr, 'repo')->then (sub {
           $account = $_[0];
-          return $tr->prepare_mirror->then (sub {
+          return $tr->prepare_mirror ($account)->then (sub {
             return $tr->clone_from_mirror;
           })->then (sub {
             return $tr->make_pushable ($account->{access_token}, '');
@@ -741,8 +736,7 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'langs.json') {
       # .../langs.json
       return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
-        my $token = $_[0];
-        return $tr->prepare_mirror ($token);
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub { # XXX branch
@@ -1006,7 +1000,7 @@ sub main ($$) {
       my $account;
       return $class->get_push_token ($app, $tr, 'repo')->then (sub {
         $account = $_[0];
-        return $tr->prepare_mirror->then (sub {
+        return $tr->prepare_mirror ($account)->then (sub {
           return $tr->clone_from_mirror;
         })->then (sub {
           return $tr->make_pushable ($account->{access_token}, '');
@@ -1043,8 +1037,7 @@ sub main ($$) {
       # .../comments # XXX HTML view
       # .../comments.json
       return $class->check_read_access ($app, $tr, access_token => 1)->then (sub {
-        my $token = $_[0];
-        return $tr->prepare_mirror ($token);
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->get_recent_comments (limit => 50);
       })->then (sub {
@@ -1345,6 +1338,7 @@ sub session ($$) {
 sub check_read_access ($$$;%) {
   my ($class, $app, $tr, %args) = @_;
   my $scopes;
+  my $account = {};
   return $app->db->select ('repo', {
     repo_url => Dongry::Type->serialize ('text', $tr->url),
   }, fields => ['is_public'])->then (sub {
@@ -1353,10 +1347,10 @@ sub check_read_access ($$$;%) {
       if ($repo->{is_public}) {
         if ($args{scopes}) {
           return $class->session ($app)->then (sub {
-            my $account = $_[0];
-            if (defined $account->{account_id}) {
+            my $acc = $_[0];
+            if (defined $acc->{account_id}) {
               return $app->db->select ('repo_access', {
-                account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+                account_id => Dongry::Type->serialize ('text', $acc->{account_id}),
                 repo_url => Dongry::Type->serialize ('text', $tr->url),
               }, fields => ['data'])->then (sub {
                 my $row = $_[0]->first_as_row;
@@ -1371,23 +1365,23 @@ sub check_read_access ($$$;%) {
         } else {
           return 1;
         }
-      } else {
+      } else { # private repo
         return $class->session ($app)->then (sub {
-          my $account = $_[0];
-          return 0 if not defined $account->{account_id};
+          my $acc = $_[0];
+          return 0 if not defined $acc->{account_id};
           return $app->db->select ('repo_access', {
-            account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+            account_id => Dongry::Type->serialize ('text', $acc->{account_id}),
             repo_url => Dongry::Type->serialize ('text', $tr->url),
           }, fields => ['data'])->then (sub {
             my $row = $_[0]->first_as_row;
+            $account->{requires_token_for_pull} = 1;
             $scopes = $row->get ('data') if defined $row;
             return (defined $scopes and $scopes->{read});
           });
         });
       }
     } else {
-      # XXX this is unsafe for private repos
-      return $tr->prepare_mirror->then (sub {
+      return $tr->prepare_mirror ({})->then (sub {
         $scopes = {read => 1};
         return 1;
       }, sub {
@@ -1430,11 +1424,9 @@ sub check_read_access ($$$;%) {
           my $token = $json->{access_token};
           return $app->throw_error (403, reason_phrase => 'The repository owner has no GitHub access token')
               unless defined $token;
-          if ($args{scopes}) {
-            return {scopes => $scopes, access_token => $token};
-          } else {
-            return $token;
-          }
+          $account->{scopes} = $scopes if $args{scopes};
+          $account->{access_token} = $token;
+          return $account;
         });
       } else {
         return;
@@ -1514,8 +1506,16 @@ sub get_push_token ($$$$) {
                  name => $name, account_id => $account_id};
     return $app->throw_error (403, reason_phrase => 'The repository owner has no GitHub access token')
         unless defined $token->{access_token};
+
+    return $app->db->select ('repo', {
+      repo_url => Dongry::Type->serialize ('text', $tr->url),
+    }, fields => ['is_public'])->then (sub {
+      my $repo = $_[0]->first;
+      if (defined $repo) {
+        $token->{requires_token_for_pull} = 1 unless $repo->{is_public};
+      }
+    })->then (sub { return $token });
     # XXX name/email for git author
-    return $token;
   });
 } # get_push_token
 
