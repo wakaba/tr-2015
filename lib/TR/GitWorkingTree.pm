@@ -7,10 +7,35 @@ sub new_from_dir_name ($$) {
   return bless {dir_name => $_[1]}, $_[0];
 } # new_from_dir_name
 
+sub home_dir_name ($;$) {
+  if (@_ > 1) {
+    $_[0]->{home_dir_name} = $_[1];
+  }
+  return $_[0]->{home_dir_name};
+} # home_dir_name
+
+sub ssh_file_name ($;$) {
+  if (@_ > 1) {
+    $_[0]->{ssh_file_name} = $_[1];
+  }
+  return $_[0]->{ssh_file_name};
+} # ssh_file_name
+
+sub ssh_private_key_file_name ($;$) {
+  if (@_ > 1) {
+    $_[0]->{ssh_private_key_file_name} = $_[1];
+  }
+  return $_[0]->{ssh_private_key_file_name};
+} # ssh_private_key_file_name
+
 sub git ($$$) {
   my ($self, $command, $args) = @_;
   AE::log alert => "$self->{dir_name}\$ git $command @$args";
   my $cmd = Promised::Command->new (['git', $command, @$args]);
+  $cmd->envs->{HOME} = $self->{home_dir_name} if defined $self->{home_dir_name};
+  $cmd->envs->{GIT_SSH} = $self->{ssh_file_name} if defined $self->{ssh_file_name};
+  $cmd->envs->{TR_SSH_PRIVATE_KEY} = $self->{ssh_private_key_file_name}
+      if defined $self->{ssh_private_key_file_name};
   $cmd->stdin (\'');
   $cmd->stdout (\my $stdout);
   $cmd->stderr (\my $stderr);

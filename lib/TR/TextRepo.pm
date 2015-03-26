@@ -25,6 +25,13 @@ sub url ($;$) {
   return $_[0]->{url};
 } # url
 
+sub repo_type ($;$) {
+  if (@_ > 1) {
+    $_[0]->{repo_type} = $_[1];
+  }
+  return $_[0]->{repo_type};
+} # repo_type
+
 sub config ($;$) {
   if (@_ > 1) {
     $_[0]->{config} = $_[1];
@@ -97,9 +104,13 @@ sub texts_path ($) {
   };
 } # texts_path
 
-sub set_key ($$) {
+sub prepare_mirror ($$) {
   my ($self, $keys) = @_;
-  die "|mirror_repo_path| is already set" if defined $self->{mirror_repo_path};
+  my $p = Promise->resolve;
+  die if $self->{fetched} and defined $keys->{access_token};
+  return $p if $self->{fetched};
+
+  my $home_path = $self->home_path;
 
   my $mirror_path = $self->mirror_parent_path;
   $mirror_path = $mirror_path->child ('private') if $keys->{requires_token_for_pull};
@@ -107,45 +118,66 @@ sub set_key ($$) {
   $self->{mirror_repo_path} = $mirror_path;
 
   my $url2 = my $url = $self->url;
-  # XXX non-github
-  if (defined $keys->{access_token}) {
-    my $user = percent_encode_c $keys->{access_token};
-    $url2 =~ s{^https://github.com/}{https://$user:\@github.com/};
+  my $repo_type = $self->repo_type;
+  if ($repo_type eq 'github') {
+    if (defined $keys->{access_token}) {
+      my $user = percent_encode_c $keys->{access_token};
+      $url2 =~ s{^https://github.com/}{https://$user:\@github.com/};
+    }
+  } elsif ($repo_type eq 'ssh') {
+    $self->{private_key_path} = $home_path->child ('key');
+    $self->{ssh_path} = path (__FILE__)->parent->parent->parent->child ('bin/ssh_wrapper');
+    $p = $p->then (sub {
+      return Promised::File->new_from_path ($self->{private_key_path})
+          ->write_byte_string ($keys->{access_token}->[1] // '');
+    })->then (sub {
+      # XXX
+      my $cmd = Promised::Command->new (['chmod', '0600', $self->{private_key_path}]);
+      return $cmd->run->then (sub { return $cmd->wait });
+    });
+  } else {
+    die "Unknown repository type |$repo_type|";
   }
-  if ($keys->{requires_token_for_pull}) {
-    $self->{keyed_url_for_pull} = $url2 if not $url eq $url2;
+  unless ($url eq $url2) {
+    if ($keys->{requires_token_for_pull}) {
+      $self->{keyed_url_for_pull} = $url2;
+    }
+    $self->{keyed_url_for_push} = $url2;
   }
-  $self->{keyed_url_for_push} = $url2 if not $url eq $url2;
 
   my $name = $keys->{name} // '';
   $name = $keys->{account_id} // 'unknown' unless length $name;
   my $email = $self->config->get ('git.author.email_pattern');
-  $email =~ s/\{account_id\}/$keys->{account_id}/g;
+  $email =~ s{\{account_id\}}{$keys->{account_id} // ''}ge;
   $self->{author_name} = $name;
   $self->{author_email} = $email;
-} # set_key
 
-sub prepare_mirror ($) {
-  my ($self) = @_;
-  my $p = Promise->resolve;
-  return $p if $self->{fetched};
-  my $url = $self->url;
-  my $keyed_url = $self->{keyed_url_for_pull}; # set by $self->set_key
+  my $keyed_url = $self->{keyed_url_for_pull};
   if (defined $keyed_url) {
-    $p = $p->then (sub { return git_home_config ($self->home_path, ["url.$keyed_url.insteadOf", $url]) });
+    $p = $p->then (sub {
+      return git_home_config ($home_path, ["url.$keyed_url.insteadOf", $url]);
+    });
   }
-  my $mirror_path = $self->mirror_repo_path; # set by $self->set_key
   if ($mirror_path->child ('config')->is_file) {
     my $mirror_repo = $self->mirror_repo;
-    $mirror_repo->home_dir_name ($self->home_path);
+    $mirror_repo->home_dir_name ($home_path);
+    $mirror_repo->ssh_file_name ($self->{ssh_path});
+    $mirror_repo->ssh_private_key_file_name ($self->{private_key_path});
     return $p->then (sub {
       return $mirror_repo->fetch;
     })->then (sub {
       $self->{fetched} = 1;
       $mirror_repo->home_dir_name (undef);
+      $mirror_repo->ssh_file_name (undef);
+      $mirror_repo->ssh_private_key_file_name (undef);
     });
   } else {
-    return $p->then (sub { return git_clone (['--mirror', $url, $mirror_path], home => $self->home_path) });
+    return $p->then (sub {
+      return git_clone (['--mirror', $url, $mirror_path],
+                        home => $home_path,
+                        ssh => $self->{ssh_path},
+                        ssh_private_key => $self->{private_key_path});
+    });
   }
   # XXX branch not found error
 } # prepare_mirror
@@ -154,12 +186,14 @@ sub clone_from_mirror ($;%) {
   my ($self, %args) = @_;
   my $p = git_clone (['-b', $self->branch, $self->mirror_repo_path, $self->repo_path]);
   if ($args{push}) {
-    my $keyed_url = $self->{keyed_url_for_push}; # set by $self->set_key
-    if (defined $keyed_url) {
-      $p = $p->then (sub {
-        return $self->repo->git ('remote', ['add', 'remoterepo', $keyed_url]);
-      });
-    }
+    my $repo = $self->repo;
+    $repo->home_dir_name ($self->home_path);
+    $repo->ssh_file_name ($self->{ssh_path});
+    $repo->ssh_private_key_file_name ($self->{private_key_path});
+    my $keyed_url = $self->{keyed_url_for_push} // $self->url;
+    $p = $p->then (sub {
+      return $repo->git ('remote', ['add', 'remoterepo', $keyed_url]);
+    });
   }
   return $p;
 } # clone_from_mirror

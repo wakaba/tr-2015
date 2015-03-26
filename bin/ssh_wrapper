@@ -1,0 +1,2 @@
+#!/bin/bash
+exec ssh -i $TR_SSH_PRIVATE_KEY -o StrictHostKeyChecking=no "$@"

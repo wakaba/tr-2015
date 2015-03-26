@@ -20,8 +20,13 @@ sub import ($;@) {
 push @EXPORT, qw(git_clone);
 sub git_clone ($;%) {
   my ($args, %opt) = @_;
+  AE::log alert => "HOME=$opt{home}" if defined $opt{home};
+  AE::log alert => "\$ git clone @$args";
   my $cmd = Promised::Command->new (['git', 'clone', @$args]);
   $cmd->envs->{HOME} = $opt{home} if defined $opt{home};
+  $cmd->envs->{GIT_SSH} = $opt{ssh} if defined $opt{ssh};
+  $cmd->envs->{TR_SSH_PRIVATE_KEY} = $opt{ssh_private_key}
+      if defined $opt{ssh_private_key};
   $cmd->stdin (\'');
   $cmd->stdout (\my $stdout);
   $cmd->stderr (\my $stderr);

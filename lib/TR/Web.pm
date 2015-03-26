@@ -82,8 +82,7 @@ sub main ($$) {
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
 
     return $class->check_read ($app, $tr, access_token => 1, html => 1)->then (sub {
-      $tr->set_key ($_[0]);
-      return $tr->prepare_mirror;
+      return $tr->prepare_mirror ($_[0]);
     })->then (sub {
       return $tr->get_branches;
     })->then (sub {
@@ -173,41 +172,64 @@ sub main ($$) {
             return $app->send_error (204, reason_phrase => 'Deleted');
           });
         } elsif ($op eq 'get_ownership') {
-          # XXX non-github support
-          return $app->account_server (q</token>, {
-            sk => $app->http->request_cookies->{sk},
-            sk_context => $app->config->{account_sk_context},
-            server => 'github',
-          })->then (sub {
-            my $json = $_[0];
-            my $token = $json->{access_token};
-            return Promise->new (sub {
-              my ($ok, $ng) = @_;
-              $tr->url =~ m{^https://github.com/([^/]+/[^/]+)} or die;
-              http_get
-                  url => qq<https://api.github.com/repos/$1>,
-                  header_fields => (defined $token ? {Authorization => 'token ' . $token} : undef),
-                  timeout => 100,
-                  anyevent => 1,
-                  cb => sub {
-                    my (undef, $res) = @_;
-                    if ($res->code == 200) {
-                      $ok->(json_bytes2perl $res->content);
-                    } else {
-                      $ng->([$res->code, $res->status_line]);
-                    }
-                  };
-            });
-          })->then (sub {
-            my $json = $_[0];
-            my $is_owner = !!$json->{permissions}->{push};
-            my $is_public = not $json->{private};
+          return do {
+            my $repo_type = $tr->repo_type;
+            if ($repo_type eq 'github') {
+              $app->account_server (q</token>, {
+                sk => $app->http->request_cookies->{sk},
+                sk_context => $app->config->{account_sk_context},
+                server => 'github',
+              })->then (sub {
+                my $json = $_[0];
+                my $token = $json->{access_token};
+                return Promise->new (sub {
+                  my ($ok, $ng) = @_;
+                  $tr->url =~ m{^https://github.com/([^/]+/[^/]+)} or die;
+                  http_get
+                      url => qq<https://api.github.com/repos/$1>,
+                      header_fields => (defined $token ? {Authorization => 'token ' . $token} : undef),
+                      timeout => 100,
+                      anyevent => 1,
+                      cb => sub {
+                        my (undef, $res) = @_;
+                        if ($res->code == 200) {
+                          $ok->(json_bytes2perl $res->content);
+                        } else {
+                          $ng->([$res->code, $res->status_line]);
+                        }
+                      };
+                });
+              })->then (sub {
+                my $json = $_[0];
+                return {is_owner => !!$json->{permissions}->{push},
+                        is_public => not $json->{private}};
+              });
+            } elsif ($repo_type eq 'ssh') {
+              $app->account_server (q</token>, {
+                sk => $app->http->request_cookies->{sk},
+                sk_context => $app->config->{account_sk_context},
+                server => 'ssh',
+              })->then (sub {
+                my $json = $_[0];
+                my $token = $json->{access_token};
+                die [403, "Bad SSH key"] unless defined $token and ref $token eq 'ARRAY';
+
+                return $tr->prepare_mirror ({access_token => $token,
+                                             requires_token_for_pull => 1});
+              })->then (sub {
+                return {is_owner => 1, is_public => 0};
+              });
+            } else {
+              Promise->reject ("Can't get ownership of a repository with type |$repo_type|");
+            }
+          }->then (sub {
+            my $rights = $_[0];
             my $time = time;
             return $app->db->insert ('repo_access', [{
               repo_url => Dongry::Type->serialize ('text', $tr->url),
               account_id => Dongry::Type->serialize ('text', $account->{account_id}),
-              is_owner => $is_owner,
-              data => ($is_owner ? '{"read":1,"edit":1,"texts":1,"comment":1,"repo":1}' : '{"read":1}'),
+              is_owner => $rights->{is_owner},
+              data => ($rights->{is_owner} ? '{"read":1,"edit":1,"texts":1,"comment":1,"repo":1}' : '{"read":1}'),
               created => $time,
               updated => $time,
             }], duplicate => {
@@ -218,11 +240,11 @@ sub main ($$) {
                 repo_url => Dongry::Type->serialize ('text', $tr->url),
                 account_id => Dongry::Type->serialize ('text', $account->{account_id}),
                 updated => $time,
-              }) if $is_owner;
+              }) if $rights->{is_owner};
             })->then (sub {
               return $app->db->insert ('repo', [{
                 repo_url => Dongry::Type->serialize ('text', $tr->url),
-                is_public => $is_public,
+                is_public => $rights->{is_public},
                 created => time,
                 updated => time,
               }], duplicate => {
@@ -230,10 +252,10 @@ sub main ($$) {
                 updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
               }); # XXXupdate-index
             })->then (sub {
-              return $app->send_json ({is_public => $is_public,
-                                       is_owner => $is_owner});
+              return $app->send_json ($rights);
             });
           }, sub {
+            # XXX better error reporting
             die $_[0] unless ref $_[0] eq 'ARRAY';
             my ($status, $status_line) = @{$_[0]};
             if ($status == 404) {
@@ -327,8 +349,7 @@ sub main ($$) {
     my $tr = $class->create_text_repo ($app, $path->[1], $path->[2], undef);
 
     return $class->check_read ($app, $tr, access_token => 1, html => 1)->then (sub {
-      $tr->set_key ($_[0]);
-      return $tr->prepare_mirror;
+      return $tr->prepare_mirror ($_[0]);
     })->then (sub {
       return $tr->get_commit_logs ([$tr->branch]);
     })->then (sub {
@@ -408,8 +429,7 @@ sub main ($$) {
         access_token => 1, scopes => 1,
       )->then (sub {
         $scopes = $_[0]->{scopes};
-        $tr->set_key ($_[0]);
-        return $tr->prepare_mirror;
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
@@ -443,8 +463,7 @@ sub main ($$) {
       # XXX request method
       my $tr_config;
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        $tr->set_key ($_[0]);
-        return $tr->prepare_mirror;
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
@@ -474,8 +493,7 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'export') {
       # .../export
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        $tr->set_key ($_[0]);
-        return $tr->prepare_mirror;
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
@@ -562,8 +580,7 @@ sub main ($$) {
       # .../import
 
       return $class->get_push_token ($app, $tr, 'repo')->then (sub { # XXX scope
-        $tr->set_key ($_[0]);
-        return $tr->prepare_mirror;
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror (push => 1);
       })->then (sub {
@@ -670,8 +687,7 @@ sub main ($$) {
         my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
 
         return $class->get_push_token ($app, $tr, 'edit/' . $lang)->then (sub {
-          $tr->set_key ($_[0]);
-          return $tr->prepare_mirror;
+          return $tr->prepare_mirror ($_[0]);
         })->then (sub {
           return $tr->clone_from_mirror (push => 1);
         })->then (sub {
@@ -708,8 +724,7 @@ sub main ($$) {
 
         my $te;
         return $class->get_push_token ($app, $tr, 'texts')->then (sub {
-          $tr->set_key ($_[0]);
-          return $tr->prepare_mirror;
+          return $tr->prepare_mirror ($_[0]);
         })->then (sub {
           return $tr->clone_from_mirror (push => 1);
         })->then (sub {
@@ -761,10 +776,9 @@ sub main ($$) {
         my $id = $path->[5]; # XXX validation
 
         return $class->get_push_token ($app, $tr, 'comment')->then (sub {
-          $tr->set_key ($_[0]);
-          return $tr->prepare_mirror;
+          return $tr->prepare_mirror ($_[0]);
         })->then (sub {
-          return $tr->clone_from_mirror;
+          return $tr->clone_from_mirror (push => 1);
         })->then (sub {
           my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
           $te->set (id => $tr->generate_section_id);
@@ -795,8 +809,7 @@ sub main ($$) {
 
         my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX validation
         return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-          $tr->set_key ($_[0]);
-          return $tr->prepare_mirror;
+          return $tr->prepare_mirror ($_[0]);
         })->then (sub {
           return $tr->git_log_for_text_id_and_lang
               ($id, $lang, with_file_text => 1);
@@ -829,10 +842,9 @@ sub main ($$) {
 
       my $data = {texts => {}};
       return $class->get_push_token ($app, $tr, 'texts')->then (sub {
-        $tr->set_key ($_[0]);
-        return $tr->prepare_mirror;
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
-        return $tr->clone_from_mirror;
+        return $tr->clone_from_mirror (push => 1);
       })->then (sub {
         my $id = $tr->generate_text_id;
         my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
@@ -874,8 +886,7 @@ sub main ($$) {
         my $lang_label_shorts = $app->text_param_list ('lang_label_short');
 
         return $class->get_push_token ($app, $tr, 'repo')->then (sub {
-          $tr->set_key ($_[0]);
-          return $tr->prepare_mirror;
+          return $tr->prepare_mirror ($_[0]);
         })->then (sub {
           return $tr->clone_from_mirror (push => 1);
         })->then (sub {
@@ -921,8 +932,7 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'langs.json') {
       # .../langs.json
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        $tr->set_key ($_[0]);
-        return $tr->prepare_mirror;
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub { # XXX branch
@@ -969,8 +979,7 @@ sub main ($$) {
       # XXX CSRF
 
       return $class->get_push_token ($app, $tr, 'repo')->then (sub {
-        $tr->set_key ($_[0]);
-        return $tr->prepare_mirror;
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->clone_from_mirror (push => 1);
       })->then (sub {
@@ -1005,8 +1014,7 @@ sub main ($$) {
       # .../comments # XXX HTML view
       # .../comments.json
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        $tr->set_key ($_[0]);
-        return $tr->prepare_mirror;
+        return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         return $tr->get_recent_comments (limit => 50);
       })->then (sub {
@@ -1237,13 +1245,18 @@ sub create_text_repo ($$$) {
   $url =~ s{^([^/:\@]+\@[^/:]+):}{ssh://$1/};
   $url = url_to_canon_url $url, 'about:blank';
   $url =~ s{\.git/?\z}{};
+  
+  # XXX
   if ($url =~ m{\A(?:https?://|git://|ssh://git\@)github\.com/([^/]+/[^/]+)\z}) {
     $url = qq{https://github.com/$1};
+    $tr->repo_type ('github');
   } elsif ($url =~ m{\Assh://git\@melon/(/git/pub/.+)\z}) {
     $url = qq{git\@melon:$1};
+    $tr->repo_type ('ssh');
   } else {
     return $app->throw_error (404, reason_phrase => 'Bad repository URL');
   }
+
   $tr->url ($url);
 
   if (defined $branch) {
@@ -1322,8 +1335,7 @@ sub check_read ($$$;%) {
       }
     } else { # no |repo| row
       return 0 unless $tr->url =~ m{^(?:https?|git):};
-      # no $tr->set_key
-      return $tr->prepare_mirror->then (sub {
+      return $tr->prepare_mirror ({})->then (sub {
         $scopes = {read => 1};
         $is_public = 1;
         return 1;
@@ -1345,9 +1357,18 @@ sub check_read ($$$;%) {
         }, fields => ['account_id'], limit => 1)->then (sub {
           my $owner = $_[0]->first;
           return $app->throw_error (403, reason_phrase => 'The repository has no owner') unless defined $owner;
+          my $server;
+          my $repo_type = $tr->repo_type;
+          if ($repo_type eq 'github') {
+            $server = 'github';
+          } elsif ($repo_type eq 'ssh') {
+            $server = 'ssh';
+          } else {
+            die "Can't pull repository of type |$repo_type|";
+          }
           return $app->account_server (q</token>, {
             account_id => $owner->{account_id},
-            server => 'github',
+            server => $server,
           });
         })->then (sub {
           my $json = $_[0];
@@ -1372,7 +1393,6 @@ sub check_read ($$$;%) {
   });
 } # check_read
 
-# XXX support for non-github repos
 sub get_push_token ($$$$) {
   my ($class, $app, $tr, $scope) = @_;
   my $account_id;
@@ -1408,9 +1428,18 @@ sub get_push_token ($$$$) {
   })->then (sub {
     my $owner = $_[0]->first;
     return $app->throw_error (403, reason_phrase => 'The repository has no owner') unless defined $owner;
+    my $server;
+    my $repo_type = $tr->repo_type;
+    if ($repo_type eq 'github') {
+      $server = 'github';
+    } elsif ($repo_type eq 'ssh') {
+      $server = 'ssh';
+    } else {
+      die "Can't pull repository of type |$repo_type|";
+    }
     return $app->account_server (q</token>, {
       account_id => $owner->{account_id},
-      server => 'github',
+      server => $server,
     });
   })->then (sub {
     my $json = $_[0];
