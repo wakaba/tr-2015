@@ -82,7 +82,8 @@ sub main ($$) {
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
 
     return $class->check_read ($app, $tr, access_token => 1, html => 1)->then (sub {
-      return $tr->prepare_mirror ($_[0]);
+      $tr->set_key ($_[0]);
+      return $tr->prepare_mirror;
     })->then (sub {
       return $tr->get_branches;
     })->then (sub {
@@ -326,52 +327,53 @@ sub main ($$) {
     my $tr = $class->create_text_repo ($app, $path->[1], $path->[2], undef);
 
     return $class->check_read ($app, $tr, access_token => 1, html => 1)->then (sub {
-      return $tr->prepare_mirror ($_[0])->then (sub {
-        return $tr->get_commit_logs ([$tr->branch]);
-      })->then (sub {
-        my $parsed = $_[0]; # XXX if branch not found
-        my $tree = $parsed->{commits}->[0]->{tree};
-        return $tr->get_ls_tree ($tree, recursive => 1);
-      })->then (sub {
+      $tr->set_key ($_[0]);
+      return $tr->prepare_mirror;
+    })->then (sub {
+      return $tr->get_commit_logs ([$tr->branch]);
+    })->then (sub {
+      my $parsed = $_[0]; # XXX if branch not found
+      my $tree = $parsed->{commits}->[0]->{tree};
+      return $tr->get_ls_tree ($tree, recursive => 1);
+    })->then (sub {
+      my $parsed = $_[0];
+
+      my $text_sets = {};
+      for (values %{$parsed->{items}}) {
+        next unless $_->{file} =~ m{/texts/config.json\z};
+        next unless $_->{type} eq 'blob';
+        # XXX next if symlink
+        my $path = '/' . $_->{file};
+        $path =~ s{/texts/config.json\z}{};
+        $text_sets->{$path}->{path} = $path;
+        $text_sets->{$path}->{texts_path} = (substr $path, 1) . '/texts';
+        # XXX text set label, desc, ...
+      }
+
+      my $has_root = (($parsed->{items}->{'texts/config.json'} || {})->{type} // '') eq 'blob'; # XXX and is not symlink
+      if ($has_root or not keys %$text_sets) {
+        $text_sets->{'/'}->{path} = '/';
+        $text_sets->{'/'}->{texts_path} = 'texts';
+      }
+
+      return $tr->get_last_commit_logs_by_paths ([map { $_->{texts_path} } values %$text_sets])->then (sub {
         my $parsed = $_[0];
-
-        my $text_sets = {};
-        for (values %{$parsed->{items}}) {
-          next unless $_->{file} =~ m{/texts/config.json\z};
-          next unless $_->{type} eq 'blob';
-          # XXX next if symlink
-          my $path = '/' . $_->{file};
-          $path =~ s{/texts/config.json\z}{};
-          $text_sets->{$path}->{path} = $path;
-          $text_sets->{$path}->{texts_path} = (substr $path, 1) . '/texts';
-          # XXX text set label, desc, ...
+        for (values %$text_sets) {
+          $_->{commit_log} = $parsed->{$_->{texts_path}};
         }
-
-        my $has_root = (($parsed->{items}->{'texts/config.json'} || {})->{type} // '') eq 'blob'; # XXX and is not symlink
-        if ($has_root or not keys %$text_sets) {
-          $text_sets->{'/'}->{path} = '/';
-          $text_sets->{'/'}->{texts_path} = 'texts';
-        }
-
-        return $tr->get_last_commit_logs_by_paths ([map { $_->{texts_path} } values %$text_sets])->then (sub {
-          my $parsed = $_[0];
-          for (values %$text_sets) {
-            $_->{commit_log} = $parsed->{$_->{texts_path}};
-          }
-          return $app->temma ('tr.branch.html.tm', {
-            app => $app,
-            tr => $tr,
-            text_sets => $text_sets,
-          });
+        return $app->temma ('tr.branch.html.tm', {
+          app => $app,
+          tr => $tr,
+          text_sets => $text_sets,
         });
-      })->catch (sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500);
-      })->then (sub {
-        return $tr->discard;
       });
+    })->catch (sub {
+      $app->error_log ($_[0]);
+      return $app->send_error (500);
+    })->then (sub {
+      return $tr->discard;
     });
-  }
+  } # /tr/{url}/{branch}
 
   if ($path->[0] eq 'tr' and @$path >= 4) {
     # /tr/{url}/{branch}/{path}
@@ -406,7 +408,8 @@ sub main ($$) {
         access_token => 1, scopes => 1,
       )->then (sub {
         $scopes = $_[0]->{scopes};
-        return $tr->prepare_mirror ($_[0]);
+        $tr->set_key ($_[0]);
+        return $tr->prepare_mirror;
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
@@ -440,7 +443,8 @@ sub main ($$) {
       # XXX request method
       my $tr_config;
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        return $tr->prepare_mirror ($_[0]);
+        $tr->set_key ($_[0]);
+        return $tr->prepare_mirror;
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
@@ -470,7 +474,8 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'export') {
       # .../export
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        return $tr->prepare_mirror ($_[0]);
+        $tr->set_key ($_[0]);
+        return $tr->prepare_mirror;
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
@@ -556,14 +561,11 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'import') {
       # .../import
 
-      my $account;
       return $class->get_push_token ($app, $tr, 'repo')->then (sub { # XXX scope
-        my $account = $_[0];
-        return $tr->prepare_mirror ($account)->then (sub {
-          return $tr->clone_from_mirror;
-        })->then (sub {
-          return $tr->make_pushable ($account->{access_token}, '');
-        });
+        $tr->set_key ($_[0]);
+        return $tr->prepare_mirror;
+      })->then (sub {
+        return $tr->clone_from_mirror (push => 1);
       })->then (sub {
         my $format = $app->text_param ('format') // '';
         my $arg_format = $app->text_param ('arg_format') // '';
@@ -646,7 +648,7 @@ sub main ($$) {
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
         $msg = 'Added a message' unless length $msg; # XXX
-        return $tr->commit ($account, $msg);
+        return $tr->commit ($msg);
       })->then (sub {
         return $tr->push; # XXX failure
       })->then (sub {
@@ -667,14 +669,11 @@ sub main ($$) {
         my $id = $path->[5]; # XXX validation
         my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
 
-        my $account;
         return $class->get_push_token ($app, $tr, 'edit/' . $lang)->then (sub {
-          $account = $_[0];
-          return $tr->prepare_mirror ($account)->then (sub {
-            return $tr->clone_from_mirror;
-          })->then (sub {
-            return $tr->make_pushable ($account->{access_token}, '');
-          });
+          $tr->set_key ($_[0]);
+          return $tr->prepare_mirror;
+        })->then (sub {
+          return $tr->clone_from_mirror (push => 1);
         })->then (sub {
           return $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt');
         })->then (sub {
@@ -688,7 +687,7 @@ sub main ($$) {
         })->then (sub {
           my $msg = $app->text_param ('commit_message') // '';
           $msg = 'Added a message' unless length $msg; # XXX
-          return $tr->commit ($account, $msg);
+          return $tr->commit ($msg);
         })->then (sub {
           return $tr->push; # XXX failure
         })->then (sub {
@@ -707,15 +706,12 @@ sub main ($$) {
 
         my $id = $path->[5]; # XXX validation
 
-        my $account;
         my $te;
         return $class->get_push_token ($app, $tr, 'texts')->then (sub {
-          $account = $_[0];
-          return $tr->prepare_mirror ($account)->then (sub {
-            return $tr->clone_from_mirror;
-          })->then (sub {
-            return $tr->make_pushable ($account->{access_token}, '');
-          });
+          $tr->set_key ($_[0]);
+          return $tr->prepare_mirror;
+        })->then (sub {
+          return $tr->clone_from_mirror (push => 1);
         })->then (sub {
           return $tr->read_file_by_text_id_and_suffix ($id, 'dat');
         })->then (sub {
@@ -745,7 +741,7 @@ sub main ($$) {
         })->then (sub {
           my $msg = $app->text_param ('commit_message') // '';
           $msg = 'Added a message' unless length $msg; # XXX
-          return $tr->commit ($account, $msg);
+          return $tr->commit ($msg);
         })->then (sub {
           return $tr->push; # XXX failure
         })->then (sub {
@@ -764,14 +760,11 @@ sub main ($$) {
 
         my $id = $path->[5]; # XXX validation
 
-        my $account;
         return $class->get_push_token ($app, $tr, 'comment')->then (sub {
-          $account = $_[0];
-          return $tr->prepare_mirror ($account)->then (sub {
-            return $tr->clone_from_mirror;
-          })->then (sub {
-            return $tr->make_pushable ($account->{access_token}, '');
-          });
+          $tr->set_key ($_[0]);
+          return $tr->prepare_mirror;
+        })->then (sub {
+          return $tr->clone_from_mirror;
         })->then (sub {
           my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
           $te->set (id => $tr->generate_section_id);
@@ -783,7 +776,7 @@ sub main ($$) {
         })->then (sub {
           my $msg = $app->text_param ('commit_message') // '';
           $msg = 'Added a comment' unless length $msg; # XXX
-          return $tr->commit ($account, $msg);
+          return $tr->commit ($msg);
         })->then (sub {
           return $tr->push; # XXX failure
         })->then (sub {
@@ -802,7 +795,8 @@ sub main ($$) {
 
         my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX validation
         return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-          return $tr->prepare_mirror ($_[0]);
+          $tr->set_key ($_[0]);
+          return $tr->prepare_mirror;
         })->then (sub {
           return $tr->git_log_for_text_id_and_lang
               ($id, $lang, with_file_text => 1);
@@ -833,15 +827,12 @@ sub main ($$) {
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
 
-      my $account;
       my $data = {texts => {}};
       return $class->get_push_token ($app, $tr, 'texts')->then (sub {
-        $account = $_[0];
-        return $tr->prepare_mirror ($account)->then (sub {
-          return $tr->clone_from_mirror;
-        })->then (sub {
-          return $tr->make_pushable ($account->{access_token}, '');
-        });
+        $tr->set_key ($_[0]);
+        return $tr->prepare_mirror;
+      })->then (sub {
+        return $tr->clone_from_mirror;
       })->then (sub {
         my $id = $tr->generate_text_id;
         my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
@@ -860,7 +851,7 @@ sub main ($$) {
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
         $msg = 'Added a message' unless length $msg; # XXX
-        return $tr->commit ($account, $msg);
+        return $tr->commit ($msg);
       })->then (sub {
         return $tr->push; # XXX failure
       })->then (sub {
@@ -882,15 +873,12 @@ sub main ($$) {
         my $lang_labels = $app->text_param_list ('lang_label');
         my $lang_label_shorts = $app->text_param_list ('lang_label_short');
 
-        my $account;
         return $class->get_push_token ($app, $tr, 'repo')->then (sub {
-          $account = $_[0];
-          return $tr->prepare_mirror ($account)->then (sub {
-            return $tr->clone_from_mirror;
-          })->then (sub {
-            return $tr->make_pushable ($account->{access_token}, '');
-          });
-          })->then (sub {
+          $tr->set_key ($_[0]);
+          return $tr->prepare_mirror;
+        })->then (sub {
+          return $tr->clone_from_mirror (push => 1);
+        })->then (sub {
           return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
         })->then (sub {
           my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
@@ -911,7 +899,7 @@ sub main ($$) {
         })->then (sub {
           my $msg = $app->text_param ('commit_message') // '';
           $msg = 'Added a message' unless length $msg; # XXX
-          return $tr->commit ($account, $msg);
+          return $tr->commit ($msg);
         })->then (sub {
           return $tr->push; # XXX failure
         })->then (sub {
@@ -933,7 +921,8 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'langs.json') {
       # .../langs.json
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        return $tr->prepare_mirror ($_[0]);
+        $tr->set_key ($_[0]);
+        return $tr->prepare_mirror;
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub { # XXX branch
@@ -979,14 +968,11 @@ sub main ($$) {
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
 
-      my $account;
       return $class->get_push_token ($app, $tr, 'repo')->then (sub {
-        $account = $_[0];
-        return $tr->prepare_mirror ($account)->then (sub {
-          return $tr->clone_from_mirror;
-        })->then (sub {
-          return $tr->make_pushable ($account->{access_token}, '');
-        });
+        $tr->set_key ($_[0]);
+        return $tr->prepare_mirror;
+      })->then (sub {
+        return $tr->clone_from_mirror (push => 1);
       })->then (sub {
         return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
       })->then (sub {
@@ -1003,7 +989,7 @@ sub main ($$) {
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
         $msg = 'Added a message' unless length $msg; # XXX
-        return $tr->commit ($account, $msg);
+        return $tr->commit ($msg);
       })->then (sub {
         return $tr->push; # XXX failure
       })->then (sub {
@@ -1019,7 +1005,8 @@ sub main ($$) {
       # .../comments # XXX HTML view
       # .../comments.json
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        return $tr->prepare_mirror ($_[0]);
+        $tr->set_key ($_[0]);
+        return $tr->prepare_mirror;
       })->then (sub {
         return $tr->get_recent_comments (limit => 50);
       })->then (sub {
@@ -1335,7 +1322,8 @@ sub check_read ($$$;%) {
       }
     } else { # no |repo| row
       return 0 unless $tr->url =~ m{^(?:https?|git):};
-      return $tr->prepare_mirror ({})->then (sub {
+      # no $tr->set_key
+      return $tr->prepare_mirror->then (sub {
         $scopes = {read => 1};
         $is_public = 1;
         return 1;

@@ -20,7 +20,9 @@ sub git ($$$) {
     return $cmd->wait;
   })->then (sub {
     my $result = $_[0];
-    die $result unless $result->is_success and $result->exit_code == 0;
+    unless ($result->is_success and $result->exit_code == 0) {
+      die "$result\n$stderr";
+    }
     return {stdout => $stdout, stderr => $stderr};
   });
 } # git

@@ -6,6 +6,7 @@ use AnyEvent::Util qw(run_cmd);
 use Encode;
 use Promise;
 use Promised::Command;
+use Promised::File;
 use Digest::SHA qw(sha1_hex);
 use Wanage::URL;
 use TR::TextEntry;
@@ -15,7 +16,7 @@ use TR::GitWorkingTree;
 
 sub new_from_mirror_and_temp_path ($$$) {
   return bless {mirror_path => $_[1], temp_path => $_[2]}, $_[0];
-} # new_from_mirror_and_temp_pat
+} # new_from_mirror_and_temp_path
 
 sub url ($;$) {
   if (@_ > 1) {
@@ -77,6 +78,10 @@ sub repo ($) {
   return $_[0]->{repo} ||= TR::GitWorkingTree->new_from_dir_name ($_[0]->repo_path);
 } # repo
 
+sub home_path ($) {
+  return $_[0]->{home_path} ||= $_[0]->{temp_path}->child ('home-' . rand);
+} # home_path
+
 sub texts_dir ($;$) {
   if (@_ > 1) {
     $_[0]->{texts_dir} = $_[1];
@@ -92,37 +97,72 @@ sub texts_path ($) {
   };
 } # texts_path
 
-sub prepare_mirror ($$) {
-  my ($self, $account) = @_;
+sub set_key ($$) {
+  my ($self, $keys) = @_;
+  die "|mirror_repo_path| is already set" if defined $self->{mirror_repo_path};
+
   my $mirror_path = $self->mirror_parent_path;
-  $mirror_path = $mirror_path->child ('private') if $account->{requires_token_for_pull};
+  $mirror_path = $mirror_path->child ('private') if $keys->{requires_token_for_pull};
   $mirror_path = $mirror_path->child ($self->path_name);
   $self->{mirror_repo_path} = $mirror_path;
+
+  my $url2 = my $url = $self->url;
+  # XXX non-github
+  if (defined $keys->{access_token}) {
+    my $user = percent_encode_c $keys->{access_token};
+    $url2 =~ s{^https://github.com/}{https://$user:\@github.com/};
+  }
+  if ($keys->{requires_token_for_pull}) {
+    $self->{keyed_url_for_pull} = $url2 if not $url eq $url2;
+  }
+  $self->{keyed_url_for_push} = $url2 if not $url eq $url2;
+
+  my $name = $keys->{name} // '';
+  $name = $keys->{account_id} // 'unknown' unless length $name;
+  my $email = $self->config->get ('git.author.email_pattern');
+  $email =~ s/\{account_id\}/$keys->{account_id}/g;
+  $self->{author_name} = $name;
+  $self->{author_email} = $email;
+} # set_key
+
+sub prepare_mirror ($) {
+  my ($self) = @_;
+  my $p = Promise->resolve;
+  return $p if $self->{fetched};
+  my $url = $self->url;
+  my $keyed_url = $self->{keyed_url_for_pull}; # set by $self->set_key
+  if (defined $keyed_url) {
+    $p = $p->then (sub { return git_home_config ($self->home_path, ["url.$keyed_url.insteadOf", $url]) });
+  }
+  my $mirror_path = $self->mirror_repo_path; # set by $self->set_key
   if ($mirror_path->child ('config')->is_file) {
-    return Promise->resolve if $self->{fetched};
-    return $self->mirror_repo->fetch->then (sub { $self->{fetched} = 1 });
+    my $mirror_repo = $self->mirror_repo;
+    $mirror_repo->home_dir_name ($self->home_path);
+    return $p->then (sub {
+      return $mirror_repo->fetch;
+    })->then (sub {
+      $self->{fetched} = 1;
+      $mirror_repo->home_dir_name (undef);
+    });
   } else {
-    my $url = $self->url;
-    if ($account->{requires_token_for_pull}) {
-      $url =~ s{^https://github.com/}{https://$account->{access_token}:\@github.com/}; # XXX
-    }
-    return git_clone (['--mirror', $url, $mirror_path]);
+    return $p->then (sub { return git_clone (['--mirror', $url, $mirror_path], home => $self->home_path) });
   }
   # XXX branch not found error
 } # prepare_mirror
 
-sub clone_from_mirror ($) {
-  my $self = $_[0];
-  # XXX default branch
-  return git_clone (['-b', $self->branch, $self->mirror_repo_path, $self->repo_path]);
+sub clone_from_mirror ($;%) {
+  my ($self, %args) = @_;
+  my $p = git_clone (['-b', $self->branch, $self->mirror_repo_path, $self->repo_path]);
+  if ($args{push}) {
+    my $keyed_url = $self->{keyed_url_for_push}; # set by $self->set_key
+    if (defined $keyed_url) {
+      $p = $p->then (sub {
+        return $self->repo->git ('remote', ['add', 'remoterepo', $keyed_url]);
+      });
+    }
+  }
+  return $p;
 } # clone_from_mirror
-
-sub make_pushable ($$$) {
-  my ($self, $userid, $password) = @_;
-  my $url = $self->url;
-  $url =~ s{^https://github\.com/}{'https://'.(percent_encode_c $userid).':'.(percent_encode_c $password).'@github.com/'}e; # XXX
-  return $self->repo->git ('remote', ['add', 'remoterepo', $url]);
-} # make_pushable
 
 sub get_branches ($) {
   my $self = $_[0];
@@ -486,17 +526,13 @@ sub add_by_paths ($$) {
   return $self->repo->git ('add', [map { quotemeta $_->relative ($repo_path) } @$paths]);
 } # add_by_paths
 
-sub commit ($$$) {
-  my ($self, $account, $msg) = @_;
+sub commit ($$) {
+  my ($self, $msg) = @_;
   $msg = ' ' unless length $msg;
-  my $name = $account->{name};
-  $name = $account->{account_id} unless length $name;
-  my $email = $self->config->get ('git.author.email_pattern');
-  $email =~ s/\{account_id\}/$account->{account_id}/g;
   return $self->repo->commit (
     message => $msg,
-    author_email => $email,
-    author_name => $name,
+    author_email => $self->{author_email}, # set by $self->set_key
+    author_name => $self->{author_name}, # set by $self->set_key
     committer_email => $self->config->get ('git.committer.email'),
     committer_name => $self->config->get ('git.committer.name'),
   );
@@ -510,10 +546,10 @@ sub push ($) {
 
 sub discard ($) {
   my $self = $_[0];
-  return Promise->new (sub {
-    $self->repo_path->remove_tree ({safe => 0});
-    $_[0]->();
-  });
+  return Promise->all ([
+    Promised::File->new_from_path ($self->repo_path)->remove_tree,
+    Promised::File->new_from_path ($self->home_path)->remove_tree,
+  ]);
 } # discard
 
 1;

@@ -9,9 +9,7 @@
 
   <header class=textset itemscope itemtype=data>
     <hgroup> 
-      <h1 title=Repository><a href="../../" rel="up up up"><code itemprop=url><t:text value="$tr->url"></code></a></h1>
-      <h2 title=Branch><a href="../" rel="up up"><code itemprop=branch><t:text value="$tr->branch"></code></a></h2>
-      <h3 title=Path><a href="./" rel=up><code itemprop=texts-path><t:text value="'/' . $tr->texts_dir"></code></a></h3>
+      <h1 title=Repository><a href="./" rel="up"><code itemprop=url><t:text value="$tr->url"></code></a></h1>
     </hgroup>
   </header>
 
