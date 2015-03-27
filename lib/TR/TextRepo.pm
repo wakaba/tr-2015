@@ -553,6 +553,84 @@ sub get_data_as_jsonalizable ($%) {
   });
 } # get_data_as_jsonalizable
 
+sub import ($$%) {
+  my ($self, $files, %args) = @_;
+  my @q;
+  for my $file (@$files) {
+    my $lang = $args{lang};
+    # XXX format=auto
+    if ($args{format} eq 'po') { # XXX and pot
+      my $arg_format = $args{arg_format} || 'printf'; #$arg_format normalization
+      $arg_format = 'printf' if $arg_format eq 'auto'; # XXX
+      
+      require Popopo::Parser;
+      my $parser = Popopo::Parser->new;
+      # XXX onerror
+      my $es = $parser->parse_string (path ($file->as_f)->slurp_utf8); # XXX blocking XXX charset
+      # XXX lang and ohter metadata from header
+
+      my $msgid_to_e = {};
+      for my $e (@{$es->entries}) {
+        $msgid_to_e->{$e->msgid} = $e; # XXX warn duplicates
+      }
+
+      push @q, $self->text_ids->then (sub {
+        my @id = keys %{$_[0]};
+        my @p;
+        for my $id (@id) {
+          push @p, $self->read_file_by_text_id_and_suffix ($id, 'dat')->then (sub {
+            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+            my $mid = $te->get ('msgid');
+            return unless defined $mid and my $e = delete $msgid_to_e->{$mid};
+            $te->enum ('tags')->{$_} = 1 for @{$args{tags}};
+
+            push @p, $self->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
+              my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+              $te->set (body_0 => $e->msgstr);
+              $te->set (last_modified => time);
+              # XXX and other fields
+              # XXX args
+              return $self->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
+            });
+
+            return $self->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
+          });
+        } # $id
+      })->then (sub {
+        my @p;
+        for my $msgid (keys %$msgid_to_e) {
+          my $e = $msgid_to_e->{$msgid};
+          my $id = $self->generate_text_id;
+          {
+            my $te = TR::TextEntry->new_from_text_id_and_source_text
+                ($id, '');
+            $te->set (msgid => $msgid);
+            $te->enum ('tags')->{$_} = 1 for @{$args{tags}};
+            # XXX comment, ...
+            push @p, $self->write_file_by_text_id_and_suffix
+                ($id, 'dat' => $te->as_source_text);
+          }
+          {
+            my $te = TR::TextEntry->new_from_text_id_and_source_text
+                ($id, '');
+            $te->set (body_0 => $e->msgstr);
+            $te->set (last_modified => time);
+            # XXX and other fields
+            # XXX args
+            push @p, $self->write_file_by_text_id_and_suffix
+                ($id, $lang.'.txt' => $te->as_source_text);
+          }
+        }
+        return Promise->all (\@p);
+      });
+    } else {
+      # XXX
+      die "Unknown format |$args{format}|";
+    }
+  } # $file
+  return Promise->all (\@q);
+} # import
+
 sub add_by_paths ($$) {
   my ($self, $paths) = @_;
   return Promise->reject ("No file to add") unless @$paths;

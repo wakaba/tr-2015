@@ -28,7 +28,7 @@ sub db ($) {
 
 sub account_server ($$$) {
   my ($self, $path, $params) = @_;
-  my $prefix = $self->config->{account_url_prefix};
+  my $prefix = $self->config->get ('account.url_prefix');
   my $api_token = $self->config->{account_token};
   return Promise->new (sub {
     my ($ok, $ng) = @_;
@@ -36,6 +36,7 @@ sub account_server ($$$) {
         url => $prefix . $path,
         header_fields => {Authorization => 'Bearer ' . $api_token},
         params => $params,
+        timeout => 30,
         anyevent => 1,
         cb => sub {
           my (undef, $res) = @_;
