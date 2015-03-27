@@ -1307,8 +1307,13 @@ sub check_read ($$$;%) {
                 repo_url => Dongry::Type->serialize ('text', $tr->url),
               }, fields => ['data'])->then (sub {
                 my $row = $_[0]->first_as_row;
-                $scopes = $row->get ('data') if defined $row;
-                return (defined $scopes and $scopes->{read});
+                if (defined $row) {
+                  $scopes = $row->get ('data');
+                  return $scopes->{read};
+                } else {
+                  $scopes = {read => 1};
+                  return 1;
+                }
               });
             } else {
               $scopes = {read => 1};
