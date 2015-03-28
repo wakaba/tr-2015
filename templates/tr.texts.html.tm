@@ -490,7 +490,11 @@ function updateTable () {
   mainTableData.textContent = '';
   var mainTableStatus = mainTable.querySelector ('tbody.status');
   mainTableStatus.hidden = false;
-  mainTableStatus.querySelector ('.message').textContent = 'Loading...';
+  var statusMessage = mainTableStatus.querySelector ('.message');
+  statusMessage.textContent = 'Loading...';
+  var statusBar = mainTableStatus.querySelector ('progress');
+  statusBar.removeAttribute ('value');
+  statusBar.removeAttribute ('max');
 
   var item = document.querySelector ('[itemtype=data]');
   var url = item.querySelector ('[itemprop=data-url]').href;
@@ -501,10 +505,7 @@ function updateTable () {
   var query = form.elements.q.value;
   var xhr = new XMLHttpRequest;
   xhr.open ('POST', url, true);
-  xhr.onreadystatechange = function () {
-    if (xhr.readyState === 4) {
-      if (xhr.status < 400) {
-        var json = JSON.parse (xhr.responseText);
+  var readJSON = function (json) {
         var scopes = [];
         for (var scope in json.scopes) {
           scopes.push (scope);
@@ -518,8 +519,23 @@ function updateTable () {
         mainTableData.hidden = false;
         mainTableStatus.hidden = true;
         history.replaceState (null, null, './?q=' + encodeURIComponent (query) + langQuery);
-      } else {
-        // XXX
+  };
+  var nextChunk = 0;
+  xhr.onreadystatechange = function () {
+    if (xhr.readyState === 3 || xhr.readyState === 4) {
+      // XXX xhr.status
+      var responses = xhr.responseText.split (/\n/);
+      while (nextChunk + 1 < responses.length) {
+        var chunk = JSON.parse (responses[nextChunk]);
+        nextChunk += 2;
+        console.log (chunk);
+        if (chunk.type === 'progress') {
+          if (chunk.message) statusMessage.textContent = chunk.message;
+          if (chunk.value) statusBar.value = chunk.value;
+          if (chunk.max) statusBar.max = chunk.max;
+        } else if (chunk.type === 'final') {
+          readJSON (chunk.data);
+        }
       }
     }
   };

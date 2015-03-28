@@ -481,9 +481,14 @@ sub get_data_as_jsonalizable ($%) {
     my $equals = $query->equals;
     undef $msgids unless keys %$msgids;
     my $p = Promise->resolve;
+    my $i = 0;
     for my $id (@id) {
       $p = $p->then (sub { $self->read_file_by_text_id_and_suffix ($id, 'dat') })->then (sub {
         my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+        $i++;
+        if ($args{onprogress} and ($i % 100) == 0) {
+          $args{onprogress}->({type => 'progress', value => $i, max => $#id});
+        }
         if (defined $msgids) {
           my $mid = $te->get ('msgid');
           return unless defined $mid;

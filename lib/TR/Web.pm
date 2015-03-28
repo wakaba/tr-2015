@@ -424,6 +424,11 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'data.json') {
       # .../data.json
+
+      $app->http->set_response_header ('Content-Type' => 'application/json; charset=utf-8'); # XXX
+      $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'progress', message => 'Start loading...'});
+      $app->http->send_response_body_as_ref (\"\nnull\n");
+
       # XXX ensure $tr->path does not contain symlinks
       my $q;
       my $scopes;
@@ -432,8 +437,12 @@ sub main ($$) {
         access_token => 1, scopes => 1,
       )->then (sub {
         $scopes = $_[0]->{scopes};
+        $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'progress', message => 'Fetching the remote repository...'});
+        $app->http->send_response_body_as_ref (\"\nnull\n");
         return $tr->prepare_mirror ($_[0]);
       })->then (sub {
+        $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'progress', message => 'Cloning the repository...'});
+        $app->http->send_response_body_as_ref (\"\nnull\n");
         return $tr->clone_from_mirror;
       })->then (sub {
         require TR::Query;
@@ -445,18 +454,28 @@ sub main ($$) {
           tags => $app->text_param_list ('tag'),
           tag_minuses => $app->text_param_list ('tag_minus'),
         );
+        $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'progress', message => 'Reading data...'});
+        $app->http->send_response_body_as_ref (\"\nnull\n");
         return $tr->get_data_as_jsonalizable
             ($q,
              $app->text_param_list ('lang')->grep (sub { length }),
-             with_comments => $app->bare_param ('with_comments'));
+             with_comments => $app->bare_param ('with_comments'),
+             onprogress => sub {
+               $app->http->send_response_body_as_ref (\perl2json_bytes $_[0]);
+               $app->http->send_response_body_as_ref (\"\nnull\n");
+             });
       })->then (sub {
         my $json = $_[0];
+        $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'progress', message => 'Sending data...'});
+        $app->http->send_response_body_as_ref (\"\nnull\n");
         $json->{scopes} = $scopes;
         $json->{query} = $q->as_jsonalizable;
-        return $app->send_json ($json);
+        $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'final', data => $json});
+        $app->http->send_response_body_as_ref (\"\nnull\n");
+        $app->http->close_response_body;
       })->catch (sub {
         $app->error_log ($_[0]);
-        return $app->send_error (500);
+        return $app->send_error (500); # XXX
       })->then (sub {
         return $tr->discard;
       });
