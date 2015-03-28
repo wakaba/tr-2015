@@ -135,6 +135,8 @@ sub prepare_mirror ($$) {
       my $cmd = Promised::Command->new (['chmod', '0600', $self->{private_key_path}]);
       return $cmd->run->then (sub { return $cmd->wait });
     });
+  } elsif ($repo_type eq 'file') {
+    #
   } else {
     die "Unknown repository type |$repo_type|";
   }
@@ -553,7 +555,7 @@ sub get_data_as_jsonalizable ($%) {
   });
 } # get_data_as_jsonalizable
 
-sub import ($$%) {
+sub import_file ($$%) {
   my ($self, $files, %args) = @_;
   my @q;
   for my $file (@$files) {

@@ -219,7 +219,9 @@ sub main ($$) {
               })->then (sub {
                 return {is_owner => 1, is_public => 0};
               });
-            } else {
+            } elsif ($repo_type eq 'file') {
+              Promise->resolve ({is_owner => 1, is_public => 1});
+            } else { # $repo_type
               Promise->reject ("Can't get ownership of a repository with type |$repo_type|");
             }
           }->then (sub {
@@ -585,13 +587,18 @@ sub main ($$) {
       })->then (sub {
         return $tr->clone_from_mirror (push => 1);
       })->then (sub {
-        return $tr->import (
-          $app->http->request_uploads->{file} || [],
-          format => $app->text_param ('format') // '',
-          arg_format => $app->text_param ('arg_format') // '',
-          tags => $app->text_param_list ('tag')->grep (sub { length }),
-          lang => $app->text_param ('lang') // return $app->send_error (400), # XXX lang validation # XXX auto
-        );
+        my $from = $app->bare_param ('from') // '';
+        if ($from eq 'file') {
+          return $tr->import_file (
+            $app->http->request_uploads->{file} || [],
+            format => $app->text_param ('format') // '',
+            arg_format => $app->text_param ('arg_format') // '',
+            tags => $app->text_param_list ('tag')->grep (sub { length }),
+            lang => $app->text_param ('lang') // return $app->send_error (400), # XXX lang validation # XXX auto
+          );
+        } else {
+          return $app->throw_error (400, reason_phrase => 'Bad |from|');
+        }
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
         $msg = 'Added a message' unless length $msg; # XXX
@@ -1171,9 +1178,10 @@ sub create_text_repo ($$$) {
   $tr->config ($app->config);
 
   return $app->throw_error (404, reason_phrase => 'Bad repository URL')
-      if $url =~ /[#?]/;
+      if $url =~ /[#]/;
   $url =~ s{^([^/:\@]+\@[^/:]+):}{ssh://$1/};
-  $url = url_to_canon_url $url, 'about:blank';
+  $url =~ s{^/}{file:///};
+  $url = (url_to_canon_url $url, 'about:blank') // '';
   $url =~ s{\.git/?\z}{};
   
   # XXX
@@ -1183,8 +1191,10 @@ sub create_text_repo ($$$) {
   } elsif ($url =~ m{\Assh://git\@melon/(/git/pub/.+)\z}) {
     $url = qq{git\@melon:$1};
     $tr->repo_type ('ssh');
+  } elsif ($url =~ m{\Afile://\Q@{[path (__FILE__)->parent->parent->parent->child ('local/pub')]}\E/} and not $url =~ /\?/) {
+    $tr->repo_type ('file');
   } else {
-    return $app->throw_error (404, reason_phrase => 'Bad repository URL');
+    return $app->throw_error (404, reason_phrase => "Bad repository URL");
   }
 
   $tr->url ($url);
@@ -1298,6 +1308,8 @@ sub check_read ($$$;%) {
             $server = 'github';
           } elsif ($repo_type eq 'ssh') {
             $server = 'ssh';
+          } elsif ($repo_type eq 'file') {
+            return {access_token => ''};
           } else {
             die "Can't pull repository of type |$repo_type|";
           }
@@ -1308,7 +1320,7 @@ sub check_read ($$$;%) {
         })->then (sub {
           my $json = $_[0];
           my $token = $json->{access_token};
-          return $app->throw_error (403, reason_phrase => 'The repository owner has no GitHub access token')
+          return $app->throw_error (403, reason_phrase => 'The repository owner has no access token')
               unless defined $token;
           $account->{scopes} = $scopes if $args{scopes};
           $account->{access_token} = $token;
@@ -1369,6 +1381,8 @@ sub get_push_token ($$$$) {
       $server = 'github';
     } elsif ($repo_type eq 'ssh') {
       $server = 'ssh';
+    } elsif ($repo_type eq 'file') {
+      return {access_token => ''};
     } else {
       die "Can't pull repository of type |$repo_type|";
     }

@@ -1191,6 +1191,7 @@ function saveArea (area, onsaved) { // XXX promise
     <h1>Import</h1>
 
     <form action=import method=post enctype=multipart/form-data target=_blank>
+      <input type=hidden name=from value=file>
       <table class=config>
         <tr>
           <th><label for=import-file>Files</label>
