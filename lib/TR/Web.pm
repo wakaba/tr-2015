@@ -589,12 +589,24 @@ sub main ($$) {
       })->then (sub {
         my $from = $app->bare_param ('from') // '';
         if ($from eq 'file') {
+          my $lang = $app->text_param ('lang') // return $app->send_error (400); # XXX lang validation # XXX auto
+          my $format = $app->text_param ('format') // '';
           return $tr->import_file (
-            $app->http->request_uploads->{file} || [],
+            [map {
+              sub {
+                return {get => path ($_->as_f)->slurp,
+                        lang => $lang,
+                        format => $format};
+              }; # XXX blocking
+            } @{$app->http->request_uploads->{file} || []}],
+            arg_format => $app->text_param ('arg_format') // '',
+            tags => $app->text_param_list ('tag')->grep (sub { length }),
+          );
+        } elsif ($from eq 'repo') {
+          return $tr->import_auto (
             format => $app->text_param ('format') // '',
             arg_format => $app->text_param ('arg_format') // '',
             tags => $app->text_param_list ('tag')->grep (sub { length }),
-            lang => $app->text_param ('lang') // return $app->send_error (400), # XXX lang validation # XXX auto
           );
         } else {
           return $app->throw_error (400, reason_phrase => 'Bad |from|');
@@ -1178,11 +1190,14 @@ sub create_text_repo ($$$) {
   $tr->config ($app->config);
 
   return $app->throw_error (404, reason_phrase => 'Bad repository URL')
-      if $url =~ /[#]/;
+      if $url =~ /[?#]/;
   $url =~ s{^([^/:\@]+\@[^/:]+):}{ssh://$1/};
   $url =~ s{^/}{file:///};
   $url = (url_to_canon_url $url, 'about:blank') // '';
   $url =~ s{\.git/?\z}{};
+  if ($url =~ m{^file:}) {
+    $url =~ s{/+\z}{};
+  }
   
   # XXX
   if ($url =~ m{\A(?:https?://|git://|ssh://git\@)github\.com/([^/]+/[^/]+)\z}) {
@@ -1191,7 +1206,7 @@ sub create_text_repo ($$$) {
   } elsif ($url =~ m{\Assh://git\@melon/(/git/pub/.+)\z}) {
     $url = qq{git\@melon:$1};
     $tr->repo_type ('ssh');
-  } elsif ($url =~ m{\Afile://\Q@{[path (__FILE__)->parent->parent->parent->child ('local/pub')]}\E/} and not $url =~ /\?/) {
+  } elsif ($url =~ m{\Afile://\Q@{[path (__FILE__)->parent->parent->parent->child ('local/pub')]}\E/}) {
     $tr->repo_type ('file');
   } else {
     return $app->throw_error (404, reason_phrase => "Bad repository URL");

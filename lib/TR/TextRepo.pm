@@ -99,7 +99,7 @@ sub texts_dir ($;$) {
 sub texts_path ($) {
   return $_[0]->{texts_path} ||= do {
     my $p = $_[0]->repo_path;
-    $p = $p->child ($_[0]->{texts_dir}) if defined $_[0]->{texts_dir} and length $_[0]->{texts_dir};
+    $p = $p->child ($_[0]->{texts_dir}) if defined $_[0]->{texts_dir};
     $p->child ('texts');
   };
 } # texts_path
@@ -186,6 +186,7 @@ sub prepare_mirror ($$) {
 
 sub clone_from_mirror ($;%) {
   my ($self, %args) = @_;
+  # XXX if $self->branch is not a branch
   my $p = git_clone (['-b', $self->branch, $self->mirror_repo_path, $self->repo_path]);
   if ($args{push}) {
     my $repo = $self->repo;
@@ -250,10 +251,11 @@ sub get_last_commit_logs_by_paths ($$) {
 } # get_last_commit_logs_by_paths
 
 sub get_ls_tree ($$;%) {
-  my ($self, $tree, %args) = @_;
+  my ($self, $treeish, %args) = @_;
   return $self->mirror_repo->git ('ls-tree', [
     ($args{recursive} ? '-r' : ()),
-    $tree,
+    $treeish,
+    @{$args{paths} or []},
   ])->then (sub {
     my $result = $_[0];
     my $parsed = {items => {}};
@@ -557,99 +559,155 @@ sub get_data_as_jsonalizable ($%) {
 
 sub import_file ($$%) {
   my ($self, $files, %args) = @_;
-  my @q;
+
+  my $new_text_ids = {};
+  my $modified_text_ids = {};
+  my $msgid_to_text_id = {};
+  my $q = $self->text_ids->then (sub {
+    my @id = keys %{$_[0]};
+    my $p = Promise->resolve;
+    for my $id (@id) {
+      $p = $p->then (sub {
+        return $self->read_file_by_text_id_and_suffix ($id, 'dat')->then (sub {
+          my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+          my $msgid = $te->get ('msgid');
+          $msgid_to_text_id->{$msgid} = $id if defined $msgid;
+        });
+      });
+    }
+  });
+
+  my @added_lang;
   for my $file (@$files) {
-    my $lang = $args{lang};
+    my $lang = $file->{lang};
+    push @added_lang, $lang;
     # XXX format=auto
-    if ($args{format} eq 'po') { # XXX and pot
+    if ($file->{format} eq 'po') { # XXX and pot
       my $arg_format = $args{arg_format} || 'printf'; #$arg_format normalization
       $arg_format = 'printf' if $arg_format eq 'auto'; # XXX
-      
-      require Popopo::Parser;
-      my $parser = Popopo::Parser->new;
-      # XXX onerror
-      my $es = $parser->parse_string (path ($file->as_f)->slurp_utf8); # XXX blocking XXX charset
-      # XXX lang and ohter metadata from header
 
       my $msgid_to_e = {};
-      for my $e (@{$es->entries}) {
-        $msgid_to_e->{$e->msgid} = $e; # XXX warn duplicates
-      }
+      $q = $q->then (sub { return $file->{get}->() })->then (sub {
+        require Popopo::Parser;
+        my $parser = Popopo::Parser->new;
+        # XXX onerror
+        my $es = $parser->parse_string (decode 'utf-8', $_[0]); # XXX charset
+        # XXX lang and ohter metadata from header
 
-      push @q, $self->text_ids->then (sub {
-        my @id = keys %{$_[0]};
-        my @p;
-        for my $id (@id) {
-          push @p, $self->read_file_by_text_id_and_suffix ($id, 'dat')->then (sub {
-            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
-            my $mid = $te->get ('msgid');
-            return unless defined $mid and my $e = delete $msgid_to_e->{$mid};
-            $te->enum ('tags')->{$_} = 1 for @{$args{tags}};
-
-            push @p, $self->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
-              my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
-              $te->set (body_0 => $e->msgstr);
-              $te->set (last_modified => time);
-              # XXX and other fields
-              # XXX args
-              return $self->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
-            });
-
-            return $self->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
-          });
-        } # $id
-      })->then (sub {
-        my @p;
-        for my $msgid (keys %$msgid_to_e) {
-          my $e = $msgid_to_e->{$msgid};
-          my $id = $self->generate_text_id;
-          {
-            my $te = TR::TextEntry->new_from_text_id_and_source_text
-                ($id, '');
-            $te->set (msgid => $msgid);
-            $te->enum ('tags')->{$_} = 1 for @{$args{tags}};
-            # XXX comment, ...
-            push @p, $self->write_file_by_text_id_and_suffix
-                ($id, 'dat' => $te->as_source_text);
+        my $p = Promise->resolve;
+        for my $e (@{$es->entries}) {
+          # XXX warn duplicate msgid
+          my $id = $msgid_to_text_id->{$e->msgid};
+          unless (defined $id) {
+            $id = $self->generate_text_id;
+            $msgid_to_text_id->{$e->msgid} = $id;
+            $new_text_ids->{$id} = $e->msgid;
+            $modified_text_ids->{$id} = 1;
           }
-          {
-            my $te = TR::TextEntry->new_from_text_id_and_source_text
-                ($id, '');
+          $p = $p->then (sub {
+            return $self->read_file_by_text_id_and_suffix ($id, $lang . '.txt');
+          })->then (sub {
+            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
             $te->set (body_0 => $e->msgstr);
-            $te->set (last_modified => time);
+            $te->set (last_modified => time); # XXX only when updated
+            $modified_text_ids->{$id} = 1; # XXX only when updated
             # XXX and other fields
             # XXX args
-            push @p, $self->write_file_by_text_id_and_suffix
-                ($id, $lang.'.txt' => $te->as_source_text);
-          }
+            return $self->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
+          });
         }
-        return Promise->all (\@p);
+        return $p;
       });
     } else {
       # XXX
-      die "Unknown format |$args{format}|";
+      die "Unknown format |$file->{format}|";
     }
   } # $file
-  return Promise->all (\@q);
-} # import
+
+  ## Text data
+  for my $id (keys %$modified_text_ids) {
+    $q = $q->then (sub {
+      return $self->read_file_by_text_id_and_suffix ($id, 'dat');
+    })->then (sub {
+      my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+      $te->set (msgid => $new_text_ids->{$id}) if defined $new_text_ids->{$id};
+      $te->enum ('tags')->{$_} = 1 for @{$args{tags}};
+      return $self->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
+    });
+  }
+
+  ## Text-set-global data
+  $q = $q->then (sub {
+    return $self->read_file_by_path ($self->texts_path->child ('config.json'));
+  })->then (sub {
+    my $te = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
+    my @lang = split /,/, $te->get ('langs') // '';
+    my %found;
+    $found{$_}++ for @lang;
+    push @lang, grep { not $found{$_}++ } @added_lang;
+    $te->set (langs => join ',', @lang);
+    return $self->write_file_by_path ($self->texts_path->child ('config.json'), $te->as_source_text);
+  });
+
+  return $q;
+} # import_file
+
+sub import_auto ($%) {
+  my ($self, %args) = @_;
+
+  my $path = defined $self->{texts_dir} ? $self->{texts_dir} . '/' : '';
+  my $rev = $self->branch;
+  return $self->get_ls_tree (
+    $rev,
+    recursive => 1,
+    paths => [defined $path ? ($path) : ()],
+  )->then (sub {
+    my $data = $_[0];
+    my $files = [map { $data->{items}->{$_} } grep { m{\A\Q$path\E.+\.po\z} } keys %{$data->{items}}];
+    my $ps = [];
+    for my $file (@$files) {
+      $file->{file} =~ m{([^/]+)\.po\z};
+      my $lang = $1; # XXX validation, normalization
+      push @$ps, {
+        get => sub {
+          # XXX size restriction
+          return $self->mirror_repo->git ('show', [$file->{object}])->then (sub { return $_[0]->{stdout} });
+        },
+        lang => $lang,
+        format => 'po',
+      };
+    }
+    return $self->import_file ($ps, %args);
+  });
+} # import_auto
 
 sub add_by_paths ($$) {
   my ($self, $paths) = @_;
   return Promise->reject ("No file to add") unless @$paths;
   my $repo_path = $self->repo_path;
-  return $self->repo->git ('add', [map { quotemeta $_->relative ($repo_path) } @$paths]);
+  $self->{git_add}->{$_} = 1 for map { $_->relative ($repo_path) } @$paths;
+  return Promise->resolve;
 } # add_by_paths
 
 sub commit ($$) {
   my ($self, $msg) = @_;
   $msg = ' ' unless length $msg;
-  return $self->repo->commit (
-    message => $msg,
-    author_email => $self->{author_email}, # set by $self->set_key
-    author_name => $self->{author_name}, # set by $self->set_key
-    committer_email => $self->config->get ('git.committer.email'),
-    committer_name => $self->config->get ('git.committer.name'),
-  );
+  my $p = Promise->resolve;
+  my @add = keys %{$self->{git_add} or {}};
+  while (@add) {
+    my @x = splice @add, 0, 30, ();
+    $p = $p->then (sub { return $self->repo->git ('add', \@x) });
+  }
+  delete $self->{git_add};
+  return $p->then (sub {
+    return $self->repo->commit (
+      message => $msg,
+      author_email => $self->{author_email}, # set by $self->set_key
+      author_name => $self->{author_name}, # set by $self->set_key
+      committer_email => $self->config->get ('git.committer.email'),
+      committer_name => $self->config->get ('git.committer.name'),
+    );
+  });
   # XXX ignore nothing-to-commit error
 } # commit
 
