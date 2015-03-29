@@ -652,9 +652,10 @@ sub main ($$) {
         return $class->get_push_token ($app, $tr, 'edit/' . $lang)->then (sub {
           return $tr->prepare_mirror ($_[0]);
         })->then (sub {
-          return $tr->clone_from_mirror (push => 1);
+          return $tr->clone_from_mirror (push => 1, no_checkout => 1);
         })->then (sub {
-          return $tr->read_file_by_text_id_and_suffix ($id, $lang . '.txt');
+          my $path = $tr->text_id_and_suffix_to_relative_path ($id, $lang . '.txt');
+          return $tr->mirror_repo->show_blob_by_path ($tr->branch, $path);
         })->then (sub {
           my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
           for (qw(body_0 body_1 body_2 body_3 body_4 forms)) {

@@ -189,7 +189,17 @@ sub prepare_mirror ($$) {
 sub clone_from_mirror ($;%) {
   my ($self, %args) = @_;
   # XXX if $self->branch is not a branch
-  my $p = git_clone (['-b', $self->branch, $self->mirror_repo_path, $self->repo_path]);
+  my $p = git_clone ([
+    '-b', $self->branch,
+    ($args{no_checkout} ? '-n' : ()),
+    $self->mirror_repo_path, $self->repo_path,
+  ]);
+  if ($args{no_checkout}) {
+    my $repo = $self->repo;
+    $p = $p->then (sub {
+      return $repo->git ('reset', ['HEAD']);
+    });
+  }
   if ($args{push}) {
     my $repo = $self->repo;
     $repo->home_dir_name ($self->home_path);
