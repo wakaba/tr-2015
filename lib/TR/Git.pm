@@ -29,7 +29,8 @@ sub git_clone ($;%) {
       if defined $opt{ssh_private_key};
   $cmd->stdin (\'');
   $cmd->stdout (\my $stdout);
-  $cmd->stderr (\my $stderr);
+  my $stderr = '';
+  $cmd->stderr (sub { $stderr .= $_[0] if defined $_[0]; AE::log alert => $_[0] if defined $_[0] });
   $cmd->timeout (100);
   return $cmd->run->then (sub {
     return $cmd->wait;
@@ -38,7 +39,7 @@ sub git_clone ($;%) {
     unless ($result->is_success and $result->exit_code == 0) {
       die "$result\n$stderr";
     }
-    return {stdout => $stdout, stderr => $stderr};
+    return {stdout => $stdout};
   });
 } # git_clone
 

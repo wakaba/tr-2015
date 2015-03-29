@@ -1,7 +1,7 @@
 package TR::TextEntry;
 use strict;
 use warnings;
-use Encode;
+use Unicode::UTF8 qw(decode_utf8);
 
 sub _e ($) {
   my $s = $_[0];
@@ -10,21 +10,22 @@ sub _e ($) {
 } # _e
 
 sub _ue ($) {
+  return $_[0] unless $_[0] =~ /\\/;
   my $v = $_[0];
   $v =~ s/\\([nrC\\])/{n => "\x0A", r => "\x0D", "C" => ":", "\\" => "\\"}->{$1}/ge;
   return $v;
 } # _ue
 
 sub new_from_text_id_and_source_bytes ($$$) {
-  return shift->new_from_text_id_and_source_text ($_[0], decode 'utf-8', $_[1]);
+  return shift->new_from_text_id_and_source_text ($_[0], decode_utf8 $_[1]);
 } # new_from_text_id_and_source_bytes
 
 sub new_from_text_id_and_source_text ($$$) {
   my ($class, $id, $text) = @_;
   my $self = bless {text_id => $id}, $class;
   my $props = $self->{props} = {};
-  my $enum_props = $self->{enum_props} = {tags => {}};
-  my $list_props = $self->{list_props} = {args => []};
+  my $enum_props = $self->{enum_props} = {};
+  my $list_props = $self->{list_props} = {};
   $text =~ s/\x0D\x0A/\x0A/g;
   for (split /\x0A/, $text) {
     if (/\A\$([^:]+):(.*)\z/) {
@@ -101,7 +102,9 @@ sub as_source_text ($) {
 sub as_jsonalizable ($) {
   my $self = $_[0];
   my $json = {%{$self->{props}}};
-  $json->{text_id} = $self->text_id;
+  for (qw(tags args)) {
+    delete $json->{$_} if defined $json->{$_};
+  }
   for my $key (keys %{$self->{enum_props}}) {
     $json->{$key} = [sort { $a cmp $b } grep { $self->{enum_props}->{$key}->{$_} } keys %{$self->{enum_props}->{$key}}];
   }

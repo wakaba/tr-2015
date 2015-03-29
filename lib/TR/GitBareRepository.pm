@@ -28,8 +28,8 @@ sub ssh_private_key_file_name ($;$) {
   return $_[0]->{ssh_private_key_file_name};
 } # ssh_private_key_file_name
 
-sub git ($$$) {
-  my ($self, $command, $args) = @_;
+sub git ($$$;%) {
+  my ($self, $command, $args, %opt) = @_;
   AE::log alert => "$self->{dir_name}\$ git $command @$args";
   my $cmd = Promised::Command->new (['git', $command, @$args]);
   $cmd->envs->{HOME} = $self->{home_dir_name} if defined $self->{home_dir_name};
@@ -37,8 +37,10 @@ sub git ($$$) {
   $cmd->envs->{TR_SSH_PRIVATE_KEY} = $self->{ssh_private_key_file_name}
       if defined $self->{ssh_private_key_file_name};
   $cmd->stdin (\'');
-  $cmd->stdout (\my $stdout);
-  $cmd->stderr (\my $stderr);
+  my $stdout;
+  my $stderr;
+  $cmd->stdout ($opt{stdout} // \$stdout);
+  $cmd->stderr ($opt{stderr} // \$stderr);
   $cmd->wd ($self->{dir_name});
   $cmd->timeout (100);
   return $cmd->run->then (sub {
@@ -53,7 +55,7 @@ sub git ($$$) {
 } # git
 
 sub fetch ($) {
-  return $_[0]->git ('fetch', []);
+  return $_[0]->git ('fetch', [], stderr => sub { AE::log alert => $_[0] if defined $_[0] });
 } # fetch
 
 sub log ($;%) {

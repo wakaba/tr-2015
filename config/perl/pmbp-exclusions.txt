@@ -1,4 +1,5 @@
 - "../../modules/json-ps" tests
+- "../../modules/json-functions-xs" tests
 - "../../modules/karasuma-config" tests
 - "../../modules/wanage" tests datetime mp
 - "../../modules/web-dom" tests build
