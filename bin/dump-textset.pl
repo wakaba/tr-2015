@@ -17,7 +17,7 @@ my $dat_entries = {};
 my $txt_entries = {};
 my $comments_entries = {};
 
-my $set_parent_entry = $root_tree->entry_bypath ($text_set_path);
+my $set_parent_entry = length $text_set_path ? $root_tree->entry_bypath ($text_set_path) : $root_tree;
 if (defined $set_parent_entry and $set_parent_entry->object->is_tree) {
   my $set_texts_entry = $set_parent_entry->object->entry_byname ('texts');
   if (defined $set_texts_entry and $set_texts_entry->object->is_tree) {

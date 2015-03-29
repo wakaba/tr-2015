@@ -2,6 +2,7 @@ package TR::TextRepo;
 use strict;
 use warnings;
 use Path::Tiny;
+use JSON::Functions::XS qw(json_bytes2perl);
 use AnyEvent::Util qw(run_cmd);
 use Encode;
 use Promise;
@@ -440,125 +441,110 @@ sub text_ids ($) {
 } # text_ids
 
 sub get_data_as_jsonalizable ($%) {
-  my ($self, $query, $selected_langs, %args) = @_;
+  my ($self, $query, $selected_lang_list, %args) = @_;
   my $data = {};
+  my $selected_langs = {};
   return $self->read_file_by_path ($self->texts_path->child ('config.json'))->then (sub {
     my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
     my %found;
     my $langs = [grep { not $found{$_}++ } grep { length } split /,/, $tr_config->get ('langs') // ''];
-    if (@$selected_langs) {
+    if (@$selected_lang_list) {
       my $avail_langs = {map { $_ => 1 } @$langs};
       my %found;
-      @$selected_langs = grep { not $found{$_}++ } grep { $avail_langs->{$_} } @$selected_langs;
+      @$selected_lang_list = grep { not $found{$_}++ } grep { $avail_langs->{$_} } @$selected_lang_list;
     } else {
       $langs = ['en'] unless @$langs;
-      $selected_langs = $langs;
+      $selected_lang_list = $langs;
     }
 
-    $data->{selected_lang_keys} = $selected_langs;
+    $data->{selected_lang_keys} = $selected_lang_list;
+    $selected_langs->{$_} = 1 for @$selected_lang_list;
     for my $lang (@$langs) {
       $data->{langs}->{$lang}->{key} = $lang;
       $data->{langs}->{$lang}->{id} = $lang; # XXX
       $data->{langs}->{$lang}->{label} = $lang; # XXX
       $data->{langs}->{$lang}->{label_short} = $lang; # XXX
     }
+    my $root_path = path (__FILE__)->parent->parent->parent;
+    my $cmd = Promised::Command->new ([
+      $root_path->child ('perl'),
+      $root_path->child ('bin/dump-textset.pl'),
+      $self->mirror_repo_path,
+      $self->branch, # XXX branch not found error
+      $self->{texts_dir} // '',
+    ]);
+    $cmd->stdout (\my $json);
+    return $cmd->run->then (sub { return $cmd->wait })->then (sub {
+      die $_[0] unless $_[0]->exit_code == 0;
+      return json_bytes2perl $json;
+    });
   })->then (sub {
-    my $text_ids = $query->text_ids;
-    if (@$text_ids) {
-      return {map { $_ => 1 } grep { /\A[0-9a-f]{3,}\z/ } @$text_ids};
-    } else {
-      return $self->text_ids;
-    }
-  })->then (sub {
-    # XXX
-    my $texts = {};
-    my @id = keys %{$_[0]};
+    my $all_texts = $_[0]->{texts};
+    my $selected_texts = {};
+
+    my $msgids = {map { $_ => 1 } @{$query->msgids}};
+    undef $msgids unless keys %$msgids;
     my $tag_ors = $query->tag_ors;
     my $tags = $query->tags;
     my $tag_minuses = $query->tag_minuses;
-    my $msgids = {map { $_ => 1 } @{$query->msgids}};
     my $words = $query->words;
     my $equals = $query->equals;
-    undef $msgids unless keys %$msgids;
-    my $p = Promise->resolve;
-    my $i = 0;
-    for my $id (@id) {
-      $p = $p->then (sub { $self->read_file_by_text_id_and_suffix ($id, 'dat') })->then (sub {
-        my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
-        $i++;
-        if ($args{onprogress} and ($i % 100) == 0) {
-          $args{onprogress}->({type => 'progress', value => $i, max => $#id});
+    TEXT: for my $text_id (keys %$all_texts) {
+      my $text = $all_texts->{$text_id};
+
+      if (defined $msgids) {
+        next TEXT if not defined $text->{msgid};
+        next TEXT if not $msgids->{$text->{msgid}};
+      }
+
+      my $t = $text->{tags} || {};
+      for (@$tag_minuses) {
+        next TEXT if $t->{$_};
+      }
+      if (@$tag_ors) {
+        F: {
+          for (@$tag_ors) {
+            last F if $t->{$_};
+          }
+          next TEXT;
+        } # F
+      }
+      if (@$tags) {
+        for (@$tags) {
+          next TEXT unless $t->{$_};
         }
-        if (defined $msgids) {
-          my $mid = $te->get ('msgid');
-          return unless defined $mid;
-          return unless $msgids->{$mid};
-        }
-        my $t = $te->enum ('tags');
-        for (@$tag_minuses) {
-          return if $t->{$_};
-        }
-        if (@$tag_ors) {
-          F: {
-            for (@$tag_ors) {
-              last F if $t->{$_};
+      }
+
+      my @all_lang = keys %{$text->{langs} or {}};
+      for (@all_lang) {
+        delete $text->{langs}->{$_} unless $selected_langs->{$_};
+      }
+
+      WORD: for my $word (@$words) {
+        for my $lang (keys %{$text->{langs} or {}}) {
+          for (qw(body_0 body_1 body_2 body_3 body_4)) {
+            my $value = $text->{langs}->{$lang}->{$_} // '';
+            $value =~ s/\s+/ /g;
+            if ($value =~ /\Q$word\E/i) {
+              next WORD;
             }
-            return;
-          } # F
-        }
-        if (@$tags) {
-          for (@$tags) {
-            return unless $t->{$_};
           }
         }
-        my $entry = $te->as_jsonalizable;
-        my @q;
-        my $matched = not @$words;
-        for my $lang (@$selected_langs) {
-          push @q, $self->read_file_by_text_id_and_suffix ($id, $lang . '.txt')->then (sub {
-            return unless defined $_[0];
-            my $e = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0]);
-            if (@$words) {
-              for my $word (@$words) {
-                M: {
-                  for (qw(body_0 body_1 body_2 body_3 body_4)) {
-                    my $value = $e->get ($_) // '';
-                    $value =~ s/\s+/ /g;
-                    if ($value =~ /\Q$word\E/i) {
-                      $matched = 1;
-                      last M;
-                    }
-                  }
-                } # M
-              }
-            }
-            $entry->{langs}->{$lang} = $e->as_jsonalizable;
-          });
+        next TEXT;
+      } # $words
+
+      for my $lang (keys %$equals) {
+        my $v = ($text->{langs}->{$lang} // {})->{body_0} // '';
+        unless ($v eq $equals->{$lang}) {
+          next TEXT;
         }
-        if ($args{with_comments}) {
-          my $comments = $entry->{comments} = [];
-          push @q, $self->read_file_by_text_id_and_suffix ($id, 'comments')->then (sub {
-            for (grep { length } split /\x0D?\x0A\x0D?\x0A/, $_[0] // '') {
-              push @$comments, TR::TextEntry->new_from_text_id_and_source_text ($id, $_)->as_jsonalizable;
-            }
-          });
-        }
-        return Promise->all (\@q)->then (sub {
-          for my $lang (keys %$equals) {
-            my $v = ($entry->{langs}->{$lang} // {})->{body_0} // '';
-            unless ($v eq $equals->{$lang}) {
-              $matched = 0;
-              last;
-            }
-          }
-          $data->{texts}->{$id} = $entry if $matched;
-        });
-        # XXX limit
-      });
-    } # $id
-    return $p->then (sub {
-      return $data;
-    });
+      }
+
+      $selected_texts->{$text_id} = $text;
+    } # TEXT
+
+    $data->{texts} = $selected_texts;
+    return $data;
   });
 } # get_data_as_jsonalizable
 
