@@ -14,7 +14,7 @@
     <h2 title=Branch><a href="../" rel=up><code itemprop=branch><t:text value="$tr->branch"></code></a></h2>
     <h3 title=Path><a href="./" rel=bookmark><code itemprop=texts-path><t:text value="'/' . $tr->texts_dir"></code></a></h3>
   </hgroup>
-  <link itemprop=data-url pl:href="'data.json?with_comments=1'">
+  <link itemprop=data-url pl:href="'data.ndjson?with_comments=1'">
   <link itemprop=export-url pl:href="'export?'">
   <meta itemprop=lang-params pl:content="join '&', map { 'lang=' . percent_encode_c $_ } @{$app->text_param_list ('lang')}">
   <!-- XXX
@@ -195,7 +195,7 @@
             </menu>
     </div>
     <p class=status hidden><progress></progress> <span class=message></span>
-    <form data-action="i/{text_id}/" method=post class=edit hidden>
+    <form data-action="i/{text_id}/text.ndjson" method=post class=edit hidden>
             <p class=buttons><button type=submit>保存</button>
             <input type=hidden name=lang value={lang_key} class=lang-key>
             <!-- XXX hash -->
@@ -286,6 +286,35 @@
   function escapeQueryValue (v) {
     return '"' + v.replace (/([\u0022\u005C])/g, function (x) { return '\\' + x }) + '"';
   } // escapeQueryValue
+
+  function server (method, url, formdata, ondone, onerror, onprogress) {
+    var xhr = new XMLHttpRequest;
+    xhr.open ('POST', url, true);
+    var nextChunk = 0;
+    xhr.onreadystatechange = function () {
+      if (xhr.readyState === 3 || xhr.readyState === 4) {
+        if (xhr.status === 200) {
+          var responses = xhr.responseText.split (/\n/);
+          while (nextChunk + 1 < responses.length) {
+            var chunk = JSON.parse (responses[nextChunk]);
+            nextChunk += 2;
+            if (chunk.status === 102) {
+              onprogress (chunk);
+            } else if (chunk.status === 200) {
+              ondone (chunk.data);
+            } else {
+              onerror (chunk);
+            }
+          }
+        } else { // status !== 200
+          if (xhr.readyState === 4) {
+            onerror ({status: xhr.status, message: xhr.statusText});
+          }
+        }
+      }
+    };
+    xhr.send (formdata);
+  } // server
 
   function isEditMode () {
     return !!document.querySelector ('.dialog:not([hidden]):not(#config-langs), .toggle-edit.active');
@@ -420,7 +449,27 @@
         };
         area.querySelector ('form.edit').onsubmit = function () {
           toggleAreaEditor (area, false);
-          return saveArea (area);
+
+          var formStatus = area.querySelector ('.status');
+          formStatus.hidden = false;
+          formStatus.querySelector ('.message').textContent = 'Saving...';
+          formStatus.querySelector ('progress').hidden = false;
+          var editButton = area.querySelector ('button.toggle-edit');
+          if (editButton) editButton.disabled = true;
+
+          var form = area.querySelector ('form');
+          server ('POST', form.action, new FormData (form), function (json) {
+            syncLangAreaView (area);
+            formStatus.hidden = true;
+            if (editButton) editButton.disabled = false;
+          }, function (error) {
+            formStatus.querySelector ('.message').textContent = error.status + ' ' + error.message;
+            formStatus.querySelector ('progress').hidden = true;
+            if (editButton) editButton.disabled = false;
+          }, function (progress) {
+            if (progress.message) formStatus.querySelector ('.message').textContent = progress.message;
+          });
+          return false;
         };
         area.trSync = syncLangAreaView;
 
@@ -446,7 +495,7 @@
           el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, text.textId).replace (/\{lang_key\}/g, langKey);
         });
 
-        area.trSync (area);
+        syncLangAreaView (area);
 
         langAreaPlaceholder.parentNode.insertBefore (area, langAreaPlaceholder);
       }); // langKey
@@ -503,9 +552,7 @@ function updateTable () {
   url += langQuery;
   var form = item.querySelector ('form');
   var query = form.elements.q.value;
-  var xhr = new XMLHttpRequest;
-  xhr.open ('POST', url, true);
-  var readJSON = function (json) {
+  server ('POST', url, new FormData (form), function (json) {
         var scopes = [];
         for (var scope in json.scopes) {
           scopes.push (scope);
@@ -519,27 +566,13 @@ function updateTable () {
         mainTableData.hidden = false;
         mainTableStatus.hidden = true;
         history.replaceState (null, null, './?q=' + encodeURIComponent (query) + langQuery);
-  };
-  var nextChunk = 0;
-  xhr.onreadystatechange = function () {
-    if (xhr.readyState === 3 || xhr.readyState === 4) {
-      // XXX xhr.status
-      var responses = xhr.responseText.split (/\n/);
-      while (nextChunk + 1 < responses.length) {
-        var chunk = JSON.parse (responses[nextChunk]);
-        nextChunk += 2;
-        console.log (chunk);
-        if (chunk.type === 'progress') {
-          if (chunk.message) statusMessage.textContent = chunk.message;
-          if (chunk.value) statusBar.value = chunk.value;
-          if (chunk.max) statusBar.max = chunk.max;
-        } else if (chunk.type === 'final') {
-          readJSON (chunk.data);
-        }
-      }
-    }
-  };
-  xhr.send (new FormData (form));
+  }, function () {
+    // XXX error
+  }, function (chunk) {
+    if (chunk.message) statusMessage.textContent = chunk.message;
+    if (chunk.value) statusBar.value = chunk.value;
+    if (chunk.max) statusBar.max = chunk.max;
+  });
   return false;
 } // updateTable
 document.querySelector ('[itemtype=data] form').onsubmit = function () {

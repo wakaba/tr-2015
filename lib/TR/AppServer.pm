@@ -61,6 +61,46 @@ sub send_json ($$) {
   $self->http->close_response_body;
 } # send_json
 
+sub start_json_stream ($) {
+  my $self = $_[0];
+  $self->{in_json_stream} = 1;
+  $self->http->set_response_header
+      ('Content-Type' => 'application/x-ndjson; charset=utf-8');
+} # start_json_stream
+
+sub send_progress_json_chunk ($$) {
+  my ($self, $reason) = @_;
+  return unless $self->{in_json_stream};
+  $self->http->send_response_body_as_ref
+      (\perl2json_bytes {status => 102, message => $reason});
+  $self->http->send_response_body_as_ref (\"\nnull\n");
+} # send_progress_json_chunk
+
+sub send_last_json_chunk ($$$$) {
+  my ($self, $status, $reason, $data) = @_;
+  if (delete $self->{in_json_stream}) {
+    $self->http->send_response_body_as_ref
+        (\perl2json_bytes {status => $status, message => $reason // $status,
+                           data => $data});
+    $self->http->send_response_body_as_ref (\"\nnull\n");
+  } else {
+    $self->http->set_status ($status, reason_phrase => $reason);
+    $self->http->set_response_header
+        ('Content-Type' => 'application/json; charset=utf-8');
+    $self->http->send_response_body_as_ref (\perl2json_bytes $data);
+  }
+  $self->http->close_response_body;
+} # send_last_json_chunk
+
+sub send_error ($$;%) {
+  my ($self, $status, %args) = @_;
+  if ($self->{in_json_stream}) {
+    return $self->send_last_json_chunk ($status, $args{reason_phrase});
+  } else {
+    return $self->SUPER::send_error ($status, %args);
+  }
+} # send_error
+
 my $RootPath = path (__FILE__)->parent->parent->parent;
 
 sub mirror_path ($) {

@@ -422,14 +422,12 @@ sub main ($$) {
         });
       });
 
-    } elsif (@$path == 5 and $path->[4] eq 'data.json') {
+    } elsif (@$path == 5 and $path->[4] =~ /\Adata\.(json|ndjson)\z/) {
       # .../data.json
+      # .../data.ndjson
 
-      $app->http->set_response_header ('Content-Type' => 'application/json; charset=utf-8'); # XXX
-      $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'progress', message => 'Start loading...'});
-      $app->http->send_response_body_as_ref (\"\nnull\n");
-
-      # XXX ensure $tr->path does not contain symlinks
+      $app->start_json_stream if $1 eq 'ndjson';
+      $app->send_progress_json_chunk ('Checking the repository permission...');
       my $q;
       my $scopes;
       return $class->check_read (
@@ -437,8 +435,7 @@ sub main ($$) {
         access_token => 1, scopes => 1,
       )->then (sub {
         $scopes = $_[0]->{scopes};
-        $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'progress', message => 'Fetching the remote repository...'});
-        $app->http->send_response_body_as_ref (\"\nnull\n");
+        $app->send_progress_json_chunk ('Fetching the remote repository...');
         return $tr->prepare_mirror ($_[0]);
       })->then (sub {
         require TR::Query;
@@ -450,25 +447,17 @@ sub main ($$) {
           tags => $app->text_param_list ('tag'),
           tag_minuses => $app->text_param_list ('tag_minus'),
         );
-        $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'progress', message => 'Reading data...'});
-        $app->http->send_response_body_as_ref (\"\nnull\n");
+        $app->send_progress_json_chunk ('Reading the text set...');
         return $tr->get_data_as_jsonalizable
             ($q,
              $app->text_param_list ('lang')->grep (sub { length }),
-             with_comments => $app->bare_param ('with_comments'),
-             onprogress => sub {
-               $app->http->send_response_body_as_ref (\perl2json_bytes $_[0]);
-               $app->http->send_response_body_as_ref (\"\nnull\n");
-             });
+             with_comments => $app->bare_param ('with_comments'));
       })->then (sub {
         my $json = $_[0];
-        $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'progress', message => 'Sending data...'});
-        $app->http->send_response_body_as_ref (\"\nnull\n");
+        $app->send_progress_json_chunk ('Formatting the text set...');
         $json->{scopes} = $scopes;
         $json->{query} = $q->as_jsonalizable;
-        $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'final', data => $json});
-        $app->http->send_response_body_as_ref (\"\nnull\n");
-        $app->http->close_response_body;
+        $app->send_last_json_chunk (200, 'OK', $json);
       })->catch (sub {
         $app->error_log ($_[0]);
         return $app->send_error (500); # XXX
@@ -482,8 +471,6 @@ sub main ($$) {
       my $tr_config;
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
         return $tr->prepare_mirror ($_[0]);
-      })->then (sub {
-        return $tr->clone_from_mirror;
       })->then (sub {
         return $tr->get_tr_config;
       })->then (sub {
@@ -511,8 +498,6 @@ sub main ($$) {
       # .../export
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
         return $tr->prepare_mirror ($_[0]);
-      })->then (sub {
-        return $tr->clone_from_mirror;
       })->then (sub {
         my $format = $app->text_param ('format') // '';
         my $arg_format = $app->text_param ('arg_format') // '';
@@ -641,17 +626,23 @@ sub main ($$) {
       });
 
     } elsif (@$path >= 7 and $path->[4] eq 'i') {
-      if (@$path == 7 and $path->[6] eq '') { # XXX URL
-        # .../i/{text_id}/
+      if (@$path == 7 and $path->[6] =~ /\Atext\.(json|ndjson)\z/) {
+        # .../i/{text_id}/text.json
+        # .../i/{text_id}/text.ndjson
+        my $type = $1;
         $app->requires_request_method ({POST => 1});
         # XXX CSRF
 
         my $id = $path->[5]; # XXX validation
         my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
 
+        $app->start_json_stream if $type eq 'ndjson';
+        $app->send_progress_json_chunk ('Checking the repository permission...');
         return $class->get_push_token ($app, $tr, 'edit/' . $lang)->then (sub {
+          $app->send_progress_json_chunk ('Fetching the repository...');
           return $tr->prepare_mirror ($_[0]);
         })->then (sub {
+          $app->send_progress_json_chunk ('Cloning the repository...');
           return $tr->clone_from_mirror (push => 1, no_checkout => 1);
         })->then (sub {
           my $path = $tr->text_id_and_suffix_to_relative_path ($id, $lang . '.txt');
@@ -669,9 +660,10 @@ sub main ($$) {
           $msg = 'Added a message' unless length $msg; # XXX
           return $tr->commit ($msg);
         })->then (sub {
+          $app->send_progress_json_chunk ('Pushing the repository...');
           return $tr->push; # XXX failure
         })->then (sub {
-          return $app->send_error (200); # XXX return JSON?
+          return $app->send_last_json_chunk (200, 'Saved', {});
         }, sub {
           $app->error_log ($_[0]);
           return $app->send_error (500);
