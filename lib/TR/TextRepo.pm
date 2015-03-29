@@ -51,6 +51,7 @@ sub branch ($;$) {
   }
   return $_[0]->{branch};
 } # branch
+# XXX branch should be resolved to commit at earlier stage?
 
 sub langs ($;$) {
   if (@_ > 1) {
@@ -440,12 +441,21 @@ sub text_ids ($) {
   return Promise->new (sub { $_[0]->(\%list) });
 } # text_ids
 
+sub get_tr_config ($) {
+  my $self = $_[0];
+  my $dir = $self->{texts_dir};
+  $dir = defined $dir ? "$dir/texts" : 'texts';
+  return $self->mirror_repo->show_blob_by_path ($self->branch, "$dir/config.json")->then (sub {
+    return TR::TextEntry->new_from_text_id_and_source_bytes (undef, $_[0] // '');
+  });
+} # get_tr_config
+
 sub get_data_as_jsonalizable ($%) {
   my ($self, $query, $selected_lang_list, %args) = @_;
   my $data = {};
   my $selected_langs = {};
-  return $self->read_file_by_path ($self->texts_path->child ('config.json'))->then (sub {
-    my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
+  return $self->get_tr_config->then (sub {
+    my $tr_config = $_[0];
     my %found;
     my $langs = [grep { not $found{$_}++ } grep { length } split /,/, $tr_config->get ('langs') // ''];
     if (@$selected_lang_list) {
@@ -466,6 +476,7 @@ sub get_data_as_jsonalizable ($%) {
       $data->{langs}->{$lang}->{label_short} = $lang; # XXX
     }
     my $root_path = path (__FILE__)->parent->parent->parent;
+    # XXX with_comments
     my $cmd = Promised::Command->new ([
       $root_path->child ('perl'),
       $root_path->child ('bin/dump-textset.pl'),

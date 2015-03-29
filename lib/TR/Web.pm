@@ -5,7 +5,7 @@ use Path::Tiny;
 use Wanage::URL;
 use Encode;
 use Promise;
-use JSON::PS;
+use JSON::Functions::XS qw(json_bytes2perl perl2json_bytes);
 use Wanage::HTTP;
 use Web::URL::Canonicalize;
 use Web::UserAgent::Functions qw(http_get http_post);
@@ -441,10 +441,6 @@ sub main ($$) {
         $app->http->send_response_body_as_ref (\"\nnull\n");
         return $tr->prepare_mirror ($_[0]);
       })->then (sub {
-        $app->http->send_response_body_as_ref (\perl2json_bytes {type => 'progress', message => 'Cloning the repository...'});
-        $app->http->send_response_body_as_ref (\"\nnull\n");
-        return $tr->clone_from_mirror;
-      })->then (sub {
         require TR::Query;
         $q = TR::Query->parse_query (
           query => $app->text_param ('q'),
@@ -489,10 +485,9 @@ sub main ($$) {
       })->then (sub {
         return $tr->clone_from_mirror;
       })->then (sub {
-        return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
+        return $tr->get_tr_config;
       })->then (sub {
-        $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
-
+        $tr_config = $_[0];
         require TR::Query;
         return $tr->get_data_as_jsonalizable (TR::Query->parse_query, []);
       })->then (sub {
@@ -902,11 +897,9 @@ sub main ($$) {
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
         return $tr->prepare_mirror ($_[0]);
       })->then (sub {
-        return $tr->clone_from_mirror;
-      })->then (sub { # XXX branch
-        return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
+        return $tr->get_tr_config;
       })->then (sub {
-        my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
+        my $tr_config = $_[0];
         my $lang_keys = [grep { length } split /,/, $tr_config->get ('langs') // ''];
         $lang_keys = ['en'] unless @$lang_keys;
         my $langs = {map {
