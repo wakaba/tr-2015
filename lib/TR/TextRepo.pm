@@ -587,6 +587,7 @@ sub import_file ($$%) {
         });
       });
     }
+    return $p;
   });
 
   my @added_lang;
@@ -598,7 +599,6 @@ sub import_file ($$%) {
       my $arg_format = $args{arg_format} || 'printf'; #$arg_format normalization
       $arg_format = 'printf' if $arg_format eq 'auto'; # XXX
 
-      my $msgid_to_e = {};
       $q = $q->then (sub { return $file->{get}->() })->then (sub {
         require Popopo::Parser;
         my $parser = Popopo::Parser->new;

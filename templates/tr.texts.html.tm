@@ -301,7 +301,7 @@
             if (chunk.status === 102) {
               onprogress (chunk);
             } else if (chunk.status === 200) {
-              ondone (chunk.data);
+              ondone (chunk);
             } else {
               onerror (chunk);
             }
@@ -319,6 +319,43 @@
   function isEditMode () {
     return !!document.querySelector ('.dialog:not([hidden]):not(#config-langs), .toggle-edit.active');
   } // isEditMode
+
+  function showProgress (json, status) {
+    if (json.message) {
+      var statusMessage = status.querySelector ('.message');
+      statusMessage.textContent = json.message;
+    } else if (json.init) {
+      var statusMessage = status.querySelector ('.message');
+      statusMessage.textContent = json.message || 'Processing...';
+    }
+    if (json.max) {
+      var statusBar = status.querySelector ('progress');
+      statusBar.max = json.max;
+      if (json.value) statusBar.value = json.value;
+    } else if (json.init) {
+      var statusBar = status.querySelector ('progress');
+      statusBar.removeAttribute ('value');
+      statusBar.removeAttribute ('max');
+      statusBar.hidden = false;
+    }
+    status.hidden = false;
+  } // showProgress
+
+  function showError (json, status) {
+    status.hidden = false;
+    var statusMessage = status.querySelector ('.message');
+    statusMessage.textContent = json.message || json.status;
+    var statusBar = status.querySelector ('progress');
+    statusBar.hidden = true;
+  } // showError
+
+  function showDone (json, status) {
+    status.hidden = false;
+    var statusMessage = status.querySelector ('.message');
+    statusMessage.textContent = json.message || json.status;
+    var statusBar = status.querySelector ('progress');
+    statusBar.hidden = true;
+  } // showDone
 
   function setCurrentLangs (langKeys, langs) {
     var mainTable = document.getElementById ('texts');
@@ -458,7 +495,7 @@
           if (editButton) editButton.disabled = true;
 
           var form = area.querySelector ('form');
-          server ('POST', form.action, new FormData (form), function (json) {
+          server ('POST', form.action, new FormData (form), function (res) {
             syncLangAreaView (area);
             formStatus.hidden = true;
             if (editButton) editButton.disabled = false;
@@ -471,7 +508,6 @@
           });
           return false;
         };
-        area.trSync = syncLangAreaView;
 
         var langData = text.langs ? text.langs[langKey] : null;
         var form = area.querySelector ('form.edit');
@@ -538,12 +574,7 @@ function updateTable () {
   mainTableData.hidden = true;
   mainTableData.textContent = '';
   var mainTableStatus = mainTable.querySelector ('tbody.status');
-  mainTableStatus.hidden = false;
-  var statusMessage = mainTableStatus.querySelector ('.message');
-  statusMessage.textContent = 'Loading...';
-  var statusBar = mainTableStatus.querySelector ('progress');
-  statusBar.removeAttribute ('value');
-  statusBar.removeAttribute ('max');
+  showProgress ({message: "Loading...", init: true}, mainTableStatus);
 
   var item = document.querySelector ('[itemtype=data]');
   var url = item.querySelector ('[itemprop=data-url]').href;
@@ -552,7 +583,8 @@ function updateTable () {
   url += langQuery;
   var form = item.querySelector ('form');
   var query = form.elements.q.value;
-  server ('POST', url, new FormData (form), function (json) {
+  server ('POST', url, new FormData (form), function (res) {
+    var json = res.data;
         var scopes = [];
         for (var scope in json.scopes) {
           scopes.push (scope);
@@ -566,12 +598,10 @@ function updateTable () {
         mainTableData.hidden = false;
         mainTableStatus.hidden = true;
         history.replaceState (null, null, './?q=' + encodeURIComponent (query) + langQuery);
-  }, function () {
-    // XXX error
-  }, function (chunk) {
-    if (chunk.message) statusMessage.textContent = chunk.message;
-    if (chunk.value) statusBar.value = chunk.value;
-    if (chunk.max) statusBar.max = chunk.max;
+  }, function (json) {
+    showError (json, mainTableStatus);
+  }, function (json) {
+    showProgress (json, mainTableStatus);
   });
   return false;
 } // updateTable
@@ -1239,7 +1269,8 @@ function saveArea (area, onsaved) { // XXX promise
     <hr><!-- XXX -->
     <h1>Import</h1>
 
-    <form action=import method=post enctype=multipart/form-data target=_blank>
+    <!-- XXX -->
+    <form action=import.ndjson method=post enctype=multipart/form-data>
       <input type=hidden name=from value=repo>
       <button type=submit>XXX</button>
         <tr>
@@ -1251,9 +1282,10 @@ function saveArea (area, onsaved) { // XXX promise
               <option value=percentn>%n
               <option value=braced>{placeholder}
             </select>
+      <p class=status hidden><progress></progress> <span class=message></span>
     </form>
 
-    <form action=import method=post enctype=multipart/form-data target=_blank>
+    <form action=import.ndjson method=post enctype=multipart/form-data>
       <input type=hidden name=from value=file>
       <table class=config>
         <tr>
@@ -1285,6 +1317,7 @@ function saveArea (area, onsaved) { // XXX promise
       </table>
 
       <p class=buttons><button type=submit>Import</button>
+      <p class=status hidden><progress></progress> <span class=message></span>
     </form>
     
   </section>
@@ -1303,6 +1336,22 @@ function saveArea (area, onsaved) { // XXX promise
     } // toggleExportDialog
 
     (function () {
+      var exportPanel = document.querySelector ('#config-export');
+      Array.prototype.forEach.call (exportPanel.querySelectorAll ('form[method=post]'), function (form) {
+        form.onsubmit = function () {
+          var status = form.querySelector ('.status');
+          showProgress ({init: true}, status);
+          server ('POST', form.action, new FormData (form), function (res) {
+            showDone (res, status);
+          }, function (json) {
+            showError (json, status);
+          }, function (json) {
+            showProgress (json, status);
+          });
+          return false;
+        };
+      });
+
       var f = decodeURIComponent (location.hash.replace (/^#/, ''));
       if (f === 'config-export') {
         toggleExportDialog (true);

@@ -578,30 +578,36 @@ sub main ($$) {
       })->then (sub {
         return $tr->discard;
       });
-    } elsif (@$path == 5 and $path->[4] eq 'import') {
-      # .../import
+    } elsif (@$path == 5 and $path->[4] =~ /\Aimport\.(json|ndjson)\z/) {
+      # .../import.json
+      # .../import.ndjson
 
+      $app->start_json_stream if $1 eq 'ndjson';
+      $app->send_progress_json_chunk ('Checking the repository permission...');
       return $class->get_push_token ($app, $tr, 'repo')->then (sub { # XXX scope
+        $app->send_progress_json_chunk ('Fetching the repository...');
         return $tr->prepare_mirror ($_[0]);
       })->then (sub {
+        $app->send_progress_json_chunk ('Clonging the repository...');
         return $tr->clone_from_mirror (push => 1);
       })->then (sub {
         my $from = $app->bare_param ('from') // '';
         if ($from eq 'file') {
           my $lang = $app->text_param ('lang') // return $app->send_error (400); # XXX lang validation # XXX auto
           my $format = $app->text_param ('format') // '';
+          $app->send_progress_json_chunk ('Importing the file...');
           return $tr->import_file (
             [map {
-              sub {
-                return {get => path ($_->as_f)->slurp,
-                        lang => $lang,
-                        format => $format};
-              }; # XXX blocking
+              my $v = $_;
+              +{get => sub { path ($v->as_f)->slurp }, # XXX
+                lang => $lang,
+                format => $format};
             } @{$app->http->request_uploads->{file} || []}],
             arg_format => $app->text_param ('arg_format') // '',
             tags => $app->text_param_list ('tag')->grep (sub { length }),
           );
         } elsif ($from eq 'repo') {
+          $app->send_progress_json_chunk ('Importing...');
           return $tr->import_auto (
             format => $app->text_param ('format') // '',
             arg_format => $app->text_param ('arg_format') // '',
@@ -615,9 +621,10 @@ sub main ($$) {
         $msg = 'Added a message' unless length $msg; # XXX
         return $tr->commit ($msg);
       })->then (sub {
+        $app->send_progress_json_chunk ('Pushing the repository...');
         return $tr->push; # XXX failure
       })->then (sub {
-        return $app->send_error (200); # XXX return JSON?
+        return $app->send_last_json_chunk (200, 'Done', {});
       }, sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);
