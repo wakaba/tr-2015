@@ -87,6 +87,15 @@ sub repo ($) {
   return $_[0]->{repo} ||= TR::GitWorkingTree->new_from_dir_name ($_[0]->repo_path);
 } # repo
 
+sub lock ($) {
+  my $self = $_[0];
+  my $lock_dir_path = $self->mirror_parent_path->child ('lock');
+  my $lock_path = $lock_dir_path->child ($self->path_name);
+  return Promised::File->new_from_path ($lock_dir_path)->mkpath->then (sub {
+    return lock_repo ($lock_path, 60);
+  });
+} # lock
+
 sub home_path ($) {
   return $_[0]->{home_path} ||= $_[0]->{temp_path}->child ('home-' . rand);
 } # home_path
@@ -107,11 +116,18 @@ sub texts_path ($) {
   };
 } # texts_path
 
-sub prepare_mirror ($$) {
-  my ($self, $keys) = @_;
+sub prepare_mirror ($$$) {
+  my ($self, $keys, $app) = @_;
   my $p = Promise->resolve;
   die if $self->{fetched} and defined $keys->{access_token};
   return $p if $self->{fetched};
+
+  $p = $p->then (sub {
+    $app->send_progress_json_chunk ('Waiting for another operation on the repository...');
+    return $self->lock;
+  })->then (sub {
+    $self->{lock} = $_[0];
+  });
 
   my $home_path = $self->home_path;
 
@@ -169,6 +185,7 @@ sub prepare_mirror ($$) {
     $mirror_repo->ssh_file_name ($self->{ssh_path});
     $mirror_repo->ssh_private_key_file_name ($self->{private_key_path});
     return $p->then (sub {
+      $app->send_progress_json_chunk ('Fetching the remote repository...');
       return $mirror_repo->fetch;
     })->then (sub {
       $self->{fetched} = 1;
@@ -178,6 +195,7 @@ sub prepare_mirror ($$) {
     });
   } else {
     return $p->then (sub {
+      $app->send_progress_json_chunk ('Cloning the remote repository...');
       return git_clone (['--mirror', $url, $mirror_path],
                         home => $home_path,
                         ssh => $self->{ssh_path},
@@ -731,6 +749,7 @@ sub push ($) {
 
 sub discard ($) {
   my $self = $_[0];
+  close $self->{lock} if defined $self->{lock};
   return Promise->all ([
     Promised::File->new_from_path ($self->repo_path)->remove_tree,
     Promised::File->new_from_path ($self->home_path)->remove_tree,

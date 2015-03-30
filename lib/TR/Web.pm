@@ -21,8 +21,7 @@ sub psgi_app ($$) {
     srand;
 
     ## XXX Parallel::Prefork (?)
-    delete $SIG{CHLD};
-    delete $SIG{CLD};
+    delete $SIG{CHLD} if defined $SIG{CHLD} and not ref $SIG{CHLD};
 
     my $http = Wanage::HTTP->new_from_psgi_env ($_[0]);
     my $app = TR::AppServer->new_from_http_and_config ($http, $config);
@@ -82,7 +81,7 @@ sub main ($$) {
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
 
     return $class->check_read ($app, $tr, access_token => 1, html => 1)->then (sub {
-      return $tr->prepare_mirror ($_[0]);
+      return $tr->prepare_mirror ($_[0], $app);
     })->then (sub {
       return $tr->get_branches;
     })->then (sub {
@@ -215,7 +214,8 @@ sub main ($$) {
                 die [403, "Bad SSH key"] unless defined $token and ref $token eq 'ARRAY';
 
                 return $tr->prepare_mirror ({access_token => $token,
-                                             requires_token_for_pull => 1});
+                                             requires_token_for_pull => 1},
+                                            $app);
               })->then (sub {
                 return {is_owner => 1, is_public => 0};
               });
@@ -351,7 +351,7 @@ sub main ($$) {
     my $tr = $class->create_text_repo ($app, $path->[1], $path->[2], undef);
 
     return $class->check_read ($app, $tr, access_token => 1, html => 1)->then (sub {
-      return $tr->prepare_mirror ($_[0]);
+      return $tr->prepare_mirror ($_[0], $app);
     })->then (sub {
       return $tr->get_commit_logs ([$tr->branch]);
     })->then (sub {
@@ -435,8 +435,7 @@ sub main ($$) {
         access_token => 1, scopes => 1,
       )->then (sub {
         $scopes = $_[0]->{scopes};
-        $app->send_progress_json_chunk ('Fetching the remote repository...');
-        return $tr->prepare_mirror ($_[0]);
+        return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
         require TR::Query;
         $q = TR::Query->parse_query (
@@ -470,7 +469,7 @@ sub main ($$) {
       # XXX request method
       my $tr_config;
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        return $tr->prepare_mirror ($_[0]);
+        return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
         return $tr->get_tr_config;
       })->then (sub {
@@ -497,7 +496,7 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'export') {
       # .../export
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        return $tr->prepare_mirror ($_[0]);
+        return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
         my $format = $app->text_param ('format') // '';
         my $arg_format = $app->text_param ('arg_format') // '';
@@ -585,8 +584,7 @@ sub main ($$) {
       $app->start_json_stream if $1 eq 'ndjson';
       $app->send_progress_json_chunk ('Checking the repository permission...');
       return $class->get_push_token ($app, $tr, 'repo')->then (sub { # XXX scope
-        $app->send_progress_json_chunk ('Fetching the repository...');
-        return $tr->prepare_mirror ($_[0]);
+        return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
         $app->send_progress_json_chunk ('Clonging the repository...');
         return $tr->clone_from_mirror (push => 1);
@@ -646,8 +644,7 @@ sub main ($$) {
         $app->start_json_stream if $type eq 'ndjson';
         $app->send_progress_json_chunk ('Checking the repository permission...');
         return $class->get_push_token ($app, $tr, 'edit/' . $lang)->then (sub {
-          $app->send_progress_json_chunk ('Fetching the repository...');
-          return $tr->prepare_mirror ($_[0]);
+          return $tr->prepare_mirror ($_[0], $app);
         })->then (sub {
           $app->send_progress_json_chunk ('Cloning the repository...');
           return $tr->clone_from_mirror (push => 1, no_checkout => 1);
@@ -687,7 +684,7 @@ sub main ($$) {
 
         my $te;
         return $class->get_push_token ($app, $tr, 'texts')->then (sub {
-          return $tr->prepare_mirror ($_[0]);
+          return $tr->prepare_mirror ($_[0], $app);
         })->then (sub {
           return $tr->clone_from_mirror (push => 1);
         })->then (sub {
@@ -739,7 +736,7 @@ sub main ($$) {
         my $id = $path->[5]; # XXX validation
 
         return $class->get_push_token ($app, $tr, 'comment')->then (sub {
-          return $tr->prepare_mirror ($_[0]);
+          return $tr->prepare_mirror ($_[0], $app);
         })->then (sub {
           return $tr->clone_from_mirror (push => 1);
         })->then (sub {
@@ -772,7 +769,7 @@ sub main ($$) {
 
         my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX validation
         return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-          return $tr->prepare_mirror ($_[0]);
+          return $tr->prepare_mirror ($_[0], $app);
         })->then (sub {
           return $tr->git_log_for_text_id_and_lang
               ($id, $lang, with_file_text => 1);
@@ -805,7 +802,7 @@ sub main ($$) {
 
       my $data = {texts => {}};
       return $class->get_push_token ($app, $tr, 'texts')->then (sub {
-        return $tr->prepare_mirror ($_[0]);
+        return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
         return $tr->clone_from_mirror (push => 1);
       })->then (sub {
@@ -849,7 +846,7 @@ sub main ($$) {
         my $lang_label_shorts = $app->text_param_list ('lang_label_short');
 
         return $class->get_push_token ($app, $tr, 'repo')->then (sub {
-          return $tr->prepare_mirror ($_[0]);
+          return $tr->prepare_mirror ($_[0], $app);
         })->then (sub {
           return $tr->clone_from_mirror (push => 1);
         })->then (sub {
@@ -895,7 +892,7 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'langs.json') {
       # .../langs.json
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        return $tr->prepare_mirror ($_[0]);
+        return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
         return $tr->get_tr_config;
       })->then (sub {
@@ -940,7 +937,7 @@ sub main ($$) {
       # XXX CSRF
 
       return $class->get_push_token ($app, $tr, 'repo')->then (sub {
-        return $tr->prepare_mirror ($_[0]);
+        return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
         return $tr->clone_from_mirror (push => 1);
       })->then (sub {
@@ -975,7 +972,7 @@ sub main ($$) {
       # .../comments # XXX HTML view
       # .../comments.json
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        return $tr->prepare_mirror ($_[0]);
+        return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
         return $tr->get_recent_comments (limit => 50);
       })->then (sub {
@@ -1210,7 +1207,8 @@ sub create_text_repo ($$$) {
   if ($url =~ m{^file:}) {
     $url =~ s{/+\z}{};
   }
-  
+
+  # XXX max URL length
   # XXX
   if ($url =~ m{\A(?:https?://|git://|ssh://git\@)github\.com/([^/]+/[^/]+)\z}) {
     $url = qq{https://github.com/$1};
@@ -1307,7 +1305,7 @@ sub check_read ($$$;%) {
       }
     } else { # no |repo| row
       return 0 unless $tr->url =~ m{^(?:https?|git):};
-      return $tr->prepare_mirror ({})->then (sub {
+      return $tr->prepare_mirror ({}, $app)->then (sub {
         $scopes = {read => 1};
         $is_public = 1;
         return 1;

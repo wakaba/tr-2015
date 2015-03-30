@@ -1,4 +1,5 @@
 AnyEvent::Handle
+Fcntl
 Digest::SHA
 Path::Tiny
 Unicode::UTF8

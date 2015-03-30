@@ -1,6 +1,10 @@
 package TR::Git;
 use strict;
 use warnings;
+use Fcntl;
+use AnyEvent;
+use AnyEvent::IO qw(:DEFAULT :flags);
+use Promise;
 use Promised::Command;
 use Promised::File;
 
@@ -31,7 +35,7 @@ sub git_clone ($;%) {
   $cmd->stdout (\my $stdout);
   my $stderr = '';
   $cmd->stderr (sub { $stderr .= $_[0] if defined $_[0]; AE::log alert => $_[0] if defined $_[0] });
-  $cmd->timeout (100);
+  $cmd->timeout (60);
   return $cmd->run->then (sub {
     return $cmd->wait;
   })->then (sub {
@@ -64,5 +68,41 @@ sub git_home_config ($$) {
     return {stdout => $stdout, stderr => $stderr};
   });
 } # git_home_config
+
+push @EXPORT, qw(lock_repo);
+sub lock_repo ($$) {
+  my ($path, $timeout) = @_;
+  $timeout += AE::now;
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    aio_open $path, O_WRONLY | O_TRUNC | O_CREAT, 0644, sub {
+      return $ng->("|$path|: open: $!") unless @_;
+      my $fh = $_[0];
+      my $try; $try = sub {
+        my $result = flock $fh, Fcntl::LOCK_EX | Fcntl::LOCK_NB;
+        if ($result) {
+          $ok->($fh);
+          undef $try;
+        } else {
+          if ($! == 11) { # EAGAIN
+            if (AE::now < $timeout) {
+              my $timer; $timer = AE::timer 0.5, 0, sub {
+                $try->();
+                undef $timer;
+              };
+            } else {
+              $ng->("|$path|: flock: $!");
+              undef $try;
+            }
+          } else {
+            $ng->("|$path|: flock: $!");
+            undef $try;
+          }
+        }
+      }; # $try
+      $try->();
+    };
+  });
+} # lock
 
 1;
