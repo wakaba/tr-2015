@@ -176,10 +176,6 @@
   </template> 
   <template class=lang-area-template>
     <!-- data-lang={lang} class=lang-area -->
-    <p class=header>
-      <strong class=lang-label-short>{lang_label_short}</strong>
-      <button type=button class=toggle-edit title=Edit>Edit</button>
-      <button type=button class=search title="Search this text">Search</button>
     <div class=view>
             <p class=body_0 data-form=0>
             <p class=body_1 data-form=1>
@@ -194,23 +190,13 @@
               <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
             </menu>
     </div>
-    <p class=status hidden><progress></progress> <span class=message></span>
-    <form data-action="i/{text_id}/text.ndjson" method=post class=edit hidden>
-            <p class=buttons><button type=submit>保存</button>
-            <input type=hidden name=lang value={lang_key} class=lang-key>
-            <!-- XXX hash -->
+    <form data-action="i/{text_id}/text.ndjson" method=post class=edit>
+      <input type=hidden name=lang value={lang_key} class=lang-key>
             <p data-form=0><textarea name=body_0></textarea>
             <p data-form=1><textarea name=body_1></textarea>
             <p data-form=2><textarea name=body_2></textarea>
             <p data-form=3><textarea name=body_3></textarea>
             <p data-form=4><textarea name=body_4></textarea>
-            <menu class=text-form-tabs>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
-              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
-            </menu>
             <p>
               <select name=forms>
                 <option value=o data-fields=0>Only the default form
@@ -218,8 +204,16 @@
                 <option value=0o data-fields=0,1>Singular (0, 1) and plural
                 <option value=test data-fields=0,2,3,4>Test
               </select>
-            <p class=links><a pl:data-href="'i/{text_id}/history.json?lang={lang_key}'" target=history>History</a>
+            <p class=buttons><button type=submit>保存</button>
+            <menu class=text-form-tabs>
+              <a href=javascript: onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</a>
+              <a href=javascript: onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</a>
+              <a href=javascript: onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</a>
+              <a href=javascript: onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</a>
+              <a href=javascript: onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</a>
+            </menu>
     </form>
+    <p class=status hidden><progress></progress> <span class=message></span>
   </template>
   <tbody>
   <tbody class=status hidden>
@@ -280,6 +274,12 @@
       </details>
     </form>
 </table>
+<menu class=texts-lang-area-menu hidden>
+  <strong class=lang-label>{lang_label}</strong>
+  <button type=button class=toggle-edit>Edit</button>
+  <button type=button class=search>Search</button>
+  <a href data-href="i/{text_id}/history.json?lang={lang_key}" target=history>History</a>
+</menu>
 
 <script src=/js/time.js charset=utf-8></script>
 <script>
@@ -317,7 +317,7 @@
   } // server
 
   function isEditMode () {
-    return !!document.querySelector ('.dialog:not([hidden]):not(#config-langs), .toggle-edit.active');
+    return !!document.querySelector ('.dialog:not([hidden]):not(#config-langs), .toggle-edit.active, .edit-mode');
   } // isEditMode
 
   function showProgress (json, status) {
@@ -480,31 +480,43 @@
           el.textContent = document.trLangs[langKey].label_short;
         });
 
-        var toggle = area.querySelector ('button.toggle-edit');
-        toggle.onclick = function () {
-          toggleAreaEditor (area, !this.classList.contains ('active'));
+        area.trToggleEdit = function (mode) {
+          if (mode === undefined) {
+            area.classList.toggle ('edit-mode');
+          } else {
+            area.classList.toggle ('edit-mode', mode);
+          }
+          var editMode = area.classList.contains ('edit-mode');
+          Array.prototype.forEach.call (area.querySelectorAll ('.toggle-edit'), function (el) {
+            el.classList.toggle ('active', editMode);
+          });
+        };
+        area.ondblclick = function () {
+          area.trToggleEdit ();
         };
         area.querySelector ('form.edit').onsubmit = function () {
-          toggleAreaEditor (area, false);
+          Array.prototype.forEach.call (area.querySelectorAll ('[type=submit]'), function (el) {
+            el.disabled = true;
+          });
 
           var formStatus = area.querySelector ('.status');
-          formStatus.hidden = false;
-          formStatus.querySelector ('.message').textContent = 'Saving...';
-          formStatus.querySelector ('progress').hidden = false;
-          var editButton = area.querySelector ('button.toggle-edit');
-          if (editButton) editButton.disabled = true;
+          showProgress ({init: true}, formStatus);
 
           var form = area.querySelector ('form');
           server ('POST', form.action, new FormData (form), function (res) {
             syncLangAreaView (area);
             formStatus.hidden = true;
-            if (editButton) editButton.disabled = false;
-          }, function (error) {
-            formStatus.querySelector ('.message').textContent = error.status + ' ' + error.message;
-            formStatus.querySelector ('progress').hidden = true;
-            if (editButton) editButton.disabled = false;
-          }, function (progress) {
-            if (progress.message) formStatus.querySelector ('.message').textContent = progress.message;
+            area.trToggleEdit (false);
+            Array.prototype.forEach.call (area.querySelectorAll ('[type=submit]'), function (el) {
+              el.disabled = false;
+            });
+          }, function (json) {
+            showError (json, formStatus);
+            Array.prototype.forEach.call (area.querySelectorAll ('[type=submit]'), function (el) {
+              el.disabled = false;
+            });
+          }, function (json) {
+            showProgress (json, formStatus);
           });
           return false;
         };
@@ -519,17 +531,10 @@
           if (langData.body_4) form.querySelector ('[name=body_4]').value = langData.body_4;
           if (langData.forms) form.querySelector ('[name=forms]').value = langData.forms;
         }
-        area.querySelector ('button.search').onclick = function () {
-          showSearchSidebar (form.querySelector ('[name=body_0]').value);
-        };
 
         form.querySelector ('select[name=forms]').onchange = function () {
           syncLangAreaTabs (area);
         };
-
-        Array.prototype.forEach.call (area.querySelectorAll ('a[data-href]'), function (el) {
-          el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, text.textId).replace (/\{lang_key\}/g, langKey);
-        });
 
         syncLangAreaView (area);
 
@@ -563,10 +568,55 @@
       });
           
       Array.prototype.slice.call (fragment.children).forEach (function (el) {
+        el.setAttribute ('data-text-id', text.textId);
         rowContainer.appendChild (el);
       });
     });
   } // addTexts
+
+  (function () {
+    var mainTable = document.querySelector ('#texts');
+    var mainTableMenu = document.querySelector ('.texts-lang-area-menu');
+    mainTable.addEventListener ('click', function (ev) {
+      var t = ev.target;
+      while (t && t.localName !== 'td') {
+        t = t.parentNode;
+      }
+      if (!t || t.localName !== 'td') return;
+      if (!t.classList.contains ('lang-area')) return;
+      var cell = t;
+      if (cell.classList.contains ('selected')) return;
+      var row = cell.parentNode;
+      var oldCell = mainTable.querySelector ('td.selected');
+      if (oldCell) {
+        oldCell.classList.remove ('selected');
+        oldCell.parentNode.classList.remove ('selected');
+      }
+      cell.classList.add ('selected');
+      row.classList.add ('selected');
+
+      var langKey = cell.getAttribute ('data-lang');
+      var textId = row.getAttribute ('data-text-id');
+      mainTableMenu.hidden = false;
+      Array.prototype.forEach.call (mainTableMenu.querySelectorAll ('.lang-label'), function (el) {
+        el.textContent = document.trLangs[langKey].label;
+      });
+      var editButton = mainTableMenu.querySelector ('.toggle-edit');
+      editButton.onclick = function () {
+        cell.trToggleEdit ();
+        return false;
+      };
+      editButton.classList.toggle ('active', cell.classList.contains ('edit-mode'));
+      mainTableMenu.querySelector ('.search').onclick = function () {
+        showSearchSidebar (cell.querySelector ('[name=body_0]').value);
+        return false;
+      };
+      Array.prototype.forEach.call (mainTableMenu.querySelectorAll ('a[data-href]'), function (el) {
+        el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, textId).replace (/\{lang_key\}/g, langKey);
+      });
+      cell.appendChild (mainTableMenu);
+    });
+  }) ();
 
 function updateTable () {
   var mainTable = document.getElementById ('texts');

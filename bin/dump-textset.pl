@@ -17,9 +17,12 @@ my $dat_entries = {};
 my $txt_entries = {};
 my $comments_entries = {};
 
-my $set_parent_entry = length $text_set_path ? $root_tree->entry_bypath ($text_set_path) : $root_tree;
-if (defined $set_parent_entry and $set_parent_entry->object->is_tree) {
-  my $set_texts_entry = $set_parent_entry->object->entry_byname ('texts');
+my $set_parent_tree = length $text_set_path ? do {
+  my $entry = $root_tree->entry_bypath ($text_set_path);
+  defined $entry ? $entry->object : undef;
+} : $root_tree;
+if (defined $set_parent_tree and $set_parent_tree->is_tree) {
+  my $set_texts_entry = $set_parent_tree->entry_byname ('texts');
   if (defined $set_texts_entry and $set_texts_entry->object->is_tree) {
     for my $dir_entry ($set_texts_entry->object->entries) {
       next unless $dir_entry->object->is_tree;

@@ -225,6 +225,7 @@ table#texts > * > tr > td {
   padding: 0.1rem;
   vertical-align: top;
   width: 15rem;
+  min-width: 5rem;
 }
 
 table#texts > thead > tr > th:nth-child(2n+1),
@@ -435,6 +436,16 @@ a.share {
   text-align: center;
   vertical-align: middle;
 }
+.texts-lang-area-menu button.toggle-edit,
+.texts-lang-area-menu button.search {
+  margin: 0.1rem;
+  border: solid 1px transparent;
+  border-radius: 0.3rem;
+  padding: 0.1rem 0.2rem;
+  width: auto;
+  color: inherit;
+}
+
 button.toggle-edit::before, button.edit::before,
 button.settings::before,
 button.close::before,
@@ -455,10 +466,16 @@ button.search::before { content: "search" }
 a.import::before { content: "in" }
 a.export::before { content: "out" }
 a.share::before { content: "link" }
+.texts-lang-area-menu button.toggle-edit::before { content: "pen " }
+.texts-lang-area-menu button.search::before { content: "search " }
 
 button.toggle-edit.active {
   border-top-left-radius: 0.3rem;
   border-top-right-radius: 0.3rem;
+}
+.texts-lang-area-menu button.toggle-edit.active {
+  border-style: inset;
+  border-color: #ccc;
   background: white;
 }
 
@@ -499,7 +516,15 @@ html:not([data-scopes~=texts]) #add {
   text-align: center;
 }
 
-.lang-area > .header,
+.lang-area {
+  position: relative;
+}
+
+.lang-area.selected {
+  outline: 1px dashed green;
+  outline-offset: 0;
+}
+
 .comments-area > .header {
   display: block;
   margin: 0 0 0.3em 0;
@@ -508,22 +533,27 @@ html:not([data-scopes~=texts]) #add {
   min-height: 1em;
 }
 
-.lang-area > .header::after,
 .comments-area > .header::after {
   content: "";
   clear: both;
 }
 
-.lang-area > .header > strong,
 .comments-area > .header > strong {
   float: left;
   font-weight: normal;
   color: gray
 }
 
-.lang-area > .header > button,
 .comments-area > .header > button {
   float: right;
+}
+
+.lang-area .edit {
+  display: none;
+}
+
+.lang-area.edit-mode .edit {
+  display: block;
 }
 
 .lang-area .edit p,
@@ -551,24 +581,37 @@ html:not([data-scopes~=texts]) #add {
 
 .lang-area .edit .buttons,
 .comments-area .edit .buttons {
-  margin-top: 0.3em;
+  float: right;
+  margin: 0.3em 0;
   text-align: right;
+}
+
+.lang-area .edit .buttons::after,
+.comments-area .edit .buttons::after {
+  content: "";
+  clear: both;
 }
 
 .lang-area > .view {
   margin: 0;
 }
 
+.lang-area.edit-mode > .view {
+  display: none;
+}
+
 .lang-area > .view p {
   margin: 0;
   padding: 0.1rem;
-  background: white;
-  color: black;
   line-height: 1.4;
   font-family: sans-serif;
   font-size: 90%;
   min-height: 2rem;
   width: 15rem;
+}
+
+.selected > .lang-area > .view p {
+  min-height: 5rem;
 }
 
 .comments-area article {
@@ -605,7 +648,7 @@ html:not([data-scopes~=texts]) #add {
   text-align: left;
 }
 
-.text-form-tabs > span:not([hidden]) {
+.text-form-tabs > :not([hidden]) {
   display: inline-block;
   margin: -1px 0 0.2em 0;
   border: gray 1px;
@@ -618,6 +661,7 @@ html:not([data-scopes~=texts]) #add {
   color: gray;
   cursor: pointer;
   text-align: center;
+  text-decoration: none;
 }
 
 .lang-area[data-selected-form] p[data-form] { display: none }
@@ -627,14 +671,52 @@ html:not([data-scopes~=texts]) #add {
 .lang-area[data-selected-form="3"] p[data-form="3"] { display: block }
 .lang-area[data-selected-form="4"] p[data-form="4"] { display: block }
 
-.lang-area[data-selected-form="0"] .text-form-tabs > span[data-form="0"],
-.lang-area[data-selected-form="1"] .text-form-tabs > span[data-form="1"],
-.lang-area[data-selected-form="2"] .text-form-tabs > span[data-form="2"],
-.lang-area[data-selected-form="3"] .text-form-tabs > span[data-form="3"],
-.lang-area[data-selected-form="4"] .text-form-tabs > span[data-form="4"] {
+.lang-area[data-selected-form="0"] .text-form-tabs > [data-form="0"],
+.lang-area[data-selected-form="1"] .text-form-tabs > [data-form="1"],
+.lang-area[data-selected-form="2"] .text-form-tabs > [data-form="2"],
+.lang-area[data-selected-form="3"] .text-form-tabs > [data-form="3"],
+.lang-area[data-selected-form="4"] .text-form-tabs > [data-form="4"] {
   border-top-color: transparent;
   color: black;
   background: #eee;
+}
+
+.lang-area .status:not([hidden]),
+.comments-area .status:not([hidden]) {
+  display: block;
+  width: 100%;
+  margin: 0;
+}
+
+.lang-area .status progress:not([hidden]),
+.comments-area .status progress:not([hidden]) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: 0.6em;
+}
+
+.lang-area .status .message:not([hidden]),
+.comments-area .status .message:not([hidden]) {
+  display: block;
+  width: 100%;
+  font-size: 80%;
+  text-align: center;
+}
+
+.texts-lang-area-menu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  min-width: 5rem;
+  margin: 0;
+  padding: 0.1rem 0.3rem;
+  background: #eee;
+  box-shadow: #999 2px 2px;
+  color: black;
+  font-size: 90%;
+  z-index: 100;
 }
 
 table.config > * > * > th {

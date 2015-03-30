@@ -94,6 +94,7 @@ sub home_path ($) {
 sub texts_dir ($;$) {
   if (@_ > 1) {
     $_[0]->{texts_dir} = $_[1];
+    delete $_[0]->{texts_dir} unless defined $_[0]->{texts_dir} and length $_[0]->{texts_dir};
   }
   return $_[0]->{texts_dir};
 } # texts_dir
