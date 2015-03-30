@@ -68,11 +68,15 @@ sub start_json_stream ($) {
       ('Content-Type' => 'application/x-ndjson; charset=utf-8');
 } # start_json_stream
 
-sub send_progress_json_chunk ($$) {
-  my ($self, $reason) = @_;
+sub send_progress_json_chunk ($$;$) {
+  my ($self, $reason, $values) = @_;
   return unless $self->{in_json_stream};
-  $self->http->send_response_body_as_ref
-      (\perl2json_bytes {status => 102, message => $reason});
+  my $json = {status => 102, message => $reason};
+  if (defined $values) {
+    $json->{value} = $values->[0];
+    $json->{max} = $values->[1];
+  }
+  $self->http->send_response_body_as_ref (\perl2json_bytes $json);
   $self->http->send_response_body_as_ref (\"\nnull\n");
 } # send_progress_json_chunk
 

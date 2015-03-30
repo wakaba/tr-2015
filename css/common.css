@@ -584,6 +584,8 @@ html:not([data-scopes~=texts]) #add {
   float: right;
   margin: 0.3em 0;
   text-align: right;
+  position: relative;
+  z-index: 10;
 }
 
 .lang-area .edit .buttons::after,
@@ -684,8 +686,13 @@ html:not([data-scopes~=texts]) #add {
 .lang-area .status:not([hidden]),
 .comments-area .status:not([hidden]) {
   display: block;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
   width: 100%;
   margin: 0;
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .lang-area .status progress:not([hidden]),

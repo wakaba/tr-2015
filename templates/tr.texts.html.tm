@@ -213,7 +213,9 @@
               <a href=javascript: onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</a>
             </menu>
     </form>
-    <p class=status hidden><progress></progress> <span class=message></span>
+    <p class=status hidden>
+      <span class=message></span>
+      <progress></progress>
   </template>
   <tbody>
   <tbody class=status hidden>
@@ -442,6 +444,22 @@
     argsArea.hidden = !((text.args || []).length > 0);
   } // showTextMetadata
 
+  function scrollToLangArea (cell) {
+    var row = cell.parentNode;
+    var headerRow = row.previousElementSibling;
+    var headerTop = headerRow.offsetParent.offsetTop + headerRow.offsetTop;
+    if (headerTop < document.body.scrollTop) {
+      document.body.scrollTop = headerTop;
+    } else {
+      var menu = cell.querySelector ('.texts-lang-area-menu');
+      var bottom = row.offsetTop + row.offsetParent.offsetTop + row.offsetHeight + (menu ? menu.offsetHeight : 0);
+      var vpHeight = document.documentElement.clientHeight;
+      if (document.body.scrollTop + vpHeight < bottom) {
+        document.body.scrollTop = bottom - vpHeight;
+      }
+    }
+  } // scrollToLangArea
+
   function addTexts (iTexts) {
     var mainTable = document.getElementById ('texts');
     var rowContainer = mainTable.querySelector ('tbody');
@@ -490,11 +508,19 @@
           Array.prototype.forEach.call (area.querySelectorAll ('.toggle-edit'), function (el) {
             el.classList.toggle ('active', editMode);
           });
+          if (editMode) {
+            scrollToLangArea (area);
+            Array.prototype.filter.call (area.querySelectorAll ('.edit p[data-form]'), function (el) {
+              return getComputedStyle (el).style !== 'none';
+            })[0].querySelector ('textarea').focus ();
+          }
         };
-        area.ondblclick = function () {
+        area.ondblclick = function (ev) {
+          if (ev.target.form) return;
           area.trToggleEdit ();
         };
         area.querySelector ('form.edit').onsubmit = function () {
+          area.trToggleEdit (false);
           Array.prototype.forEach.call (area.querySelectorAll ('[type=submit]'), function (el) {
             el.disabled = true;
           });
@@ -506,11 +532,11 @@
           server ('POST', form.action, new FormData (form), function (res) {
             syncLangAreaView (area);
             formStatus.hidden = true;
-            area.trToggleEdit (false);
             Array.prototype.forEach.call (area.querySelectorAll ('[type=submit]'), function (el) {
               el.disabled = false;
             });
           }, function (json) {
+            area.trToggleEdit (true);
             showError (json, formStatus);
             Array.prototype.forEach.call (area.querySelectorAll ('[type=submit]'), function (el) {
               el.disabled = false;
@@ -578,6 +604,7 @@
     var mainTable = document.querySelector ('#texts');
     var mainTableMenu = document.querySelector ('.texts-lang-area-menu');
     mainTable.addEventListener ('click', function (ev) {
+      if (ev.detail !== 1) return;
       var t = ev.target;
       while (t && t.localName !== 'td') {
         t = t.parentNode;
@@ -615,6 +642,8 @@
         el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, textId).replace (/\{lang_key\}/g, langKey);
       });
       cell.appendChild (mainTableMenu);
+
+      scrollToLangArea (cell);
     });
   }) ();
 

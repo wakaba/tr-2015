@@ -642,13 +642,14 @@ sub main ($$) {
         my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
 
         $app->start_json_stream if $type eq 'ndjson';
-        $app->send_progress_json_chunk ('Checking the repository permission...');
+        $app->send_progress_json_chunk ('Checking the repository permission...', [1,5]);
         return $class->get_push_token ($app, $tr, 'edit/' . $lang)->then (sub {
           return $tr->prepare_mirror ($_[0], $app);
         })->then (sub {
-          $app->send_progress_json_chunk ('Cloning the repository...');
+          $app->send_progress_json_chunk ('Cloning the repository...', [2,5]);
           return $tr->clone_from_mirror (push => 1, no_checkout => 1);
         })->then (sub {
+          $app->send_progress_json_chunk ('Applying the change...', [3,5]);
           my $path = $tr->text_id_and_suffix_to_relative_path ($id, $lang . '.txt');
           return $tr->mirror_repo->show_blob_by_path ($tr->branch, $path);
         })->then (sub {
@@ -664,7 +665,7 @@ sub main ($$) {
           $msg = 'Added a message' unless length $msg; # XXX
           return $tr->commit ($msg);
         })->then (sub {
-          $app->send_progress_json_chunk ('Pushing the repository...');
+          $app->send_progress_json_chunk ('Pushing the repository...',[4,5]);
           return $tr->push; # XXX failure
         })->then (sub {
           return $app->send_last_json_chunk (200, 'Saved', {});
