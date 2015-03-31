@@ -102,15 +102,14 @@ sub as_source_text ($) {
 sub as_jsonalizable ($) {
   my $self = $_[0];
   my $json = {%{$self->{props}}};
-  for (qw(tags args)) {
-    delete $json->{$_} if defined $json->{$_};
-  }
   for my $key (keys %{$self->{enum_props}}) {
     $json->{$key} = [sort { $a cmp $b } grep { $self->{enum_props}->{$key}->{$_} } keys %{$self->{enum_props}->{$key}}];
   }
   for my $key (keys %{$self->{list_props}}) {
     $json->{$key} = $self->{list_props}->{$key};
   }
+  delete $json->{tags} if defined $json->{tags} and not 'ARRAY' eq ref $json->{tags};
+  delete $json->{args} if defined $json->{args} and not 'ARRAY' eq ref $json->{args};
   return $json;
 } # as_jsonalizable
 

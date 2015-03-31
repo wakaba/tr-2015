@@ -21,12 +21,19 @@
   <meta itemprop=lang-params pl:content="join '&', map { 'lang=' . percent_encode_c $_ } @{$app->text_param_list ('lang')}">
 
   <nav class=langs-menu-container>
-    <a href="#share" onclick=" showShareDialog () " class=share title="共有">Share</a>
+    <a href="#share" onclick=" modalDialog ('share', true); return false " class=share title="共有">Share</a>
     <a href=import class=import title="テキスト集合に外部データを取り込み" target=config>Import</a><!-- XXX lang= & tag=  -->
-    <a href="#config-export" onclick=" toggleExportDialog (true) " class=export title="テキスト集合からデータファイルを生成">Export</a>
-    <button type=button class=settings title="設定を変更">設定</button>
-    <menu hidden>
-      <p><a href="#config-langs" onclick=" toggleLangsConfig (true) ">表示言語...</a>
+    <a href="#export" onclick=" modalDialog ('export', true); return false " class=export title="テキスト集合からデータファイルを生成">Export</a>
+    <button type=button class=settings title="設定を変更" onclick="
+      var menu = this.nextElementSibling;
+      menu.hidden = !menu.hidden;
+    ">設定</button>
+    <menu hidden onclick="
+      if (event.target.localName === 'a') {
+        event.currentTarget.hidden = true;
+      }
+    ">
+      <p><a href="#config-langs" onclick=" modalDialog ('config-langs', true); return false ">表示言語...</a>
       <p><a href=license target=config>ライセンス...</a>
       <p><a href=../../acl target=config>編集権限...</a>
     </menu>
@@ -126,8 +133,8 @@
   <template class=text-row-template>
     <tr class=text-header>
       <th data-colspan-delta=1>
-        <a class=msgid onclick=" showCopyIdDialog (this.parentNode); return false "><code></code></a>
-        <a class=text_id onclick=" showCopyIdDialog (this.parentNode); return false "><code></code></a>
+        <a class=msgid onclick=" modalDialog ('copy-id', true, {area: this.parentNode}); return false "><code></code></a>
+        <a class=text_id onclick=" modalDialog ('copy-id', true, {area: this.parentNode}); return false "><code></code></a>
         <span class=tags-area>
           <strong>タグ</strong>
           <span class=tags></span>
@@ -148,7 +155,7 @@
         </span>
 
         <span class=desc></span>
-        <span class=buttons><button type=button class=edit title="テキスト情報を編集" onclick=" showTextEditDialog (parentNode.parentNode) ">編集</button></span>
+        <span class=buttons><button type=button class=edit title="テキスト情報を編集" onclick=" modalDialog ('config-text', true, {area: parentNode.parentNode}) ">編集</button></span>
     <tr class=text-body>
       <script class=lang-area-placeholder />
 
@@ -837,11 +844,41 @@ function saveArea (area, onsaved) { // XXX promise
   </section>
 </aside>
 
+<script>
+  document.trDialogHandlers = {};
+
+    function modalDialog (id, show, args) {
+      var dialogRoot = document.getElementById (id);
+      var handler = document.trDialogHandlers[id] || {};
+      if (!handler._initialized) {
+        Array.prototype.forEach.call (dialogRoot.querySelectorAll ('.close'), function (button) {
+          button.onclick = function () {
+            modalDialog (id, false);
+          };
+        });
+        handler._initialized = true;
+      }
+      if (show) {
+        if (handler.beforeshow) handler.beforeshow (dialogRoot, args);
+        dialogRoot.style.top = document.body.scrollTop + 'px';
+        dialogRoot.hidden = false;
+        if (handler.navigatable) {
+          history.replaceState (null, null, '#' + id);
+        }
+      } else {
+        dialogRoot.hidden = true;
+        if (location.hash === '#' + id) {
+          history.replaceState (null, null, '#');
+        }
+      }
+    } // modalDialog
+</script>
+
 <div class=dialog id=config-langs hidden>
   <section>
     <header>
       <h1>言語設定</h1>
-      <button type=button class=close title="保存せずに閉じる">閉じる</button>
+      <button type=button class=close title="閉じる">閉じる</button>
     </header>
 
     <ul class=langs />
@@ -858,17 +895,16 @@ function saveArea (area, onsaved) { // XXX promise
 
     <hr>
 
-    <p><a href="langs" target=config onclick=" toggleLangsConfig (false) ">対象言語の設定</a>
+    <p><a href="langs" target=config class=close>対象言語の設定</a>
 
     <p class=status hidden><progress></progress> <span class=message></span>
   </section>
   <script>
-    function toggleLangsConfig (status) {
-      var langsPanel = document.querySelector ('#config-langs');
-      if (status) {
+    document.trDialogHandlers['config-langs'] = {navigatable: true};
+    document.trDialogHandlers['config-langs'].beforeshow = function (root) {
         // XXX wait until document.trLangKeys available
-        var list = langsPanel.querySelector ('.langs');
-        var template = langsPanel.querySelector ('.lang-template');
+        var list = root.querySelector ('.langs');
+        var template = root.querySelector ('.lang-template');
         Array.prototype.slice.call (list.querySelectorAll ('li')).forEach (function (li) {
           list.removeChild (li);
         });
@@ -895,53 +931,16 @@ function saveArea (area, onsaved) { // XXX promise
           };
           list.appendChild (li);
         });
-        langsPanel.querySelector ('.apply-button').onclick = function () {
+        root.querySelector ('.apply-button').onclick = function () {
           var item = document.querySelector ('[itemtype=data]');
           item.querySelector ('[itemprop=lang-params]').content
-              = Array.prototype.filter.call (langsPanel.querySelectorAll ('.langs > li[data-lang]'), function (li) { return li.querySelector ('input[type=checkbox]').checked })
+              = Array.prototype.filter.call (root.querySelectorAll ('.langs > li[data-lang]'), function (li) { return li.querySelector ('input[type=checkbox]').checked })
               .map (function (li) { return 'lang=' + encodeURIComponent (li.getAttribute ('data-lang')) })
               .join ('&');
           updateTable ();
-          toggleLangsConfig (false);
+          modalDialog ('config-langs', false);
         };
-
-        langsPanel.hidden = false;
-      } else {
-        langsPanel.hidden = true;
-      }
-    } // toggleLangsConfig
-
-    // XXX
-      (function () {
-        var langsMenuContainer = document.querySelector ('.langs-menu-container');
-        var langsMenuButton = langsMenuContainer.querySelector ('button.settings');
-        var langsMenu = langsMenuContainer.querySelector ('menu');
-        langsMenuButton.onclick = function () {
-          langsMenu.hidden = !langsMenu.hidden;
-          langsMenuButton.classList.toggle ('active', !langsMenu.hidden);
-          if (langsMenu.hidden) {
-            history.replaceState (null, null, '#');
-          }
-        };
-        Array.prototype.slice.call (langsMenu.querySelectorAll ('a')).forEach (function (a) {
-          a.addEventListener ('click', function () {
-            langsMenu.hidden = true;
-            langsMenuButton.classList.remove ('active');
-            history.replaceState (null, null, '#');
-          });
-        });
-
-        var langsPanel = document.querySelector ('#config-langs');
-        langsPanel.querySelector ('button.close').onclick = function () {
-          toggleLangsConfig (false);
-          history.replaceState (null, null, '#');
-        };
-
-        var f = decodeURIComponent (location.hash.replace (/^#/, ''));
-        if (f === 'config-langs') {
-          toggleLangsConfig (true);
-        }
-      }) ();
+    }; // beforeshow
   </script>
 </div>
 
@@ -959,26 +958,16 @@ function saveArea (area, onsaved) { // XXX promise
     </table>
   </section>
   <script>
-    function showShareDialog (area) {
-      var dialog = document.querySelector ('#share');
-      dialog.querySelector ('button.close').onclick = hideShareDialog;
-
-      var texts = dialog.querySelectorAll ('.copyable');
+    document.trDialogHandlers['share'] = {navigatable: true};
+    document.trDialogHandlers['share'].beforeshow = function (root) {
+      var texts = root.querySelectorAll ('.copyable');
       texts[0].value = location.href.replace (/\?.*/, '');
       texts[1].value = location.href.replace (/#.*/, '');
 
       Array.prototype.forEach.call (texts, function (input) {
         input.onfocus = function () { this.select (0, this.value.length) };
       });
-
-      dialog.hidden = false;
-      dialog.style.top = document.body.scrollTop + 'px';
-    } // showShareDialog
-
-    function hideShareDialog () {
-      var dialog = document.querySelector ('#share');
-      dialog.hidden = true;
-    } // hideShareDialog
+    }; // beforeshow
   </script>
 </div>
 
@@ -997,15 +986,12 @@ function saveArea (area, onsaved) { // XXX promise
     </table>
   </section>
   <script>
-    function showCopyIdDialog (area) {
-      var dialog = document.querySelector ('#copy-id');
+    document.trDialogHandlers['copy-id'] = {};
+    document.trDialogHandlers['copy-id'].beforeshow = function (root, args) {
+      var textId = args.area.querySelector ('.text_id').textContent;
+      var msgid = args.area.querySelector ('.msgid').textContent;
 
-      var textId = area.querySelector ('.text_id').textContent;
-      var msgid = area.querySelector ('.msgid').textContent;
-
-      dialog.querySelector ('button.close').onclick = hideCopyIdDialog;
-
-      Array.prototype.forEach.call (dialog.querySelectorAll ('input.copyable'), function (input) {
+      Array.prototype.forEach.call (root.querySelectorAll ('input.copyable'), function (input) {
         var template = input.getAttribute ('data-value');
         input.parentNode.parentNode.hidden
             = (textId === "" && /\{text_id\}/.test (template)) ||
@@ -1013,15 +999,7 @@ function saveArea (area, onsaved) { // XXX promise
         input.value = template.replace (/\{text_id\}/g, textId).replace (/\{msgid\}/g, msgid);
         input.onfocus = function () { this.select (0, this.value.length) };
       });
-
-      dialog.hidden = false;
-      dialog.style.top = document.body.scrollTop + 'px';
-    } // showCopyIdDialog
-
-    function hideCopyIdDialog () {
-      var dialog = document.querySelector ('#copy-id');
-      dialog.hidden = true;
-    } // hideCopyIdDialog
+    }; // beforeshow
   </script>
 </div>
 
@@ -1094,30 +1072,27 @@ function saveArea (area, onsaved) { // XXX promise
     <p class=status hidden><progress></progress> <span class=message></span>
   </section>
   <script>
-    function showTextEditDialog (area) {
-      var dialog = document.querySelector ('#config-text');
-
-      var textId = area.querySelector ('.text_id').textContent;
-      var form = dialog.querySelector ('form');
+    document.trDialogHandlers['config-text'] = {};
+    document.trDialogHandlers['config-text'].beforeshow = function (root, args) {
+      var textId = args.area.querySelector ('.text_id').textContent;
+      var form = root.querySelector ('form');
       form.action = form.getAttribute ('data-action').replace (/\{text_id\}/g, textId);
-
-      dialog.querySelector ('button.close').onclick = hideTextEditDialog;
       form.onsubmit = function () {
-        return saveArea (dialog, function (text) {
-          showTextMetadata (textId, text, area);
-          hideTextEditDialog ();
+        return saveArea (root, function (text) {
+          showTextMetadata (textId, text, args.area);
+          modalDialog ('config-text', false);
         });
       };
 
       ['msgid', 'text_id', 'desc'].forEach (function (n) {
-        dialog.querySelector ('[name='+n+']').value = area.querySelector ('.'+n+'').textContent;
+        root.querySelector ('[name='+n+']').value = args.area.querySelector ('.'+n+'').textContent;
       });
 
-      var dialogTags = dialog.querySelector ('table.tags');
+      var dialogTags = root.querySelector ('table.tags');
       var dialogTagsTemplate = dialogTags.querySelector ('template');
       var dialogTagsContainer = dialogTags.tBodies[0];
       dialogTagsContainer.textContent = '';
-      Array.prototype.forEach.call (area.querySelectorAll ('.tag'), function (el) {
+      Array.prototype.forEach.call (args.area.querySelectorAll ('.tag'), function (el) {
         var tr = document.createElement ('tr');
         tr.innerHTML = dialogTagsTemplate.innerHTML;
         tr.querySelector ('[name=tag]').value = el.textContent;
@@ -1129,11 +1104,11 @@ function saveArea (area, onsaved) { // XXX promise
         dialogTagsContainer.appendChild (tr);
       }
 
-      var dialogArgs = dialog.querySelector ('table.args');
+      var dialogArgs = root.querySelector ('table.args');
       var dialogArgsTemplate = dialogArgs.querySelector ('template');
       var dialogArgsContainer = dialogArgs.tBodies[0];
       dialogArgsContainer.textContent = '';
-      Array.prototype.forEach.call (area.querySelectorAll ('.arg'), function (el) {
+      Array.prototype.forEach.call (args.area.querySelectorAll ('.arg'), function (el) {
         var tr = document.createElement ('tr');
         tr.innerHTML = dialogArgsTemplate.innerHTML;
         tr.querySelector ('[name=arg_name]').value = el.querySelector ('.arg_name').textContent;
@@ -1145,23 +1120,15 @@ function saveArea (area, onsaved) { // XXX promise
         tr.innerHTML = dialogArgsTemplate.innerHTML;
         dialogArgsContainer.appendChild (tr);
       }
-
-      dialog.hidden = false;
-      dialog.style.top = document.body.scrollTop + 'px';
-    } // showTextEditDialog
-
-    function hideTextEditDialog () {
-      var dialog = document.querySelector ('#config-text');
-      dialog.hidden = true;
-    } // hideTextEditDialog
+    }; // beforeshow
   </script>
 </div>
 
-<div class=dialog id=config-export hidden>
+<div class=dialog id=export hidden>
   <section>
     <header>
       <h1>Export</h1>
-      <button type=button class=close onclick=" toggleExportDialog (false) ">閉じる</button>
+      <button type=button class=close title="閉じる">閉じる</button>
     </header>
 
     <form method=get target=_blank>
@@ -1198,27 +1165,12 @@ function saveArea (area, onsaved) { // XXX promise
     </form>
   </section>
   <script>
-    function toggleExportDialog (status) {
-      var exportPanel = document.querySelector ('#config-export');
-      if (status) {
-        var item = document.querySelector ('[itemtype=data]');
-        var url = item.querySelector ('[itemprop=export-url]').href;
-        exportPanel.querySelector ('form').action = url;
-
-        exportPanel.hidden = false;
-      } else {
-        exportPanel.hidden = true;
-      }
-    } // toggleExportDialog
-
-    (function () {
-      var exportPanel = document.querySelector ('#config-export');
-
-      var f = decodeURIComponent (location.hash.replace (/^#/, ''));
-      if (f === 'config-export') {
-        toggleExportDialog (true);
-      }
-    }) ();
+    document.trDialogHandlers['export'] = {navigatable: true};
+    document.trDialogHandlers['export'].beforeshow = function (root) {
+      var item = document.querySelector ('[itemtype=data]');
+      var url = item.querySelector ('[itemprop=export-url]').href;
+      root.querySelector ('form').action = url;
+    }; // beforeshow
   </script>
 </div>
 
@@ -1280,6 +1232,13 @@ function saveArea (area, onsaved) { // XXX promise
     });
   } // resizer
   resizer (document.body);
+</script>
+
+<script>
+  var f = decodeURIComponent (location.hash.replace (/^#/, ''));
+  if (document.trDialogHandlers[f] && document.trDialogHandlers[f].navigatable) {
+    modalDialog (f, true);
+  }
 </script>
 
 <t:include path=_footer.html.tm />

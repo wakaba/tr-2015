@@ -537,7 +537,7 @@ sub get_data_as_jsonalizable ($%) {
         next TEXT if not $msgids->{$text->{msgid}};
       }
 
-      my $t = $text->{tags} || {};
+      my $t = {map { $_ => 1 } @{$text->{tags} || []}};
       for (@$tag_minuses) {
         next TEXT if $t->{$_};
       }
@@ -549,10 +549,8 @@ sub get_data_as_jsonalizable ($%) {
           next TEXT;
         } # F
       }
-      if (@$tags) {
-        for (@$tags) {
-          next TEXT unless $t->{$_};
-        }
+      for (@$tags) {
+        next TEXT unless $t->{$_};
       }
 
       my @all_lang = keys %{$text->{langs} or {}};

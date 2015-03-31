@@ -798,7 +798,7 @@ table#texts > tbody.status td {
 
 .dialog > section {
   display: block;
-  margin: 1em auto;
+  margin: 2em auto;
   border: 2px solid gray;
   padding: 0.5em;
   width: 50em;
