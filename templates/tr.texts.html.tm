@@ -14,24 +14,21 @@
     <h2 title=Branch><a href="../" rel=up><code itemprop=branch><t:text value="$tr->branch"></code></a></h2>
     <h3 title=Path><a href="./" rel=bookmark><code itemprop=texts-path><t:text value="'/' . $tr->texts_dir"></code></a></h3>
   </hgroup>
+  <!-- XXX public/private -->
+  <!-- XXX link to LICENSE -->
   <link itemprop=data-url pl:href="'data.ndjson?with_comments=1'">
   <link itemprop=export-url pl:href="'export?'">
   <meta itemprop=lang-params pl:content="join '&', map { 'lang=' . percent_encode_c $_ } @{$app->text_param_list ('lang')}">
-  <!-- XXX
-  <meta itemprop=license pl:content="$tr_config->get ('license') // ''">
-  <meta itemprop=license-holders pl:content="$tr_config->get ('license_holders') // ''">
-  <meta itemprop=additional-license-terms pl:content="$tr_config->get ('additional_license_terms') // ''">
-  -->
 
   <nav class=langs-menu-container>
     <a href="#share" onclick=" showShareDialog () " class=share title="共有">Share</a>
-    <a href="#config-export" onclick=" toggleExportDialog (true) " class=import title="テキスト集合に外部データを取り込み">Import</a>
+    <a href=import class=import title="テキスト集合に外部データを取り込み" target=config>Import</a><!-- XXX lang= & tag=  -->
     <a href="#config-export" onclick=" toggleExportDialog (true) " class=export title="テキスト集合からデータファイルを生成">Export</a>
-    <button type=button class=settings title="テキスト集合全体の設定を変更">設定</button>
+    <button type=button class=settings title="設定を変更">設定</button>
     <menu hidden>
-      <p><a href="#config-langs" onclick=" toggleLangsConfig (true) ">言語設定...</a>
-      <p><a href="#config-license" onclick=" toggleLicenseConfig (true) ">ライセンス設定...</a>
-      <p><a href=../../acl onclick=" /* XXX hidemenu */ " target=config-acl>編集権限...</a>
+      <p><a href="#config-langs" onclick=" toggleLangsConfig (true) ">表示言語...</a>
+      <p><a href=license target=config>ライセンス...</a>
+      <p><a href=../../acl target=config>編集権限...</a>
     </menu>
   </nav>
 
@@ -39,7 +36,7 @@
     <p>
       <input type=search name=q pl:value="$query->stringify" placeholder="Filtering by words">
       <button type=submit>Apply</button>
-      <a href="/help/filtering" rel=help title="Filter syntax" target=help>Advanced</a>
+      <a href="XXX" rel=help title="Filter syntax" target=help>Advanced</a>
     <!-- XXX langs -->
   </form>
 </header>
@@ -48,7 +45,7 @@
   <p>このリポジトリーは<strong>読み取り専用</strong>です。
 
   <ul class=switch>
-    <li>あなたがこのリポジトリーの管理者なら、<a href=../../acl target=config-acl>編集権限設定</a>を行ってください。
+    <li>あなたがこのリポジトリーの管理者なら、<a href=../../acl target=config>編集権限設定</a>を行ってください。
 
       <div class=XXX>
           <p>「所有権の取得」すると、このリポジトリーを編集できるようになります。
@@ -284,80 +281,15 @@
 </menu>
 
 <script src=/js/time.js charset=utf-8></script>
+<script src=/js/core.js charset=utf-8></script>
 <script>
   function escapeQueryValue (v) {
     return '"' + v.replace (/([\u0022\u005C])/g, function (x) { return '\\' + x }) + '"';
   } // escapeQueryValue
 
-  function server (method, url, formdata, ondone, onerror, onprogress) {
-    var xhr = new XMLHttpRequest;
-    xhr.open ('POST', url, true);
-    var nextChunk = 0;
-    xhr.onreadystatechange = function () {
-      if (xhr.readyState === 3 || xhr.readyState === 4) {
-        if (xhr.status === 200) {
-          var responses = xhr.responseText.split (/\n/);
-          while (nextChunk + 1 < responses.length) {
-            var chunk = JSON.parse (responses[nextChunk]);
-            nextChunk += 2;
-            if (chunk.status === 102) {
-              onprogress (chunk);
-            } else if (chunk.status === 200) {
-              ondone (chunk);
-            } else {
-              onerror (chunk);
-            }
-          }
-        } else { // status !== 200
-          if (xhr.readyState === 4) {
-            onerror ({status: xhr.status, message: xhr.statusText});
-          }
-        }
-      }
-    };
-    xhr.send (formdata);
-  } // server
-
   function isEditMode () {
     return !!document.querySelector ('.dialog:not([hidden]):not(#config-langs), .toggle-edit.active, .edit-mode');
   } // isEditMode
-
-  function showProgress (json, status) {
-    if (json.message) {
-      var statusMessage = status.querySelector ('.message');
-      statusMessage.textContent = json.message;
-    } else if (json.init) {
-      var statusMessage = status.querySelector ('.message');
-      statusMessage.textContent = json.message || 'Processing...';
-    }
-    if (json.max) {
-      var statusBar = status.querySelector ('progress');
-      statusBar.max = json.max;
-      if (json.value) statusBar.value = json.value;
-    } else if (json.init) {
-      var statusBar = status.querySelector ('progress');
-      statusBar.removeAttribute ('value');
-      statusBar.removeAttribute ('max');
-      statusBar.hidden = false;
-    }
-    status.hidden = false;
-  } // showProgress
-
-  function showError (json, status) {
-    status.hidden = false;
-    var statusMessage = status.querySelector ('.message');
-    statusMessage.textContent = json.message || json.status;
-    var statusBar = status.querySelector ('progress');
-    statusBar.hidden = true;
-  } // showError
-
-  function showDone (json, status) {
-    status.hidden = false;
-    var statusMessage = status.querySelector ('.message');
-    statusMessage.textContent = json.message || json.status;
-    var statusBar = status.querySelector ('progress');
-    statusBar.hidden = true;
-  } // showDone
 
   function setCurrentLangs (langKeys, langs) {
     var mainTable = document.getElementById ('texts');
@@ -926,7 +858,7 @@ function saveArea (area, onsaved) { // XXX promise
 
     <hr>
 
-    <p><a href="langs" target=config-langs onclick=" toggleLangsConfig (false) ">対象言語の設定</a>
+    <p><a href="langs" target=config onclick=" toggleLangsConfig (false) ">対象言語の設定</a>
 
     <p class=status hidden><progress></progress> <span class=message></span>
   </section>
@@ -1010,86 +942,6 @@ function saveArea (area, onsaved) { // XXX promise
           toggleLangsConfig (true);
         }
       }) ();
-  </script>
-</div>
-
-<div class=dialog id=config-license hidden>
-  <section>
-    <header>
-      <h1>ライセンス設定</h1>
-      <button type=button class=close title="保存せずに閉じる">閉じる</button>
-    </header>
-
-    <form action="license" method=post>
-      <table class=config>
-        <tbody>
-          <tr>
-            <th><label for=config-license-license>ライセンス
-            <td>
-              <select name=license id=config-license-license required>
-                <option value>ライセンスを選択
-                <option value=CC0>CC0
-                <option value=Public-Domain>Public Domain
-                <option value=MIT>MIT ライセンス
-                <option value=BSDModified>修正 BSD ライセンス
-                <option value=Apache2>Apache License 2.0
-                <option value=GPL2+>GPL2 以降
-                <option value=GPL3+>GPL3 以降
-                <option value=CC-BY-SA4>CC BY-SA 4.0
-                <option value=Perl>Perl と同じ
-                <option value=proprietary>独占的ライセンス
-              </select>
-          <tr>
-            <th><label for=config-license-license_holders>ライセンス保有者</label>
-            <td><input name=license_holders id=config-license-license_holders>
-          <tr>
-            <th><label for=config-license-additional_license_terms>追加のライセンス条項</label>
-            <td><textarea name=additional_license_terms id=config-license-additional_license_terms></textarea>
-      </table>
-
-      <p class=buttons><button type=button class=save>保存して閉じる</button>
-    </form>
-    <p class=status hidden><progress></progress> <span class=message></span>
-  </section>
-  <script>
-    function toggleLicenseConfig (status) {
-      var licensePanel = document.querySelector ('#config-license');
-      if (status) {
-        var item = document.querySelector ('[itemtype=data]');
-        var form = licensePanel.querySelector ('form');
-        form.elements.license.value = item.querySelector ('meta[itemprop=license]').content;
-        form.elements['license_holders'].value = item.querySelector ('meta[itemprop=license-holders]').content;
-        form.elements['additional_license_terms'].value = item.querySelector ('meta[itemprop=additional-license-terms]').content;
-        licensePanel.hidden = false;
-      } else {
-        licensePanel.hidden = true;
-      }
-    } // toggleLicenseConfig
-
-    (function () {
-      var licensePanel = document.querySelector ('#config-license');
-      licensePanel.trSync = function () {
-        toggleLicenseConfig (false);
-        history.replaceState (null, null, '#');
-        var item = document.querySelector ('[itemtype=data]');
-        var form = licensePanel.querySelector ('form');
-        item.querySelector ('meta[itemprop=license]').content = form.elements.license.value;
-        item.querySelector ('meta[itemprop=license-holders]').content = form.elements['license_holders'].value;
-        item.querySelector ('meta[itemprop=additional-license-terms]').content = form.elements['additional_license_terms'].value;
-      };
-      licensePanel.querySelector ('button.save').onclick = function () {
-        saveArea (licensePanel);
-      };
-      licensePanel.querySelector ('button.close').onclick = function () {
-        toggleLicenseConfig (false);
-        history.replaceState (null, null, '#');
-      };
-
-      var f = decodeURIComponent (location.hash.replace (/^#/, ''));
-      if (f === 'config-license') {
-        toggleLicenseConfig (true);
-      }
-    }) ();
   </script>
 </div>
 
@@ -1344,61 +1196,6 @@ function saveArea (area, onsaved) { // XXX promise
       </table>
       <p class=buttons><button type=submit>Export</button>
     </form>
-
-    <hr><!-- XXX -->
-    <h1>Import</h1>
-
-    <!-- XXX -->
-    <form action=import.ndjson method=post enctype=multipart/form-data>
-      <input type=hidden name=from value=repo>
-      <button type=submit>XXX</button>
-        <tr>
-          <th><label for=import-arg_format>Argument format</label>
-          <td>
-            <select id=import-arg_format name=arg_format>
-              <option value=auto>Auto
-              <option value=printf>printf
-              <option value=percentn>%n
-              <option value=braced>{placeholder}
-            </select>
-      <p class=status hidden><progress></progress> <span class=message></span>
-    </form>
-
-    <form action=import.ndjson method=post enctype=multipart/form-data>
-      <input type=hidden name=from value=file>
-      <table class=config>
-        <tr>
-          <th><label for=import-file>Files</label>
-          <td><input type=file name=file multiple id=import-file><!-- XXX accept=... -->
-
-        <tr>
-          <th><label for=import-lang>Language</label>
-          <td>
-            <select id=import-lang name=lang>
-              <option value=en label=English>
-              <option value=ja label=Japanese>
-            </select>
-        <tr>
-          <th><label for=import-format>Input format</label>
-          <td>
-            <select id=import-format name=format>
-              <option value=po>PO (GNU Gettext)
-            </select>
-        <tr>
-          <th><label for=import-arg_format>Argument format</label>
-          <td>
-            <select id=import-arg_format name=arg_format>
-              <option value=auto>Auto
-              <option value=printf>printf
-              <option value=percentn>%n
-              <option value=braced>{placeholder}
-            </select>
-      </table>
-
-      <p class=buttons><button type=submit>Import</button>
-      <p class=status hidden><progress></progress> <span class=message></span>
-    </form>
-    
   </section>
   <script>
     function toggleExportDialog (status) {
@@ -1416,20 +1213,6 @@ function saveArea (area, onsaved) { // XXX promise
 
     (function () {
       var exportPanel = document.querySelector ('#config-export');
-      Array.prototype.forEach.call (exportPanel.querySelectorAll ('form[method=post]'), function (form) {
-        form.onsubmit = function () {
-          var status = form.querySelector ('.status');
-          showProgress ({init: true}, status);
-          server ('POST', form.action, new FormData (form), function (res) {
-            showDone (res, status);
-          }, function (json) {
-            showError (json, status);
-          }, function (json) {
-            showProgress (json, status);
-          });
-          return false;
-        };
-      });
 
       var f = decodeURIComponent (location.hash.replace (/^#/, ''));
       if (f === 'config-export') {

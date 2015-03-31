@@ -1,5 +1,5 @@
 <html t:params="$tr $tr_config $app">
-<title>XXX</title>
+<title>Languages - Text set configuration - XXX</title>
 <link rel=stylesheet href=/css/common.css>
 <body onbeforeunload=" if (document.trModified) return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
 

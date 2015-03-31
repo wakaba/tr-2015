@@ -577,6 +577,18 @@ sub main ($$) {
       })->then (sub {
         return $tr->discard;
       });
+
+    } elsif (@$path == 5 and $path->[4] eq 'import') {
+      # .../import
+      return $class->check_read ($app, $tr, html => 1)->then (sub {
+        # XXX $app->text_param_list ('lang');
+        # XXX $app->text_param_list ('tag')
+        return $app->temma ('tr.texts.import.html.tm', {
+          app => $app,
+          tr => $tr,
+          # XXX scopes
+        });
+      });
     } elsif (@$path == 5 and $path->[4] =~ /\Aimport\.(json|ndjson)\z/) {
       # .../import.json
       # .../import.ndjson
@@ -887,6 +899,7 @@ sub main ($$) {
           return $app->temma ('tr.texts.langs.html.tm', {
             app => $app,
             tr => $tr,
+            # XXX scopes
           });
         });
       }
@@ -933,10 +946,20 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'license') {
       # .../license
-
+      return $class->check_read ($app, $tr, html => 1)->then (sub {
+        return $app->temma ('tr.texts.license.html.tm', {
+          app => $app,
+          tr => $tr,
+          # XXX scopes
+        });
+      });
+    } elsif (@$path == 5 and $path->[4] =~ /\Alicense\.(json|ndjson)\z/) {
+      # .../license.json
+      # .../license.ndjson
+      my $type = $1;
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
-
+      $app->start_json_stream if $type eq 'ndjson';
       return $class->get_push_token ($app, $tr, 'repo')->then (sub {
         return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
@@ -961,7 +984,7 @@ sub main ($$) {
       })->then (sub {
         return $tr->push; # XXX failure
       })->then (sub {
-        return $app->send_json ({});
+        return $app->send_last_json_chunk (200, 'Saved', {});
       }, sub {
         $app->error_log ($_[0]);
         return $app->send_error (500);
