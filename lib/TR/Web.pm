@@ -651,42 +651,35 @@ sub main ($$) {
         # XXX CSRF
 
         my $id = $path->[5]; # XXX validation
-        my $lang = $app->text_param ('lang') or $app->throw_error (400); # XXX lang validation
+        my $lang = $app->text_param ('lang') // '';
 
-        $app->start_json_stream if $type eq 'ndjson';
-        $app->send_progress_json_chunk ('Checking the repository permission...', [1,5]);
-        return $class->get_push_token ($app, $tr, 'edit/' . $lang)->then (sub {
-          return $tr->prepare_mirror ($_[0], $app);
-        })->then (sub {
-          $app->send_progress_json_chunk ('Cloning the repository...', [2,5]);
-          return $tr->clone_from_mirror (push => 1, no_checkout => 1);
-        })->then (sub {
-          $app->send_progress_json_chunk ('Applying the change...', [3,5]);
-          my $path = $tr->text_id_and_suffix_to_relative_path ($id, $lang . '.txt');
-          return $tr->mirror_repo->show_blob_by_path ($tr->branch, $path);
-        })->then (sub {
-          my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
-          for (qw(body_0 body_1 body_2 body_3 body_4 forms)) {
-            my $v = $app->text_param ($_);
-            $te->set ($_ => $v) if defined $v;
-          }
-          $te->set (last_modified => time);
-          return $tr->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
-        })->then (sub {
-          my $msg = $app->text_param ('commit_message') // '';
-          $msg = 'Added a message' unless length $msg; # XXX
-          return $tr->commit ($msg);
-        })->then (sub {
-          $app->send_progress_json_chunk ('Pushing the repository...',[4,5]);
-          return $tr->push; # XXX failure
-        })->then (sub {
-          return $app->send_last_json_chunk (200, 'Saved', {});
-        }, sub {
-          $app->error_log ($_[0]);
-          return $app->send_error (500);
-        })->then (sub {
-          return $tr->discard;
-        });
+        return $class->edit_text_set (
+          $app, $tr, $type,
+          sub {
+            return $tr->get_tr_config->then (sub {
+              my $tr_config = $_[0];
+              my $lang_keys = {map { $_ => 1 } grep { length }
+                               split /,/, $tr_config->get ('langs') // 'en'};
+              return $app->throw_error (400, reason_phrase => 'Bad |lang|')
+                  unless $lang_keys->{$lang};
+              my $path = $tr->text_id_and_suffix_to_relative_path
+                  ($id, $lang . '.txt');
+              return $tr->mirror_repo->show_blob_by_path ($tr->branch, $path);
+            })->then (sub {
+              my $te = TR::TextEntry->new_from_text_id_and_source_text
+                  ($id, $_[0] // '');
+              for (qw(body_0 body_1 body_2 body_3 body_4 forms)) {
+                my $v = $app->text_param ($_);
+                $te->set ($_ => $v) if defined $v;
+              }
+              $te->set (last_modified => time);
+              return $tr->write_file_by_text_id_and_suffix
+                  ($id, $lang . '.txt' => $te->as_source_text);
+            });
+          },
+          scope => 'edit/' . $lang,
+          default_commit_message => 'Modified a text',
+        );
 
       } elsif (@$path == 7 and $path->[6] eq 'meta') {
         # .../i/{text_id}/meta
@@ -911,7 +904,7 @@ sub main ($$) {
         return $tr->get_tr_config;
       })->then (sub {
         my $tr_config = $_[0];
-        my $lang_keys = [grep { length } split /,/, $tr_config->get ('langs') // ''];
+        my $lang_keys = [grep { length } split /,/, $tr_config->get ('langs') // 'en'];
         $lang_keys = ['en'] unless @$lang_keys;
         my $langs = {map {
           my $id = $tr_config->get ("lang.id.$_") // $_;
@@ -1457,6 +1450,35 @@ sub get_push_token ($$$$) {
     # XXX name/email for git author
   });
 } # get_push_token
+
+sub edit_text_set ($$$$$%) {
+  my ($class, $app, $tr, $type, $code, %args) = @_;
+  $app->start_json_stream if $type eq 'ndjson';
+  $app->send_progress_json_chunk ('Checking the repository permission...', [1,5]);
+  return $class->get_push_token ($app, $tr, $args{scope})->then (sub {
+    return $tr->prepare_mirror ($_[0], $app);
+  })->then (sub {
+    $app->send_progress_json_chunk ('Cloning the repository...', [2,5]);
+    return $tr->clone_from_mirror (push => 1, no_checkout => 1);
+  })->then (sub {
+    $app->send_progress_json_chunk ('Applying the change...', [3,5]);
+    return $code->();
+  })->then (sub {
+    my $msg = $app->text_param ('commit_message') // '';
+    $msg = $args{default_commit_message} unless length $msg;
+    return $tr->commit ($msg);
+  })->then (sub {
+    $app->send_progress_json_chunk ('Pushing the repository...',[4,5]);
+    return $tr->push; # XXX failure
+  })->then (sub {
+    return $app->send_last_json_chunk (200, 'Saved', {});
+  }, sub {
+    $app->error_log ($_[0]);
+    return $app->send_error (500);
+  })->then (sub {
+    return $tr->discard;
+  });
+} # edit_text_set
 
 1;
 
