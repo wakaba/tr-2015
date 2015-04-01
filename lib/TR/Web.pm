@@ -463,6 +463,59 @@ sub main ($$) {
       })->then (sub {
         return $tr->discard;
       });
+    } elsif (@$path == 5 and $path->[4] =~ /\Ainfo\.(json|ndjson)\z/) {
+      # .../info.json
+      # .../info.ndjson
+
+      $app->start_json_stream if $1 eq 'ndjson';
+      $app->send_progress_json_chunk ('Checking the repository permission...');
+      my $scopes;
+      return $class->check_read (
+        $app, $tr,
+        access_token => 1, scopes => 1,
+      )->then (sub {
+        $scopes = $_[0]->{scopes};
+        return $tr->prepare_mirror ($_[0], $app);
+      })->then (sub {
+        $app->send_progress_json_chunk ('Reading metadata...');
+        return $tr->get_tr_config;
+      })->then (sub {
+        my $tr_config = $_[0];
+        my $json = {};
+
+        my $lang_keys = [grep { length } split /,/, $tr_config->get ('langs') // 'en'];
+        $lang_keys = ['en'] unless @$lang_keys;
+        my $langs = {map {
+          my $id = $tr_config->get ("lang.id.$_") // $_;
+          my $label_raw = $tr_config->get ("lang.label.$_");
+          my $label = $label_raw // $_; # XXX system's default
+          my $label_short_raw = $tr_config->get ("lang.label_short.$_");
+          my $label_short = $label_short_raw // $label; # XXX system's default
+          $_ => +{
+            key => $_,
+            id => $id,
+            label_raw => $label_raw,
+            label => $label,
+            label_short_raw => $label_short_raw,
+            label_short => $label_short,
+          };
+        } @$lang_keys};
+        $json->{langs} = $langs;
+        $json->{avail_lang_keys} = $lang_keys;
+
+        $json->{license}->{type} = $tr_config->get ('license');
+        $json->{license}->{additional_terms} = $tr_config->get ('additional_license_terms');
+        $json->{license}->{holders} = $tr_config->get ('license_holders');
+
+        $json->{scopes} = $scopes;
+
+        $app->send_last_json_chunk (200, 'OK', $json);
+      })->catch (sub {
+        $app->error_log ($_[0]);
+        return $app->send_error (500); # XXX
+      })->then (sub {
+        return $tr->discard;
+      });
 
     } elsif (@$path == 5 and $path->[4] eq 'XXXupdate-index') {
       # .../XXXupdate-index
@@ -843,100 +896,54 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'langs') {
       # .../langs
-      if ($app->http->request_method eq 'POST') {
-        # XXX CSRF
-
-        my $lang_keys = $app->text_param_list ('lang_key');
-        my $lang_ids = $app->text_param_list ('lang_id');
-        my $lang_labels = $app->text_param_list ('lang_label');
-        my $lang_label_shorts = $app->text_param_list ('lang_label_short');
-
-        return $class->get_push_token ($app, $tr, 'repo')->then (sub {
-          return $tr->prepare_mirror ($_[0], $app);
-        })->then (sub {
-          return $tr->clone_from_mirror (push => 1);
-        })->then (sub {
-          return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
-        })->then (sub {
-          my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
-
-          my %found;
-          my @lang_key;
-          for (0..$#$lang_keys) {
-            my $lang_key = $lang_keys->[$_];
-            next if $found{$lang_key}++;
-            push @lang_key, $lang_key;
-            $tr_config->set_or_delete ("lang.id.$lang_key" => $lang_ids->[$_]);
-            $tr_config->set_or_delete ("lang.label.$lang_key" => $lang_labels->[$_]);
-            $tr_config->set_or_delete ("lang.label_short.$lang_key" => $lang_label_shorts->[$_]);
-          }
-          $tr_config->set (langs => join ',', @lang_key);
-
-          return $tr->write_file_by_path ($tr->texts_path->child ('config.json'), $tr_config->as_source_text);
-        })->then (sub {
-          my $msg = $app->text_param ('commit_message') // '';
-          $msg = 'Added a message' unless length $msg; # XXX
-          return $tr->commit ($msg);
-        })->then (sub {
-          return $tr->push; # XXX failure
-        })->then (sub {
-          return $app->send_json ({});
-        }, sub {
-          $app->error_log ($_[0]);
-          return $app->send_error (500);
-        })->then (sub {
-          return $tr->discard;
+      return $class->check_read ($app, $tr, html => 1)->then (sub {
+        return $app->temma ('tr.texts.langs.html.tm', {
+          app => $app,
+          tr => $tr,
+          # XXX scopes
         });
-      } else { # GET
-        return $class->check_read ($app, $tr, html => 1)->then (sub {
-          return $app->temma ('tr.texts.langs.html.tm', {
-            app => $app,
-            tr => $tr,
-            # XXX scopes
-          });
-        });
-      }
-    } elsif (@$path == 5 and $path->[4] eq 'langs.json') {
-      # .../langs.json
-      return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-        return $tr->prepare_mirror ($_[0], $app);
-      })->then (sub {
-        return $tr->get_tr_config;
-      })->then (sub {
-        my $tr_config = $_[0];
-        my $lang_keys = [grep { length } split /,/, $tr_config->get ('langs') // 'en'];
-        $lang_keys = ['en'] unless @$lang_keys;
-        my $langs = {map {
-          my $id = $tr_config->get ("lang.id.$_") // $_;
-          my $label_raw = $tr_config->get ("lang.label.$_");
-          my $label = $label_raw // $_; # XXX system's default
-          my $label_short_raw = $tr_config->get ("lang.label_short.$_");
-          my $label_short = $label_short_raw // $label; # XXX system's default
-          $_ => +{
-            key => $_,
-            id => $id,
-            label_raw => $label_raw,
-            label => $label,
-            label_short_raw => $label_short_raw,
-            label_short => $label_short,
-          };
-        } @$lang_keys};
-        return $app->send_json ({
-          langs => $langs,
-          avail_lang_keys => $lang_keys,
-        });
-      })->catch (sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500);
-      })->then (sub {
-        return $tr->discard;
       });
+    } elsif (@$path == 5 and $path->[4] =~ /\Alangs\.(json|ndjson)\z/) {
+      # .../langs.json
+      # .../langs.ndjson
+      my $type = $1;
+      $app->requires_request_method ({POST => 1});
+      # XXX CSRF
+      return $class->edit_text_set (
+        $app, $tr, $type,
+        sub {
+          return $tr->get_tr_config->then (sub {
+            my $tr_config = $_[0];
+
+            my $lang_keys = $app->text_param_list ('lang_key');
+            my $lang_ids = $app->text_param_list ('lang_id');
+            my $lang_labels = $app->text_param_list ('lang_label');
+            my $lang_label_shorts = $app->text_param_list ('lang_label_short');
+
+            my %found;
+            my @lang_key;
+            for (0..$#$lang_keys) {
+              my $lang_key = $lang_keys->[$_];
+              next if $found{$lang_key}++;
+              push @lang_key, $lang_key;
+              $tr_config->set_or_delete ("lang.id.$lang_key" => $lang_ids->[$_]);
+              $tr_config->set_or_delete ("lang.label.$lang_key" => $lang_labels->[$_]);
+              $tr_config->set_or_delete ("lang.label_short.$lang_key" => $lang_label_shorts->[$_]);
+            }
+            $tr_config->set (langs => join ',', @lang_key);
+
+            return $tr->write_file_by_path
+                ($tr->texts_path->child ('config.json'), $tr_config->as_source_text);
+          });
+        },
+        scope => 'repo',
+        default_commit_message => 'Modified languages',
+      );
 
     } elsif (@$path == 5 and $path->[4] eq 'LICENSE') {
       # .../LICENSE
       # XXX access token
       return $app->send_plain_text ('XXX');
-
     } elsif (@$path == 5 and $path->[4] eq 'license') {
       # .../license
       return $class->check_read ($app, $tr, html => 1)->then (sub {
@@ -952,38 +959,25 @@ sub main ($$) {
       my $type = $1;
       $app->requires_request_method ({POST => 1});
       # XXX CSRF
-      $app->start_json_stream if $type eq 'ndjson';
-      return $class->get_push_token ($app, $tr, 'repo')->then (sub {
-        return $tr->prepare_mirror ($_[0], $app);
-      })->then (sub {
-        return $tr->clone_from_mirror (push => 1);
-      })->then (sub {
-        return $tr->read_file_by_path ($tr->texts_path->child ('config.json'));
-      })->then (sub {
-        my $tr_config = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
-        my $license = {license => $app->text_param ('license'),
-                       license_holders => $app->text_param ('license_holders'),
-                       additional_license_terms => $app->text_param ('additional_license_terms')};
-        $tr_config->set (license => $license->{license});
-        $tr_config->set (license_holders => $license->{license_holders});
-        $tr_config->set (additional_license_terms => $license->{additional_license_terms});
-        return $tr->write_file_by_path ($tr->texts_path->child ('config.json'), $tr_config->as_source_text)->then (sub {
-          return $tr->write_license_file (%$license);
-        });
-      })->then (sub {
-        my $msg = $app->text_param ('commit_message') // '';
-        $msg = 'Added a message' unless length $msg; # XXX
-        return $tr->commit ($msg);
-      })->then (sub {
-        return $tr->push; # XXX failure
-      })->then (sub {
-        return $app->send_last_json_chunk (200, 'Saved', {});
-      }, sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500);
-      })->then (sub {
-        return $tr->discard;
-      });
+      return $class->edit_text_set (
+        $app, $tr, $type,
+        sub {
+          return $tr->get_tr_config->then (sub {
+            my $tr_config = $_[0];
+            my $license = {license => $app->text_param ('license'),
+                           license_holders => $app->text_param ('license_holders'),
+                           additional_license_terms => $app->text_param ('additional_license_terms')};
+            $tr_config->set (license => $license->{license});
+            $tr_config->set (license_holders => $license->{license_holders});
+            $tr_config->set (additional_license_terms => $license->{additional_license_terms});
+            return $tr->write_file_by_path ($tr->texts_path->child ('config.json'), $tr_config->as_source_text)->then (sub {
+              return $tr->write_license_file (%$license);
+            });
+          });
+        },
+        scope => 'repo',
+        default_commit_message => 'Modified license',
+      );
 
     } elsif (@$path == 5 and ($path->[4] eq 'comments' or $path->[4] eq 'comments.json')) {
       # .../comments # XXX HTML view

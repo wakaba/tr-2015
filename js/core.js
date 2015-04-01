@@ -1,21 +1,26 @@
   function server (method, url, formdata, ondone, onerror, onprogress) {
     var xhr = new XMLHttpRequest;
-    xhr.open ('POST', url, true);
+    xhr.open (method, url, true);
     var nextChunk = 0;
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 3 || xhr.readyState === 4) {
         if (xhr.status === 200) {
-          var responses = xhr.responseText.split (/\n/);
-          while (nextChunk + 1 < responses.length) {
-            var chunk = JSON.parse (responses[nextChunk]);
-            nextChunk += 2;
-            if (chunk.status === 102) {
-              onprogress (chunk);
-            } else if (chunk.status === 200) {
-              ondone (chunk);
-            } else {
-              onerror (chunk);
+          if (/ndjson/.test (xhr.getResponseHeader ('Content-Type'))) {
+            var responses = xhr.responseText.split (/\n/);
+            while (nextChunk + 1 < responses.length) {
+              var chunk = JSON.parse (responses[nextChunk]);
+              nextChunk += 2;
+              if (chunk.status === 102) {
+                onprogress (chunk);
+              } else if (chunk.status === 200) {
+                ondone (chunk);
+              } else {
+                onerror (chunk);
+              }
             }
+          } else if (xhr.readyState === 4) {
+            var json = JSON.parse (xhr.responseText);
+            ondone ({status: xhr.status, message: xhr.statusText, data: json});
           }
         } else { // status !== 200
           if (xhr.readyState === 4) {

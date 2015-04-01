@@ -17,12 +17,12 @@
 
   <t:include path=tr.texts._config_menu.html.tm m:selected="'langs'" />
 
-  <section class=config-langs>
+  <section class=config>
     <header>
       <h1>言語設定</h1>
     </header>
 
-    <form action=langs method=post>
+    <form action=langs.ndjson method=post>
       <table class=langs>
         <thead>
           <tr>
@@ -67,10 +67,11 @@
         ">Add</button>
       </div>
 
-      <p class=buttons><button type=submit class=save-button data-save-and-close="保存して閉じる">保存</button>
-      <p class=status hidden><progress></progress> <span class=message></span>
+      <p class=buttons><button type=submit class=save>保存する</button>
     </form>
+    <p class=status hidden><progress></progress> <span class=message></span>
 
+    <script src=/js/core.js charset=utf-8 />
     <script>
       function addLang (lang) {
         var table = document.querySelector ('table.langs');
@@ -91,47 +92,37 @@
         table.tBodies[0].appendChild (tr);
       } // addLang
 
-      // XXX progress
-      var xhr = new XMLHttpRequest;
-      xhr.open ('GET', 'langs.json', true);
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 200) {
-            var json = JSON.parse (xhr.responseText);
-            json.avail_lang_keys.forEach (function (langKey) {
-              addLang (json.langs[langKey]);
-            });
-          } else {
-            // XXX
-          }
-        }
-      };
-      xhr.send (null);
+      (function () {
+        var status = document.querySelector ('.config .status');
+        showProgress ({init: true, message: 'Loading...'}, status);
+        server ('GET', 'info.ndjson', null, function (res) {
+          res.data.avail_lang_keys.forEach (function (langKey) {
+            addLang (res.data.langs[langKey]);
+          });
+          status.hidden = true;
+        }, function (json) {
+          showError (json, status);
+        }, function (json) {
+          showProgress (json, status);
+        });
+      }) ();
 
-      document.querySelector ('.config-langs form').onsubmit = function () {
-        // XXX progress
-        var form = this;
-        var xhr = new XMLHttpRequest;
-        xhr.open ('POST', form.action, true);
-        xhr.onreadystatechange = function () {
-          if (xhr.readyState === 4) {
-            if (xhr.status === 200) {
-              var json = JSON.parse (xhr.responseText);
-              document.trModified = false;
-              if (window.opener) window.close ();
-            } else {
-              // XXX
-            }
-          }
-        };
-        var fd = new FormData (form);
-        xhr.send (fd);
+      var form = document.querySelector ('.config form');
+      form.onchange = function () { document.trModified = true };
+      form.onsubmit = function (ev) {
+        var form = ev.target;
+        var status = document.querySelector ('.config .status');
+        showProgress ({init: true}, status);
+        server ('POST', form.action, new FormData (form), function (res) {
+          showDone (res, status);
+          document.trModified = false;
+        }, function (json) {
+          showError (json, status);
+        }, function (json) {
+          showProgress (json, status);
+        });
         return false;
       };
-      if (window.opener) {
-        var button = document.querySelector ('.save-button');
-        button.textContent = button.getAttribute ('data-save-and-close');
-      }
     </script>
   </section>
 </section>

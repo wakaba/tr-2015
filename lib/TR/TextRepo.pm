@@ -486,13 +486,12 @@ sub get_data_as_jsonalizable ($%) {
   return $self->get_tr_config->then (sub {
     my $tr_config = $_[0];
     my %found;
-    my $langs = [grep { not $found{$_}++ } grep { length } split /,/, $tr_config->get ('langs') // ''];
+    my $langs = [grep { not $found{$_}++ } grep { length } split /,/, $tr_config->get ('langs') // 'en'];
     if (@$selected_lang_list) {
       my $avail_langs = {map { $_ => 1 } @$langs};
       my %found;
       @$selected_lang_list = grep { not $found{$_}++ } grep { $avail_langs->{$_} } @$selected_lang_list;
     } else {
-      $langs = ['en'] unless @$langs;
       $selected_lang_list = $langs;
     }
 

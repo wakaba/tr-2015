@@ -22,12 +22,6 @@
       <h1>ライセンス設定</h1>
     </header>
 
-  <!-- XXX
-  <meta itemprop=license pl:content="$tr_config->get ('license') // ''">
-  <meta itemprop=license-holders pl:content="$tr_config->get ('license_holders') // ''">
-  <meta itemprop=additional-license-terms pl:content="$tr_config->get ('additional_license_terms') // ''">
-  -->
-
     <form action="license.ndjson" method=post>
       <table class=config>
         <tbody>
@@ -55,50 +49,45 @@
             <td><textarea name=additional_license_terms id=config-license-additional_license_terms></textarea>
       </table>
 
-      <p class=buttons><button type=button class=save>保存して閉じる</button>
+      <p class=buttons><button type=submit class=save>保存する</button>
     </form>
     <p class=status hidden><progress></progress> <span class=message></span>
-  <script>
-    function toggleLicenseConfig (status) {
-      var licensePanel = document.querySelector ('#config-license');
-      if (status) {
-        var item = document.querySelector ('[itemtype=data]');
-        var form = licensePanel.querySelector ('form');
-        form.elements.license.value = item.querySelector ('meta[itemprop=license]').content;
-        form.elements['license_holders'].value = item.querySelector ('meta[itemprop=license-holders]').content;
-        form.elements['additional_license_terms'].value = item.querySelector ('meta[itemprop=additional-license-terms]').content;
-        licensePanel.hidden = false;
-      } else {
-        licensePanel.hidden = true;
-      }
-    } // toggleLicenseConfig
 
-    (function () {
-      var licensePanel = document.querySelector ('#config-license');
-      licensePanel.trSync = function () {
-        toggleLicenseConfig (false);
-        history.replaceState (null, null, '#');
-        var item = document.querySelector ('[itemtype=data]');
-        var form = licensePanel.querySelector ('form');
-        item.querySelector ('meta[itemprop=license]').content = form.elements.license.value;
-        item.querySelector ('meta[itemprop=license-holders]').content = form.elements['license_holders'].value;
-        item.querySelector ('meta[itemprop=additional-license-terms]').content = form.elements['additional_license_terms'].value;
-      };
-      licensePanel.querySelector ('button.save').onclick = function () {
-        saveArea (licensePanel);
-      };
-      licensePanel.querySelector ('button.close').onclick = function () {
-        toggleLicenseConfig (false);
-        history.replaceState (null, null, '#');
-      };
+    <script src=/js/core.js charset=utf-8 />
+    <script>
+      (function () {
+        var form = document.querySelector ('.config form');
+        var status = document.querySelector ('.config .status');
+        showProgress ({init: true, message: 'Loading...'}, status);
+        server ('GET', 'info.ndjson', null, function (res) {
+          form.elements.license.value = res.data.license.type;
+          form.elements.license_holders.value = res.data.license.holders;
+          form.elements.additional_license_terms.value = res.data.license.additional_terms;
+          status.hidden = true;
+        }, function (json) {
+          showError (json, status);
+        }, function (json) {
+          showProgress (json, status);
+        });
+      }) ();
 
-      var f = decodeURIComponent (location.hash.replace (/^#/, ''));
-      if (f === 'config-license') {
-        toggleLicenseConfig (true);
-      }
-    }) ();
-  </script>
-
+      var form = document.querySelector ('.config form');
+      form.onchange = function () { document.trModified = true };
+      form.onsubmit = function (ev) {
+        var form = ev.target;
+        var status = document.querySelector ('.config .status');
+        showProgress ({init: true}, status);
+        server ('POST', form.action, new FormData (form), function (res) {
+          showDone (res, status);
+          document.trModified = false;
+        }, function (json) {
+          showError (json, status);
+        }, function (json) {
+          showProgress (json, status);
+        });
+        return false;
+      };
+    </script>
   </section>
 </section>
 
