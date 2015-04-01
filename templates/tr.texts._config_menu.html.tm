@@ -9,6 +9,6 @@
       <a href=license>ライセンス</a>
 
     <hr>
-    <p><a href=../../acl>アクセス制御</a>
+    <p><a href=../../acl>編集権限</a>
 
   </nav>

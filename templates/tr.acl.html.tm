@@ -1,7 +1,7 @@
-<html t:params="$tr $app">
-<title>XXX</title>
+<html t:params="$tr $app" class=config-page>
+<title>編集権限設定 - Repository configuration - XXX</title>
 <link rel=stylesheet href=/css/common.css>
-<body onbeforeunload=" return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
+<body onbeforeunload=" if (document.trModified) return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
 
 <t:include path=_header.html.tm />
 
@@ -13,10 +13,13 @@
     </hgroup>
   </header>
 
-  <section>
+  <t:include path=tr.repo._config_menu.html.tm m:selected="'acl'" />
+
+  <section class=config>
     <header>
       <h1>編集権限設定</h1>
     </header>
+    <p class=status hidden><progress></progress> <span class=message></span>
 
     <table class=acl>
       <thead>
@@ -77,8 +80,8 @@
               <p class=info>Git リポジトリーへの変更は所有者の権限で保存
                 (<code>git push</code>) されます。
       </table>
-    <p class=status hidden><progress></progress> <span class=message></span>
 
+    <script src=/js/core.js charset=utf-8 />
     <script>
       function addDatalistItem (account) {
         var addDatalist = document.querySelector ('.add-account .datalist');
@@ -171,37 +174,37 @@
       } // addAclItemByDatalistItem
 
       (function () {
-        // XXX progress
-        var xhr = new XMLHttpRequest;
-        xhr.open ('GET', 'acl.json', true);
-        xhr.onreadystatechange = function () {
-          if (xhr.readyState === 4) {
-            if (xhr.status === 200) {
-              var json = JSON.parse (xhr.responseText);
-              var ownerAccount = null;
-              for (var accountId in json.accounts) {
-                var account = json.accounts[accountId];
-                addAclItem (account);
-                if (account.is_owner) ownerAccount = account;
-              }
-              
-              var ownerEl = document.querySelector ('.owner-account');
-              if (ownerAccount) {
-                ownerEl.textContent = ownerAccount.name;
-                // XXX icon, link
-              } else {
-                ownerEl.textContent = ownerEl.getAttribute ('data-no-owner');
-              }
-
-              var isPubEl = document.querySelector ('.is-public');
-              isPubEl.textContent = json.is_public ? isPubEl.getAttribute ('data-true') : isPubEl.getAttribute ('data-false');
-            } else {
-              // XXX
-            }
+        var status = document.querySelector ('.config .status');
+        showProgress ({init: true, message: 'Loading...'}, status);
+        server ('GET', 'acl.json', null, function (res) {
+          var json = res.data;
+          var ownerAccount = null;
+          for (var accountId in json.accounts) {
+            var account = json.accounts[accountId];
+            addAclItem (account);
+            if (account.is_owner) ownerAccount = account;
           }
-        };
-        xhr.send (null);
+              
+          var ownerEl = document.querySelector ('.owner-account');
+          if (ownerAccount) {
+            ownerEl.textContent = ownerAccount.name;
+            // XXX icon, link
+          } else {
+            ownerEl.textContent = ownerEl.getAttribute ('data-no-owner');
+          }
 
+          var isPubEl = document.querySelector ('.is-public');
+          isPubEl.textContent = json.is_public ? isPubEl.getAttribute ('data-true') : isPubEl.getAttribute ('data-false');
+
+          status.hidden = true;
+        }, function (json) {
+          showError (json, status);
+        }, function (json) {
+          showProgress (json, status);
+        });
+      }) ();
+
+      (function () {
         var addInput = document.querySelector ('.add-account input');
         var updateAdd = function () {
           if (!addInput.value) return;

@@ -900,7 +900,6 @@ sub main ($$) {
         return $app->temma ('tr.texts.langs.html.tm', {
           app => $app,
           tr => $tr,
-          # XXX scopes
         });
       });
     } elsif (@$path == 5 and $path->[4] =~ /\Alangs\.(json|ndjson)\z/) {
@@ -950,7 +949,6 @@ sub main ($$) {
         return $app->temma ('tr.texts.license.html.tm', {
           app => $app,
           tr => $tr,
-          # XXX scopes
         });
       });
     } elsif (@$path == 5 and $path->[4] =~ /\Alicense\.(json|ndjson)\z/) {

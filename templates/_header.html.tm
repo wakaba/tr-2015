@@ -7,7 +7,7 @@
       var menu = parentNode.querySelector ('menu');
       menu.hidden = !menu.hidden;
     ">アカウント</button>
-    <menu hidden>
+    <menu hidden class=contextmenu>
       <p><a href=/tr>リポジトリー一覧</a>
       <hr>
       <form action=/account/login method=post class=login>

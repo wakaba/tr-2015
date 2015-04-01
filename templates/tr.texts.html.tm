@@ -20,7 +20,7 @@
   <link itemprop=export-url pl:href="'export?'">
   <meta itemprop=lang-params pl:content="join '&', map { 'lang=' . percent_encode_c $_ } @{$app->text_param_list ('lang')}">
 
-  <nav class=langs-menu-container>
+  <nav class=toolbar>
     <a href="#share" onclick=" modalDialog ('share', true); return false " class=share title="共有">Share</a>
     <a href=import class=import title="テキスト集合に外部データを取り込み" target=config>Import</a><!-- XXX lang= & tag=  -->
     <a href="#export" onclick=" modalDialog ('export', true); return false " class=export title="テキスト集合からデータファイルを生成">Export</a>
@@ -28,13 +28,14 @@
       var menu = this.nextElementSibling;
       menu.hidden = !menu.hidden;
     ">設定</button>
-    <menu hidden onclick="
+    <menu hidden class=contextmenu onclick="
       if (event.target.localName === 'a') {
         event.currentTarget.hidden = true;
       }
     ">
       <p><a href="#config-langs" onclick=" modalDialog ('config-langs', true); return false ">表示言語...</a>
       <p><a href=license target=config>ライセンス...</a>
+      <hr>
       <p><a href=../../acl target=config>編集権限...</a>
     </menu>
   </nav>

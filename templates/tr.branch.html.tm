@@ -35,7 +35,7 @@
             <td>
               <a pl:href="'./'.(percent_encode_c $text_set->{path}).'/edits'">Recent edits</a>
               <a pl:href="'./'.(percent_encode_c $text_set->{path}).'/comments'">Recent comments</a>
-              <a pl:href="'./'.(percent_encode_c $text_set->{path}).'/config'">Settings</a>
+              <a pl:href="'./'.(percent_encode_c $text_set->{path}).'/langs'">Settings</a>
         </t:for>
     </table>
 
