@@ -27,6 +27,7 @@ sub git_clone ($;%) {
   AE::log alert => "HOME=$opt{home}" if defined $opt{home};
   AE::log alert => "\$ git clone @$args";
   my $cmd = Promised::Command->new (['git', 'clone', @$args]);
+  $cmd->envs->{GIT_ASKPASS} = 'true';
   $cmd->envs->{HOME} = $opt{home} if defined $opt{home};
   $cmd->envs->{GIT_SSH} = $opt{ssh} if defined $opt{ssh};
   $cmd->envs->{TR_SSH_PRIVATE_KEY} = $opt{ssh_private_key}
@@ -35,7 +36,13 @@ sub git_clone ($;%) {
   $cmd->stdout (\my $stdout);
   my $stderr = '';
   $cmd->stderr (sub { $stderr .= $_[0] if defined $_[0]; AE::log alert => $_[0] if defined $_[0] });
-  $cmd->timeout (60);
+  $cmd->create_process_group (1);
+  my $timer1; $timer1 = AE::timer 60, 0, sub {
+    eval { kill -15, getpgrp $cmd->pid }; undef $timer1;
+  };
+  my $timer2; $timer2 = AE::timer 70, 0, sub {
+    eval { kill -9, getpgrp $cmd->pid }; undef $timer2;
+  };
   return $cmd->run->then (sub {
     return $cmd->wait;
   })->then (sub {

@@ -32,6 +32,7 @@ sub git ($$$) {
   my ($self, $command, $args) = @_;
   AE::log alert => "$self->{dir_name}\$ git $command @$args";
   my $cmd = Promised::Command->new (['git', $command, @$args]);
+  $cmd->envs->{GIT_ASKPASS} = 'true';
   $cmd->envs->{HOME} = $self->{home_dir_name} if defined $self->{home_dir_name};
   $cmd->envs->{GIT_SSH} = $self->{ssh_file_name} if defined $self->{ssh_file_name};
   $cmd->envs->{TR_SSH_PRIVATE_KEY} = $self->{ssh_private_key_file_name}
@@ -40,7 +41,13 @@ sub git ($$$) {
   $cmd->stdout (\my $stdout);
   $cmd->stderr (\my $stderr);
   $cmd->wd ($self->{dir_name});
-  $cmd->timeout (100);
+  $cmd->create_process_group (1);
+  my $timer1; $timer1 = AE::timer 60, 0, sub {
+    eval { kill -15, getpgrp $cmd->pid }; undef $timer1;
+  };
+  my $timer2; $timer2 = AE::timer 70, 0, sub {
+    eval { kill -9, getpgrp $cmd->pid }; undef $timer2;
+  };
   return $cmd->run->then (sub {
     return $cmd->wait;
   })->then (sub {
