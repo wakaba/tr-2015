@@ -1,4 +1,4 @@
-<html t:params="$tr $tr_config $app">
+<html t:params="$tr $tr_config $app" class=config-page>
 <title>Languages - Text set configuration - XXX</title>
 <link rel=stylesheet href=/css/common.css>
 <body onbeforeunload=" if (document.trModified) return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
@@ -14,6 +14,8 @@
       <h3 title=Path><a href="./" rel=up><code itemprop=texts-path><t:text value="'/' . $tr->texts_dir"></code></a></h3>
     </hgroup>
   </header>
+
+  <t:include path=tr.texts._config_menu.html.tm m:selected="'langs'" />
 
   <section class=config-langs>
     <header>

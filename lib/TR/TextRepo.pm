@@ -250,11 +250,11 @@ sub get_branches ($) {
 
 sub get_commit_logs ($$) {
   my ($self, $commits) = @_;
-  return $self->mirror_repo->git ('show', ['--raw', '--format=raw', @$commits])->then (sub {
+  return ((@$commits ? $self->mirror_repo->git ('show', ['--raw', '--format=raw', @$commits, '--']) : Promise->resolve ({stdout => ''}))->then (sub {
     my $result = $_[0];
     require Git::Parser::Log;
     return Git::Parser::Log->parse_format_raw (decode 'utf-8', $result->{stdout});
-  });
+  }));
 } # get_commit_logs
 
 sub get_logs_by_path ($$;%) {

@@ -1083,6 +1083,71 @@ table.text-sets {
   font-size: 90%;
 }
 
+.config-page body > section::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
+.config-page body > section > nav {
+  float: left;
+  width: 8em;
+  min-height: 100vh;
+  margin-top: 1em;
+  margin-right: 1em;
+  padding: 0.5em;
+  background: #eee;
+}
+
+.config-page body > section > nav > p {
+  margin: 0 0 0.3em 0;
+  clear: both;
+}
+
+.config-page body > section > nav > p.selected {
+  font-weight: bolder;
+}
+
+.config-page body > section > nav > p > a {
+  display: block;
+  text-decoration: none;
+  line-height: 1.5;
+}
+
+.config-page body > section > nav > p > a:hover {
+  text-decoration: underline;
+}
+
+.config-page body > section > nav > p.selected > a {
+  color: inherit;
+}
+
+.config-page body > section > nav > p.selected > a::after {
+  content: " \25B6";
+  font-size: 80%;
+  float: right;
+}
+
+.config-page body > section > section {
+  margin-top: 1em;
+  margin-left: 10em;
+}
+
+.config-page body > section > section > header {
+  display: block;
+  margin: 0 0 0.3em 0;
+  font-size: 100%;
+  border-bottom: 0.1em solid;
+  padding: 0 0.3em 0.3em;
+  color: green;
+}
+
+.config-page body > section > section > header > h1 {
+  margin: 0;
+  padding: 0;
+  font-size: 120%;
+}
+
 progress {
   max-width: 95%;
 }

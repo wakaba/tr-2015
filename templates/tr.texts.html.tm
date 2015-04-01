@@ -228,7 +228,7 @@
         <progress></progress> <span class=message></span>
   <tfoot>
     <tr id=add>
-      <td data-colspan-delta=1>
+      <td data-colspan-delta=1 class=add-area>
 
     <form action=add method=post onsubmit="
   var form = this;
@@ -549,16 +549,25 @@
         t = t.parentNode;
       }
       if (!t || t.localName !== 'td') return;
-      if (!t.classList.contains ('lang-area')) return;
       var cell = t;
       if (cell.classList.contains ('selected')) return;
-      var row = cell.parentNode;
+      if (t.classList.contains ('lang-area')) {
+        //
+      } else if (t.classList.contains ('comments-area') ||
+                 t.classList.contains ('add-area')) {
+        cell = null;
+        mainTableMenu.hidden = true;
+      } else {
+        return;
+      }
       var oldCell = mainTable.querySelector ('td.selected');
       if (oldCell) {
         oldCell.classList.remove ('selected');
         oldCell.parentNode.classList.remove ('selected');
       }
+      if (!cell) return;
       cell.classList.add ('selected');
+      var row = cell.parentNode;
       row.classList.add ('selected');
 
       var langKey = cell.getAttribute ('data-lang');
