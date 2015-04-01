@@ -200,6 +200,8 @@ sub prepare_mirror ($$$) {
                         home => $home_path,
                         ssh => $self->{ssh_path},
                         ssh_private_key => $self->{private_key_path});
+    })->then (sub {
+      $self->{fetched} = 1;
     });
   }
   # XXX branch not found error

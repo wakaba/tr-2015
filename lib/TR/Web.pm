@@ -74,6 +74,9 @@ sub main ($$) {
         });
       }));
     });
+  } elsif (@$path == 2 and $path->[0] eq 'tr' and $path->[1] eq '') {
+    # /tr/
+    return $app->send_redirect ('/tr');
   }
 
   if ($path->[0] eq 'tr' and $path->[2] eq '' and @$path == 3) {
@@ -1313,15 +1316,7 @@ sub check_read ($$$;%) {
         });
       }
     } else { # no |repo| row
-      return 0 unless $tr->url =~ m{^(?:https?|git):};
-      return $tr->prepare_mirror ({}, $app)->then (sub {
-        $scopes = {read => 1};
-        $is_public = 1;
-        return 1;
-      }, sub {
-        # XXX if error, ...
-        return 0;
-      });
+      return 0;
     }
   })->then (sub {
     if ($_[0]) { # can be read

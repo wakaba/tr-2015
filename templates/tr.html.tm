@@ -8,7 +8,13 @@
 <t:include path=_header.html.tm />
 
 <section>
-  <h1>リポジトリーの一覧</h1>
+  <h1>テキストリポジトリー</h1>
+
+  <menu class=tabs>
+    <a href=#repos>参加中</a>
+    <a href=#github>GitHub</a>
+    <a href=#add-repo>追加</a>
+  </menu>
 
 <section id=repos>
   <h1>参加中のリポジトリー</h1>
@@ -86,6 +92,22 @@
   </script>
 </section>
 
+  <section id=add-repo>
+    <h1>リポジトリーを追加</h1>
+
+    <form action=javascript: onsubmit="
+      var url = this.elements.url.value;
+      location.href = '/tr/' + encodeURIComponent (url) + '/';
+      return false;
+    ">
+      <table class=config>
+        <tbody>
+          <th><label for=add-repo-url>Git リポジトリー URL</label>
+          <td><input name=url id=add-repo-url required>
+      </table>
+      <p class=buttons><button type=submit>追加</button>
+    </form>
+  </section>
 </section>
 
 <t:include path=_footer.html.tm />
