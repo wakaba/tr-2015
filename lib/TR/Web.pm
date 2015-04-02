@@ -473,6 +473,17 @@ sub main ($$) {
     } # GET
   } # acl
 
+  if ($path->[0] eq 'tr' and @$path == 3 and $path->[2] eq 'start') {
+    # /tr/{url}/start
+    my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
+    return $class->check_read ($app, $tr, html => 1)->then (sub {
+      return $app->temma ('tr.start.html.tm', {
+        app => $app,
+        tr => $tr,
+      });
+    });
+  } # start
+
   if ($path->[0] eq 'tr' and $path->[3] eq '' and @$path == 4) {
     # /tr/{url}/{branch}/
     my $tr = $class->create_text_repo ($app, $path->[1], $path->[2], undef);
