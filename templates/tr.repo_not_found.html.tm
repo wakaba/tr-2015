@@ -29,10 +29,10 @@
         <dl class=switch>
         <dt>あなたがこのリポジトリーの管理者の場合
         <dd>
-          <p>「所有権の取得」すると、このリポジトリーを編集できるようになります。
-          <form action=./acl method=post><!-- XXX path -->
+          <p>参加すると、このリポジトリーを編集できるようになります。
+          <form action=./acl.json method=post><!-- XXX path -->
             <input type=hidden name=operation value=get_ownership>
-            <button type=submit>所有権を取得</button>
+            <button type=submit>開発者として参加</button>
           </form><!-- XXX ajax -->
         
       <div class=XXX>

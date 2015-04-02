@@ -18,6 +18,7 @@
   <section class=config>
     <header>
       <h1>編集権限設定</h1>
+      <a href=/help#acl>ヘルプ</a>
     </header>
     <p class=status hidden><progress></progress> <span class=message></span>
 
@@ -73,8 +74,9 @@
           <tr>
             <th>所有者
             <td><span class=owner-account data-no-owner="未設定"></span>
-              <form action=acl method=post>
-                <input type=hidden name=operation value=get_ownership>
+              <form action=acl.json method=post>
+                <input type=hidden name=operation value=join>
+                <input type=hidden name=owner value=1>
                 <button type=submit>所有権を取得</button>
               </form><!-- XXX ajax -->
               <p class=info>Git リポジトリーへの変更は所有者の権限で保存

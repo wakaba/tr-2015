@@ -24,13 +24,12 @@
         <th>管理
     </thead>
     <template class=repo-row-template data-true=&#x2714; data-false=- data-na>
-      <td onclick=" this.querySelector ('a').click () ">
+      <td onclick=" if (!event.target.onclick) this.querySelector ('a').click () ">
         <p><a href><strong class=label>{label}</strong></a>
         <p class=desc>{desc}
         <p class=join-actions>
-          <button type=button class=as-translator>翻訳者として参加</button>
-          <button type=button class=as-developer>開発者として参加</button>
-          <button type=button class=as-owner>所有者として参加</button>
+          <button type=button class=as-translator onclick=" joinAsTranslator (parentNode.parentNode.parentNode) ">翻訳者として参加</button>
+          <button type=button class=as-developer onclick=" joinAsDeveloper (parentNode.parentNode.parentNode) ">開発者として参加</button>
       <td><span class=scope-read>{boolean}</span>
       <td><span class=scope-edit>{boolean}</span>
       <td><span class=scope-repo>{boolean}</span>
@@ -118,6 +117,7 @@
       repos.forEach (function (repo) {
         var tr = document.createElement ('tr');
         tr.innerHTML = template.innerHTML;
+        tr.setAttribute ('data-url', repo.url);
         tr.querySelector ('a').href = '/tr/' + encodeURIComponent (repo.url) + '/';
         tr.querySelector ('.label').textContent = repo.label || repo.url;
         var desc = tr.querySelector ('.desc');
@@ -132,7 +132,6 @@
           tr.querySelector ('.scope-repo').textContent = scopes.repo ? trueText : falseText;
         } else {
           scopes = repo.remote_scopes || {pull: false, push: false};
-          tr.querySelector ('.as-owner').disabled = !scopes.push;
           tr.querySelector ('.scope-read').textContent = naText;
           tr.querySelector ('.scope-edit').textContent = naText;
           tr.querySelector ('.scope-repo').textContent = naText;
@@ -140,6 +139,26 @@
         tbody.appendChild (tr);
       }); // repo
     } // updateReposTable
+
+    function joinAsTranslator (row) {
+      alert ('Not implemented yet');
+    } // joinAsTranslator
+
+    function joinAsDeveloper (row) {
+      var url = row.getAttribute ('data-url');
+      var status = document.querySelector ('.repos .status');
+      showProgress ({init: true}, status);
+      var fd = new FormData;
+      fd.append ('operation', 'join');
+      server ('POST', '/tr/' + encodeURIComponent (url) + '/acl.ndjson', fd, function (res) {
+        var page = res.data.is_owner ? 'start' : '';
+        location.href = '/tr/' + encodeURIComponent (url) + '/' + page;
+      }, function (json) {
+        showError (json, status);
+      }, function (json) {
+        showProgress (json, status);
+      });
+    } // joinAsDeveloper
 
     document.trRepos = {};
     loadRepos ();

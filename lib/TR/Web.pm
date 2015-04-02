@@ -221,7 +221,28 @@ sub main ($$) {
   if ($path->[0] eq 'tr' and @$path == 3 and $path->[2] eq 'acl') {
     # /tr/{url}/acl
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
-
+    return $class->session ($app)->then (sub {
+      my $account = $_[0];
+      return $app->throw_error (403) if not defined $account->{account_id}; # XXX custom 403
+      return $app->db->select ('repo_access', {
+        repo_url => Dongry::Type->serialize ('text', $tr->url),
+        account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+      }, fields => ['data'], limit => 1);
+    })->then (sub {
+      my $row = $_[0]->first_as_row;
+      return $app->throw_error (403, reason_phrase => 'Bad privilege')
+          if not defined $row or not $row->get ('data')->{repo}; # XXX custom 403
+      return $app->temma ('tr.acl.html.tm', {
+        app => $app,
+        tr => $tr,
+      });
+    });
+  } elsif ($path->[0] eq 'tr' and @$path == 3 and
+           $path->[2] =~ /\Aacl\.(json|ndjson)\z/) {
+    # /tr/{url}/acl.json
+    # /tr/{url}/acl.ndjson
+    $app->start_json_stream if $1 eq 'ndjson';
+    my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
     if ($app->http->request_method eq 'POST') {
       # XXX CSRF
       return $class->session ($app)->then (sub {
@@ -261,7 +282,7 @@ sub main ($$) {
               updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
             });
           })->then (sub {
-            return $app->send_error (204, reason_phrase => 'Saved');
+            return $app->send_last_json_chunk (200, 'Saved', {});
           });
         } elsif ($op eq 'delete_account_privilege') {
           my $account_id = $app->bare_param ('account_id')
@@ -279,69 +300,84 @@ sub main ($$) {
               account_id => Dongry::Type->serialize ('text', $account_id),
             });
           })->then (sub {
-            return $app->send_error (204, reason_phrase => 'Deleted');
+            return $app->send_last_json_chunk (200, 'Deleted', {});
           });
-        } elsif ($op eq 'get_ownership') {
-          return do {
-            my $repo_type = $tr->repo_type;
-            if ($repo_type eq 'github') {
-              $app->account_server (q</token>, {
-                sk => $app->http->request_cookies->{sk},
-                sk_context => $app->config->{account_sk_context},
-                server => 'github',
-              })->then (sub {
-                my $json = $_[0];
-                my $token = $json->{access_token};
-                return Promise->new (sub {
-                  my ($ok, $ng) = @_;
-                  $tr->url =~ m{^https://github.com/([^/]+/[^/]+)} or die;
-                  http_get
-                      url => qq<https://api.github.com/repos/$1>,
-                      header_fields => (defined $token ? {Authorization => 'token ' . $token} : undef),
-                      timeout => 100,
-                      anyevent => 1,
-                      cb => sub {
-                        my (undef, $res) = @_;
-                        if ($res->code == 200) {
-                          $ok->(json_bytes2perl $res->content);
-                        } else {
-                          $ng->([$res->code, $res->status_line]);
-                        }
-                      };
+        } elsif ($op eq 'join') {
+          return Promise->all ([
+            do {
+              my $repo_type = $tr->repo_type;
+              if ($repo_type eq 'github') {
+                $app->account_server (q</token>, {
+                  sk => $app->http->request_cookies->{sk},
+                  sk_context => $app->config->{account_sk_context},
+                  server => 'github',
+                })->then (sub {
+                  my $json = $_[0];
+                  my $token = $json->{access_token};
+                  return Promise->new (sub {
+                    my ($ok, $ng) = @_;
+                    $tr->url =~ m{^https://github.com/([^/]+/[^/]+)} or die;
+                    http_get
+                        url => qq<https://api.github.com/repos/$1>,
+                        header_fields => (defined $token ? {Authorization => 'token ' . $token} : undef),
+                        timeout => 100,
+                        anyevent => 1,
+                        cb => sub {
+                          my (undef, $res) = @_;
+                          if ($res->code == 200) {
+                            $ok->(json_bytes2perl $res->content);
+                          } else {
+                            $ng->([$res->code, $res->status_line]);
+                          }
+                        };
+                  });
+                })->then (sub {
+                  my $json = $_[0];
+                  return {is_owner => !!$json->{permissions}->{push},
+                          is_public => not $json->{private}};
                 });
-              })->then (sub {
-                my $json = $_[0];
-                return {is_owner => !!$json->{permissions}->{push},
-                        is_public => not $json->{private}};
-              });
-            } elsif ($repo_type eq 'ssh') {
-              $app->account_server (q</token>, {
-                sk => $app->http->request_cookies->{sk},
-                sk_context => $app->config->{account_sk_context},
-                server => 'ssh',
-              })->then (sub {
-                my $json = $_[0];
-                my $token = $json->{access_token};
-                die [403, "Bad SSH key"] unless defined $token and ref $token eq 'ARRAY';
+              } elsif ($repo_type eq 'ssh') {
+                $app->account_server (q</token>, {
+                  sk => $app->http->request_cookies->{sk},
+                  sk_context => $app->config->{account_sk_context},
+                  server => 'ssh',
+                })->then (sub {
+                  my $json = $_[0];
+                  my $token = $json->{access_token};
+                  die [403, "Bad SSH key"] unless defined $token and ref $token eq 'ARRAY';
 
-                return $tr->prepare_mirror ({access_token => $token,
-                                             requires_token_for_pull => 1},
-                                            $app);
-              })->then (sub {
-                return {is_owner => 1, is_public => 0};
-              });
-            } elsif ($repo_type eq 'file') {
-              Promise->resolve ({is_owner => 1, is_public => 1});
-            } else { # $repo_type
-              Promise->reject ("Can't get ownership of a repository with type |$repo_type|");
-            }
-          }->then (sub {
-            my $rights = $_[0];
+                  return $tr->prepare_mirror ({access_token => $token,
+                                               requires_token_for_pull => 1},
+                                              $app);
+                })->then (sub {
+                  return {is_owner => 1, is_public => 0};
+                });
+              } elsif ($repo_type eq 'file') {
+                Promise->resolve ({is_owner => 1, is_public => 1});
+              } else { # $repo_type
+                Promise->reject ("Can't get ownership of a repository with type |$repo_type|");
+              }
+            },
+            do {
+              if ($app->bare_param ('owner')) {
+                1;
+              } else {
+                $app->db->select ('repo_access', {
+                  repo_url => Dongry::Type->serialize ('text', $tr->url),
+                  is_owner => 1,
+                }, fields => ['is_owner'], source_name => 'master', limit => 1)->then (sub {
+                  return defined $_[0]->first ? 0 : 1;
+                });
+              }
+            },
+          ])->then (sub {
+            my ($rights, $is_owner) = @{$_[0]};
             my $time = time;
+            $rights->{is_owner} = 0 unless $is_owner;
             return $app->db->insert ('repo_access', [{
               repo_url => Dongry::Type->serialize ('text', $tr->url),
               account_id => Dongry::Type->serialize ('text', $account->{account_id}),
-              is_owner => $rights->{is_owner},
+              is_owner => $rights->{is_owner} ? 1 : 0,
               data => ($rights->{is_owner} ? '{"read":1,"edit":1,"texts":1,"comment":1,"repo":1}' : '{"read":1}'),
               created => $time,
               updated => $time,
@@ -365,7 +401,7 @@ sub main ($$) {
                 updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
               }); # XXXupdate-index
             })->then (sub {
-              return $app->send_json ($rights);
+              return $app->send_last_json_chunk (200, 'Joined', $rights);
             });
           }, sub {
             # XXX better error reporting
@@ -400,62 +436,42 @@ sub main ($$) {
         my $row = $_[0]->first_as_row;
         return $app->throw_error (403, reason_phrase => 'Bad privilege')
             if not defined $row or not $row->get ('data')->{repo}; # XXX custom 403
-        return $app->temma ('tr.acl.html.tm', {
-          app => $app,
-          tr => $tr,
+
+        my $json = {};
+        return $app->db->select ('repo_access', {
+          repo_url => Dongry::Type->serialize ('text', $tr->url),
+        }, fields => ['account_id', 'is_owner', 'data'])->then (sub {
+          my $accounts = $json->{accounts} = {map { $_->get ('account_id') => {
+            account_id => ''.$_->get ('account_id'),
+            scopes => $_->get ('data'),
+            is_owner => $_->get ('is_owner'),
+          } } @{$_[0]->all_as_rows}};
+
+          return Promise->all ([
+            $app->account_server (q</profiles>, {
+              account_id => [keys %$accounts],
+            }),
+            $app->db->select ('repo', {
+              repo_url => Dongry::Type->serialize ('text', $tr->url),
+            }, fields => ['is_public']),
+          ]);
+        })->then (sub {
+          my $j = $_[0]->[0];
+          for my $account_id (keys %{$j->{accounts}}) {
+            $json->{accounts}->{$account_id}->{name} = $j->{accounts}->{$account_id}->{name};
+            # XXX icon
+          }
+          my $repo_data = $_[0]->[1]->first;
+          if (defined $repo_data) {
+            $json->{is_public} = 1 if $repo_data->{is_public};
+          } else {
+            $json->{is_public} = 1;
+          }
+          return $app->send_json ($json);
         });
       });
-    }
-  } elsif ($path->[0] eq 'tr' and @$path == 3 and $path->[2] eq 'acl.json') {
-    # /tr/{url}/acl.json
-    my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
-
-    return $class->session ($app)->then (sub {
-      my $account = $_[0];
-      return $app->throw_error (403) if not defined $account->{account_id}; # XXX custom 403
-      return $app->db->select ('repo_access', {
-        repo_url => Dongry::Type->serialize ('text', $tr->url),
-        account_id => Dongry::Type->serialize ('text', $account->{account_id}),
-      }, fields => ['data'], limit => 1);
-    })->then (sub {
-      my $row = $_[0]->first_as_row;
-      return $app->throw_error (403, reason_phrase => 'Bad privilege')
-          if not defined $row or not $row->get ('data')->{repo}; # XXX custom 403
-
-      my $json = {};
-      return $app->db->select ('repo_access', {
-        repo_url => Dongry::Type->serialize ('text', $tr->url),
-      }, fields => ['account_id', 'is_owner', 'data'])->then (sub {
-        my $accounts = $json->{accounts} = {map { $_->get ('account_id') => {
-          account_id => ''.$_->get ('account_id'),
-          scopes => $_->get ('data'),
-          is_owner => $_->get ('is_owner'),
-        } } @{$_[0]->all_as_rows}};
-
-        return Promise->all ([
-          $app->account_server (q</profiles>, {
-            account_id => [keys %$accounts],
-          }),
-          $app->db->select ('repo', {
-            repo_url => Dongry::Type->serialize ('text', $tr->url),
-          }, fields => ['is_public']),
-        ]);
-      })->then (sub {
-        my $j = $_[0]->[0];
-        for my $account_id (keys %{$j->{accounts}}) {
-          $json->{accounts}->{$account_id}->{name} = $j->{accounts}->{$account_id}->{name};
-          # XXX icon
-        }
-        my $repo_data = $_[0]->[1]->first;
-        if (defined $repo_data) {
-          $json->{is_public} = 1 if $repo_data->{is_public};
-        } else {
-          $json->{is_public} = 1;
-        }
-        return $app->send_json ($json);
-      });
-    });
-  }
+    } # GET
+  } # acl
 
   if ($path->[0] eq 'tr' and $path->[3] eq '' and @$path == 4) {
     # /tr/{url}/{branch}/

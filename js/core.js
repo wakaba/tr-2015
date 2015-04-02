@@ -59,6 +59,7 @@
     statusMessage.textContent = json.message || json.status;
     var statusBar = status.querySelector ('progress');
     statusBar.hidden = true;
+    (status.scrollIntoViewIfNeeded || status.scrollIntoView).call (status);
   } // showError
 
   function showDone (json, status) {

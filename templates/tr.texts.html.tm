@@ -56,10 +56,10 @@
     <li>あなたがこのリポジトリーの管理者なら、<a href=../../acl target=config>編集権限設定</a>を行ってください。
 
       <div class=XXX>
-          <p>「所有権の取得」すると、このリポジトリーを編集できるようになります。
-          <form action=../../acl method=post><!-- XXX path -->
-            <input type=hidden name=operation value=get_ownership>
-            <button type=submit>所有権を取得</button>
+          <p>参加すると、このリポジトリーを編集できるようになります。
+          <form action=../../acl.json method=post><!-- XXX path -->
+            <input type=hidden name=operation value=join>
+            <button type=submit>開発者として参加</button>
           </form><!-- XXX ajax -->
 
         <p>SSH でアクセスするためには、公開鍵をサーバーに登録してください。
