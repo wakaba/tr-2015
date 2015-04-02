@@ -41,6 +41,6 @@
     </script>
   </div>
 
-  <a href="/help" rel=help>Help</a>
+  <a href="/help">Documentation</a>
 </nav>
 </header>

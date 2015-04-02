@@ -1221,6 +1221,14 @@ sub main ($$) {
     });
   } # /users/search.json
 
+  if (@$path == 1 and $path->[0] eq 'help') {
+    # /help
+    return $app->temma ('help.html.tm');
+  } elsif (@$path == 1 and $path->[0] eq 'rule') {
+    # /rule
+    return $app->temma ('rule.html.tm',);
+  }
+
   if (@$path == 2 and
       {js => 1, css => 1, data => 1, images => 1, fonts => 1}->{$path->[0]} and
       $path->[1] =~ /\A[0-9A-Za-z_-]+\.(js|css|jpe?g|gif|png|json|ttf|otf|woff)\z/) {
