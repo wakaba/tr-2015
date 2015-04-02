@@ -53,6 +53,10 @@ my $Schema = {
     type => {repo_url => 'text', data => 'json'},
     primary_keys => ['repo_url', 'account_id'],
   },
+  account_repos => {
+    type => {type => 'text', data => 'json'},
+    primary_keys => ['account_id', 'type'],
+  },
 };
 
 sub get_db ($) {

@@ -7,17 +7,13 @@
 
 <t:include path=_header.html.tm />
 
-<section>
+<section class=repos>
   <h1>テキストリポジトリー</h1>
 
-  <menu class=tabs>
-    <a href=#repos>参加中</a>
-    <a href=#github>GitHub</a>
-    <a href=#add-repo>追加</a>
-  </menu>
+  <p><input type=search placeholder=絞り込み>
+  <p><button type=button class=update-github>GitHub リポジトリー一覧を更新</button>
 
-<section id=repos>
-  <h1>参加中のリポジトリー</h1>
+  <p class=status hidden><progress/> <span class=message>{status}</span>
 
   <table>
     <thead>
@@ -25,72 +21,129 @@
         <th>リポジトリー
         <th>表示
         <th>編集
+        <th>管理
+    </thead>
+    <template class=repo-row-template data-true=&#x2714; data-false=- data-na>
+      <td onclick=" this.querySelector ('a').click () ">
+        <p><a href><strong class=label>{label}</strong></a>
+        <p class=desc>{desc}
+        <p class=join-actions>
+          <button type=button class=as-translator>翻訳者として参加</button>
+          <button type=button class=as-developer>開発者として参加</button>
+          <button type=button class=as-owner>所有者として参加</button>
+      <td><span class=scope-read>{boolean}</span>
+      <td><span class=scope-edit>{boolean}</span>
+      <td><span class=scope-repo>{boolean}</span>
+    </template>
     <tbody>
-      <t:for as=$row x=$repo_access_rows>
-        <tr onclick=" querySelector ('a').click () ">
-          <t:my as=$scopes x="$row->get ('data')">
-          <th><a pl:href="'/tr/'.(percent_encode_c $row->get ('repo_url')).'/master/%2F/'; # XXX"><t:text value="$row->get ('repo_url'); # XXX label"></a>
-          <td><t:text value="$scopes->{read} ? '&#x2714;' : '-'">
-          <td><t:text value="$scopes->{edit} ? '&#x2714;' : '-'"><!-- XXX edit/{lang} -->
-      </t:for>
   </table>
-</section>
-
-<section id=github>
-  <h1>GitHub リポジトリー</h1>
-
-  <form action=/account/login method=post class=login>
-    <input type=hidden name=server value=github>
-    <button type=submit>GitHub アカウントでログイン</button>
-  </form>
-
-  <p><button type=button onclick=" loadGitHubList (true) ">更新</button>
-  <ul class=repos>
-  </ul>
-  <template class=repo-template>
-    <a data-href="/tr/{url}/{branch}/{path}/">{label}</a>
-    <p class=desc>{desc}
-  </template>
+  <script src=/js/core.js charset=utf-8 />
   <script>
-    function loadGitHubList (update) {
-      var ghSection = document.querySelector ('#github');
-      var xhr = new XMLHttpRequest;
-      xhr.open ('GET', '/remote/github/repos.json' + (update ? '?update=1' : ''), true);
-      xhr.onreadystatechange = function () {
-        if (xhr.readyState === 4) {
-          if (xhr.status === 200) {
-            var json = JSON.parse (xhr.responseText);
-            var repos = ghSection.querySelector ('.repos');
-            repos.textContent = '';
-            var repoTemplate = ghSection.querySelector ('.repo-template');
-            var keys = [];
-            for (var key in json.repos) {
-              keys.push (key);
-            }
-            keys = keys.sort (function (a, b) { return a < b ? -1 : +1 });
-            keys.forEach (function (key) {
-              var repo = json.repos[key];
-              var li = document.createElement ('li');
-              li.innerHTML = repoTemplate.innerHTML;
-              var a = li.querySelector ('a');
-              a.href = a.getAttribute ('data-href')
-                  .replace (/\{url\}/g, encodeURIComponent (repo.url))
-                  .replace (/\{branch\}/g, encodeURIComponent (repo.default_branch))
-                  .replace (/\{path\}/g, encodeURIComponent ('/'));
-              a.textContent = repo.label;
-              li.querySelector ('.desc').textContent = repo.desc;
-              repos.appendChild (li);
-            }); // repo
-          } else {
-            // XXX
+    (function () {
+      var filterInput = document.querySelector ('.repos input[type=search]');
+      var timer;
+      filterInput.oninput = function () {
+        clearTimeout (timer);
+        timer = setTimeout (function () { updateReposTable () }, 100);
+      };
+    }) ();
+
+    document.querySelector ('.repos .update-github').onclick = function () {
+      var button = this;
+      button.disabled = true;
+      var status = document.querySelector ('.repos .status');
+      showProgress ({init: true}, status);
+      var fd = new FormData;
+      fd.append ('operation', 'github');
+      server ('POST', '/tr.ndjson', fd, function (res) {
+        loadRepos ();
+        status.hidden = true;
+        button.disabled = false;
+      }, function (json) {
+        // XXX if guest or not linked
+        showError (json, status);
+        button.disabled = false;
+      }, function (json) {
+        showProgress (json, status);
+      });
+    }; // onclick
+
+    function loadRepos () {
+      var status = document.querySelector ('.repos .status');
+      showProgress ({init: true, message: 'Loading...'}, status);
+      server ('GET', '/tr.ndjson', null, function (res) {
+        updateReposData (res.data);
+        updateReposTable ();
+        status.hidden = true;
+      }, function (json) {
+        showError (json, status);
+      }, function (json) {
+        showProgress (json, status);
+      });
+    }
+
+    function updateReposData (json) {
+      var repos = {};
+      for (var key in json) {
+        for (var url in json[key].data) {
+          if (!repos[url]) repos[url] = json[key].data[url];
+          for (k in json[key].data[url]) {
+            if (!repos[url][k]) repos[url][k] = json[key].data[url][k];
           }
         }
-      };
-      xhr.send (null);
-    } // loadGitHubList
-    loadGitHubList (false);
+      }
+      document.trRepos = repos;
+    } // updateReposData;
+
+    function updateReposTable () {
+      var section = document.querySelector ('.repos');
+      var table = section.querySelector ('table');
+      var tbody = table.tBodies[0];
+      var template = section.querySelector ('.repo-row-template');
+      var trueText = template.getAttribute ('data-true');
+      var falseText = template.getAttribute ('data-false');
+      var naText = template.getAttribute ('data-na');
+      tbody.textContent = '';
+      var repos = [];
+      var filter = section.querySelector ('input[type=search]').value;
+      for (var url in document.trRepos) {
+        var repo = document.trRepos[url];
+        if (url.indexOf (filter) > -1) repos.push (repo);
+      }
+      repos = repos.sort (function (a, b) {
+        return a.scopes && !b.scopes ? -1 :
+               !a.scopes && b.scopes ? 1 :
+               a.url < b.url ? -1 : +1;
+      });
+      repos.forEach (function (repo) {
+        var tr = document.createElement ('tr');
+        tr.innerHTML = template.innerHTML;
+        tr.querySelector ('a').href = '/tr/' + encodeURIComponent (repo.url) + '/';
+        tr.querySelector ('.label').textContent = repo.label || repo.url;
+        var desc = tr.querySelector ('.desc');
+        desc.textContent = repo.desc || '';
+        desc.hidden = !desc.textContent.length;
+        var scopes;
+        if (repo.scopes) {
+          tr.querySelector ('.join-actions').hidden = true;
+          scopes = repo.scopes;
+          tr.querySelector ('.scope-read').textContent = scopes.read ? trueText : falseText;
+          tr.querySelector ('.scope-edit').textContent = scopes.edit ? trueText : falseText;
+          tr.querySelector ('.scope-repo').textContent = scopes.repo ? trueText : falseText;
+        } else {
+          scopes = repo.remote_scopes || {pull: false, push: false};
+          tr.querySelector ('.as-owner').disabled = !scopes.push;
+          tr.querySelector ('.scope-read').textContent = naText;
+          tr.querySelector ('.scope-edit').textContent = naText;
+          tr.querySelector ('.scope-repo').textContent = naText;
+        }
+        tbody.appendChild (tr);
+      }); // repo
+    } // updateReposTable
+
+    document.trRepos = {};
+    loadRepos ();
   </script>
-</section>
 
   <section id=add-repo>
     <h1>リポジトリーを追加</h1>

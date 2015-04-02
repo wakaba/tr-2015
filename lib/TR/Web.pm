@@ -77,6 +77,114 @@ sub main ($$) {
   } elsif (@$path == 2 and $path->[0] eq 'tr' and $path->[1] eq '') {
     # /tr/
     return $app->send_redirect ('/tr');
+  } elsif (@$path == 1 and $path->[0] =~ /\Atr\.(json|ndjson)\z/) {
+    # /tr.json
+    # /tr.ndjson
+    $app->start_json_stream if $1 eq 'ndjson';
+    return $class->session ($app)->then (sub {
+      my $account = $_[0];
+      if ($app->http->request_method eq 'POST') {
+        # XXX CSRF
+        my $op = $app->bare_param ('operation') // '';
+        if ($op eq 'github') {
+          $app->send_progress_json_chunk ('Preparing for GitHub API access...');
+          return $app->account_server (q</token>, {
+            sk => $app->http->request_cookies->{sk},
+            sk_context => $app->config->{account_sk_context},
+            server => 'github',
+          })->then (sub {
+            my $json = $_[0];
+            my $token = $json->{access_token}
+                // return $app->throw_error (403, reason_phrase => 'Not linked to any GitHub account');
+            $app->send_progress_json_chunk ('Loading GitHub repository list...');
+            return Promise->new (sub {
+              my ($ok, $ng) = @_;
+              # XXX paging support
+              http_get
+                  url => q<https://api.github.com/user/repos?per_page=100>,
+                  header_fields => {Authorization => 'token ' . $token,
+                                    Accept => 'application/vnd.github.moondragon+json'},
+                  timeout => 100,
+                  anyevent => 1,
+                  cb => sub {
+                    my (undef, $res) = @_;
+                    if ($res->code == 200) {
+                      $ok->(json_bytes2perl $res->content);
+                    } else {
+                      $ng->($res->status_line);
+                    }
+                  };
+            });
+          })->then (sub {
+            my $json = $_[0];
+            $app->send_progress_json_chunk ('Caching repository list...');
+            $json = {map {
+              my $url = qq{https://github.com/$_->{full_name}};
+              $url => {
+                url => $url,
+                default_branch => $_->{default_branch},
+                is_public => !$_->{private},
+                remote_scopes => {
+                  pull => !!$_->{permissions}->{pull},
+                  push => !!$_->{permissions}->{push},
+                },
+                #updated => $_->{updated_at}, # XXX conversion
+                label => $_->{full_name},
+                desc => $_->{description},
+              };
+            } @$json};
+            return $app->db->insert ('account_repos', [{
+              account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+              type => 'github',
+              data => Dongry::Type->serialize ('json', $json),
+              created => time,
+              updated => time,
+            }], duplicate => {
+              data => $app->db->bare_sql_fragment ('VALUES(data)'),
+              updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
+            });
+          })->then (sub {
+            return $app->send_last_json_chunk (200, 'Done', {});
+          });
+        } else {
+          return $app->throw_error (400, reason_phrase => 'Bad |operation|');
+        }
+      } else { # GET
+        if (defined $account->{account_id}) {
+          # XXX Cache-Control
+          return $app->db->select ('repo_access', {
+            account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+          }, fields => ['repo_url', 'data'])->then (sub {
+            my $joined = {map {
+              my $url = $_->get ('repo_url');
+              $url => {
+                url => $url,
+                scopes => $_->get ('data'),
+                #is_public
+                #label
+                #desc
+              };
+            } @{$_[0]->all_as_rows}};
+            return $app->db->select ('account_repos', {
+              account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+            }, fields => ['type', 'data', 'updated'])->then (sub {
+              my $all = $_[0]->all_as_rows;
+              return $app->send_last_json_chunk (200, 'OK', {
+                joined => {data => $joined},
+                map {
+                  $_->get ('type') => {
+                    data => $_->get ('data'),
+                    updated => $_->get ('updated'),
+                  };
+                } @$all
+              });
+            });
+          });
+        } else {
+          return $app->send_last_json_chunk (200, 'OK', {});
+        }
+      }
+    });
   }
 
   if ($path->[0] eq 'tr' and $path->[2] eq '' and @$path == 3) {
@@ -418,6 +526,7 @@ sub main ($$) {
           tags => $app->text_param_list ('tag'),
           tag_minuses => $app->text_param_list ('tag_minus'),
         );
+        # XXX Last-Modified
         return $app->temma ('tr.texts.html.tm', {
           app => $app,
           tr => $tr,
@@ -1111,79 +1220,6 @@ sub main ($$) {
       return $app->send_json ($json);
     });
   } # /users/search.json
-
-
-  if (@$path == 3 and
-      $path->[0] eq 'remote' and
-      $path->[1] eq 'github' and
-      $path->[2] eq 'repos.json') {
-    # /remote/github/repos.json
-
-    # XXX requires POST
-    # XXX Cache-Control
-
-    return $class->session ($app)->then (sub {
-      my $account = $_[0];
-      return [] unless defined $account->{account_id};
-      require TR::MongoLab; # XXX replace by MySQL
-      my $mongo = TR::MongoLab->new_from_api_key ($app->config->{mongolab_api_key});
-      return (((not $app->bare_param ('update')) ? do {
-        $mongo->get_docs_by_query ('user', 'github-repos', {_id => $account->{account_id}})->then (sub {
-          my $data = $_[0];
-          return $data->[0]->{repos} if defined $data->[0]->{repos};
-          return undef;
-        });
-      } : Promise->resolve (undef))->then (sub {
-        my $json = $_[0];
-        return $json if defined $json;
-        return $app->account_server (q</token>, {
-          sk => $app->http->request_cookies->{sk},
-          sk_context => $app->config->{account_sk_context},
-          server => 'github',
-        })->then (sub {
-          my $json = $_[0];
-          my $token = $json->{access_token} // return [];
-          return Promise->new (sub {
-            my ($ok, $ng) = @_;
-            # XXX paging support
-            http_get
-                url => q<https://api.github.com/user/repos?per_page=100>,
-                header_fields => {Authorization => 'token ' . $token,
-                                  Accept => 'application/vnd.github.moondragon+json'},
-                timeout => 100,
-                anyevent => 1,
-                cb => sub {
-                  my (undef, $res) = @_;
-                  if ($res->code == 200) {
-                    $ok->(json_bytes2perl $res->content);
-                  } else {
-                    $ng->($res->status_line);
-                  }
-                };
-          });
-        })->then (sub {
-          my $json = $_[0];
-          $json = {map { do { my $v = (percent_encode_c $_->{url}); $v =~ s/\./%2E/g; $v } => $_ } map { +{
-            label => $_->{full_name},
-            url => qq{https://github.com/$_->{full_name}},
-            default_branch => $_->{default_branch},
-            private => !!$_->{private},
-            read => !!$_->{permissions}->{pull},
-            write => !!$_->{permissions}->{push},
-            updated => $_->{updated_at}, # XXX conversion
-            desc => $_->{description},
-          } } @$json};
-          return $mongo->set_doc ('user', 'github-repos', {
-            _id => $account->{account_id},
-            repos => $json,
-          })->then (sub { return $json });
-        });
-      }));
-    })->then (sub {
-      my $json = $_[0];
-      return $app->send_json ({repos => $json});
-    });
-  } # /remote/github/repos.json
 
   if (@$path == 2 and
       {js => 1, css => 1, data => 1, images => 1, fonts => 1}->{$path->[0]} and

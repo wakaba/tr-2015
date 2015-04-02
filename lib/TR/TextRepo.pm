@@ -186,6 +186,7 @@ sub prepare_mirror ($$$) {
     $mirror_repo->ssh_private_key_file_name ($self->{private_key_path});
     return $p->then (sub {
       $app->send_progress_json_chunk ('Fetching the remote repository...');
+      # XXX skip if guest access
       return $mirror_repo->fetch;
     })->then (sub {
       $self->{fetched} = 1;

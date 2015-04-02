@@ -20,3 +20,14 @@ CREATE TABLE IF NOT EXISTS `repo_access` (
   KEY (created),
   KEY (updated)
 ) DEFAULT CHARSET=BINARY ENGINE=InnoDB;
+
+CREATE TABLE IF NOT EXISTS `account_repos` (
+  account_id BIGINT UNSIGNED NOT NULL,
+  `type` VARBINARY(31) NOT NULL,
+  `data` MEDIUMBLOB NOT NULL,
+  created DOUBLE NOT NULL,
+  updated DOUBLE NOT NULL,
+  PRIMARY KEY (account_id, type),
+  KEY (created),
+  KEY (updated)
+) DEFAULT CHARSET=BINARY ENGINE=InnoDB;
