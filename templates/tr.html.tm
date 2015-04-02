@@ -1,7 +1,6 @@
-<html t:params="$app $repo_access_rows">
+<html t:params="$app">
 <t:include path=_macro.html.tm />
-<t:call x="use Wanage::URL">
-<title>XXX</title>
+<title>Text repositories - TR</title>
 <link rel=stylesheet href=/css/common.css>
 <body>
 
@@ -36,6 +35,25 @@
     </template>
     <tbody>
   </table>
+
+          <details>
+            <summary>リポジトリーを追加</summary>
+
+            <form action=javascript: onsubmit="
+              var url = this.elements.url.value;
+              location.href = '/tr/' + encodeURIComponent (url) + '/';
+              return false;
+            ">
+              <table class=config>
+                <tbody>
+                  <th><label for=add-repo-url>Git リポジトリー URL</label>
+                  <td><input name=url id=add-repo-url required>
+              </table>
+              <p class=buttons><button type=submit>追加</button>
+                <!-- XXX 翻訳者として ・ 開発者として -->
+            </form>
+          </details>
+
   <script src=/js/core.js charset=utf-8 />
   <script>
     (function () {
@@ -163,25 +181,8 @@
     document.trRepos = {};
     loadRepos ();
   </script>
-
-  <section id=add-repo>
-    <h1>リポジトリーを追加</h1>
-
-    <form action=javascript: onsubmit="
-      var url = this.elements.url.value;
-      location.href = '/tr/' + encodeURIComponent (url) + '/';
-      return false;
-    ">
-      <table class=config>
-        <tbody>
-          <th><label for=add-repo-url>Git リポジトリー URL</label>
-          <td><input name=url id=add-repo-url required>
-      </table>
-      <p class=buttons><button type=submit>追加</button>
-    </form>
-  </section>
 </section>
 
-<t:include path=_footer.html.tm />
+<t:include path=_footer.html.tm m:app=$app />
 <script src=/js/time.js />
 <script> new TER (document.body) </script>

@@ -56,23 +56,13 @@ sub main ($$) {
 
   if (@$path == 1 and $path->[0] eq '') {
     # /
-    return $app->temma ('index.html.tm');
+    return $app->temma ('index.html.tm', {app => $app});
   }
 
   if (@$path == 1 and $path->[0] eq 'tr') {
     # /tr
-    return $class->session ($app)->then (sub {
-      my $account = $_[0];
-      return ((defined $account->{account_id} ? $app->db->select ('repo_access', {
-        account_id => Dongry::Type->serialize ('text', $account->{account_id}),
-      }, fields => ['repo_url', 'data'])->then (sub {
-        return $_[0]->all_as_rows;
-      }) : Promise->resolve ([]))->then (sub {
-        return $app->temma ('tr.html.tm', {
-          app => $app,
-          repo_access_rows => $_[0],
-        });
-      }));
+    return $app->temma ('tr.html.tm', {
+      app => $app,
     });
   } elsif (@$path == 2 and $path->[0] eq 'tr' and $path->[1] eq '') {
     # /tr/
@@ -190,8 +180,26 @@ sub main ($$) {
   if ($path->[0] eq 'tr' and $path->[2] eq '' and @$path == 3) {
     # /tr/{url}/
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
-
-    return $class->check_read ($app, $tr, access_token => 1, html => 1)->then (sub {
+    return $class->check_read ($app, $tr, html => 1)->then (sub {
+      return $app->temma ('tr.repo.html.tm', {
+        app => $app,
+        tr => $tr,
+      });
+    })->catch (sub {
+      $app->error_log ($_[0]);
+      return $app->send_error (500);
+    })->then (sub {
+      return $tr->discard;
+    });
+  } elsif (@$path == 3 and $path->[0] eq 'tr' and
+           $path->[2] =~ /\Ainfo\.(json|ndjson)\z/) {
+    # /tr/{url}/info.json
+    # /tr/{url}/info.ndjson
+    my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
+    $app->start_json_stream if $1 eq 'ndjson';
+    $app->send_progress_json_chunk ('Checking the repository permission...');
+    return $class->check_read ($app, $tr, access_token => 1)->then (sub {
+      $app->send_progress_json_chunk ('Cloning the remote repository...');
       return $tr->prepare_mirror ($_[0], $app);
     })->then (sub {
       return $tr->get_branches;
@@ -202,13 +210,11 @@ sub main ($$) {
         my $sha_to_commit = {};
         $sha_to_commit->{$_->{commit}} = $_ for @{$parsed2->{commits}};
         for (values %{$parsed1->{branches}}) {
-          $_->{commit_log} = $sha_to_commit->{$_->{commit}};
+          my $log = $sha_to_commit->{$_->{commit}};
+          $_->{commit_author} = $log->{author};
+          $_->{commit_committer} = $log->{committer};
         }
-        return $app->temma ('tr.repo.html.tm', {
-          app => $app,
-          tr => $tr,
-          branches => $parsed1->{branches},
-        });
+        return $app->send_last_json_chunk (200, 'Saved', $parsed1);
       });
     })->catch (sub {
       $app->error_log ($_[0]);
@@ -216,7 +222,7 @@ sub main ($$) {
     })->then (sub {
       return $tr->discard;
     });
-  }
+  } # /tr/{url}/info.json
 
   if ($path->[0] eq 'tr' and @$path == 3 and $path->[2] eq 'acl') {
     # /tr/{url}/acl
@@ -484,11 +490,24 @@ sub main ($$) {
     });
   } # start
 
-  if ($path->[0] eq 'tr' and $path->[3] eq '' and @$path == 4) {
+  if (@$path == 4 and $path->[0] eq 'tr' and $path->[3] eq '') {
     # /tr/{url}/{branch}/
     my $tr = $class->create_text_repo ($app, $path->[1], $path->[2], undef);
-
-    return $class->check_read ($app, $tr, access_token => 1, html => 1)->then (sub {
+    return $class->check_read ($app, $tr, html => 1)->then (sub {
+      return $app->temma ('tr.branch.html.tm', {
+        app => $app,
+        tr => $tr,
+      });
+    });
+  } elsif (@$path == 4 and $path->[0] eq 'tr' and
+           $path->[3] =~ /\Ainfo\.(json|ndjson)\z/) {
+    # /tr/{url}/{branch}/info.json
+    # /tr/{url}/{branch}/info.ndjson
+    my $tr = $class->create_text_repo ($app, $path->[1], $path->[2], undef);
+    $app->start_json_stream if $1 eq 'ndjson';
+    $app->send_progress_json_chunk ('Checking the repository permission...');
+    return $class->check_read ($app, $tr, access_token => 1)->then (sub {
+      $app->send_progress_json_chunk ('Cloning the remote repository...');
       return $tr->prepare_mirror ($_[0], $app);
     })->then (sub {
       return $tr->get_commit_logs ([$tr->branch]);
@@ -503,30 +522,36 @@ sub main ($$) {
       for (values %{$parsed->{items}}) {
         next unless $_->{file} =~ m{/texts/config.json\z};
         next unless $_->{type} eq 'blob';
-        # XXX next if symlink
+        next if $_->{mode} & 020000; # symlinks
         my $path = '/' . $_->{file};
         $path =~ s{/texts/config.json\z}{};
         $text_sets->{$path}->{path} = $path;
         $text_sets->{$path}->{texts_path} = (substr $path, 1) . '/texts';
+        $text_sets->{$path}->{config_path} = $text_sets->{$path}->{texts_path} . '/config.json';
         # XXX text set label, desc, ...
       }
 
-      my $has_root = (($parsed->{items}->{'texts/config.json'} || {})->{type} // '') eq 'blob'; # XXX and is not symlink
-      if ($has_root or not keys %$text_sets) {
+      my $root_config = $parsed->{items}->{'texts/config.json'};
+      if (not keys %$text_sets or
+          (defined $root_config and
+           $root_config->{type} eq 'blob' and
+           not $root_config->{mode} & 020000)) { # symlink
         $text_sets->{'/'}->{path} = '/';
         $text_sets->{'/'}->{texts_path} = 'texts';
+        $text_sets->{'/'}->{config_path} = 'texts/config.json';
       }
 
       return $tr->get_last_commit_logs_by_paths ([map { $_->{texts_path} } values %$text_sets])->then (sub {
         my $parsed = $_[0];
         for (values %$text_sets) {
-          $_->{commit_log} = $parsed->{$_->{texts_path}};
+          my $log = $parsed->{$_->{texts_path}};
+          $_->{commit} = $log->{commit};
+          $_->{commit_message} = $log->{body};
+          $_->{committer} = $log->{committer};
+          $_->{commit_author} = $log->{author};
+          $_->{author} = $log->{author};
         }
-        return $app->temma ('tr.branch.html.tm', {
-          app => $app,
-          tr => $tr,
-          text_sets => $text_sets,
-        });
+        return $app->send_last_json_chunk (200, 'OK', {text_sets => $text_sets});
       });
     })->catch (sub {
       $app->error_log ($_[0]);
@@ -534,7 +559,7 @@ sub main ($$) {
     })->then (sub {
       return $tr->discard;
     });
-  } # /tr/{url}/{branch}
+  } # /tr/{url}/{branch}/info.json
 
   if ($path->[0] eq 'tr' and @$path >= 4) {
     # /tr/{url}/{branch}/{path}
@@ -1250,10 +1275,10 @@ sub main ($$) {
 
   if (@$path == 1 and $path->[0] eq 'help') {
     # /help
-    return $app->temma ('help.html.tm');
+    return $app->temma ('help.html.tm', {app => $app});
   } elsif (@$path == 1 and $path->[0] eq 'rule') {
     # /rule
-    return $app->temma ('rule.html.tm',);
+    return $app->temma ('rule.html.tm', {app => $app});
   }
 
   if (@$path == 2 and
@@ -1512,21 +1537,22 @@ sub get_push_token ($$$$) {
 sub edit_text_set ($$$$$%) {
   my ($class, $app, $tr, $type, $code, %args) = @_;
   $app->start_json_stream if $type eq 'ndjson';
-  $app->send_progress_json_chunk ('Checking the repository permission...', [1,5]);
+  $app->send_progress_json_chunk ('Checking the repository permission...', [1,6]);
   return $class->get_push_token ($app, $tr, $args{scope})->then (sub {
+    $app->send_progress_json_chunk ('Cloning the remote repository...', [2,6]);
     return $tr->prepare_mirror ($_[0], $app);
   })->then (sub {
-    $app->send_progress_json_chunk ('Cloning the repository...', [2,5]);
+    $app->send_progress_json_chunk ('Cloning the repository...', [3,6]);
     return $tr->clone_from_mirror (push => 1, no_checkout => 1);
   })->then (sub {
-    $app->send_progress_json_chunk ('Applying the change...', [3,5]);
+    $app->send_progress_json_chunk ('Applying the change...', [4,6]);
     return $code->();
   })->then (sub {
     my $msg = $app->text_param ('commit_message') // '';
     $msg = $args{default_commit_message} unless length $msg;
     return $tr->commit ($msg);
   })->then (sub {
-    $app->send_progress_json_chunk ('Pushing the repository...',[4,5]);
+    $app->send_progress_json_chunk ('Pushing the repository...',[5,6]);
     return $tr->push; # XXX failure
   })->then (sub {
     return $app->send_last_json_chunk (200, 'Saved', {});

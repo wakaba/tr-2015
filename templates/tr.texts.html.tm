@@ -1251,4 +1251,4 @@ function saveArea (area, onsaved) { // XXX promise
   }
 </script>
 
-<t:include path=_footer.html.tm />
+<t:include path=_footer.html.tm m:app=$app />

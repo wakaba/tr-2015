@@ -26,6 +26,14 @@ sub db ($) {
   return $_[0]->{db} ||= $_[0]->config->get_db;
 } # db
 
+{
+  my $app_rev = `git rev-parse HEAD`;
+  chomp $app_rev;
+  sub app_revision ($) {
+    return $app_rev;
+  } # app_revision
+}
+
 sub account_server ($$$) {
   my ($self, $path, $params) = @_;
   my $prefix = $self->config->get ('account.url_prefix');

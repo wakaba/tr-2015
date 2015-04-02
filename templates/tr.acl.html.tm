@@ -236,4 +236,4 @@
   </section>
 </section>
 
-<t:include path=_footer.html.tm />
+<t:include path=_footer.html.tm m:app=$app />

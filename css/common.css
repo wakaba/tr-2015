@@ -171,6 +171,13 @@ footer.site a:hover {
   text-decoration: underline;
 }
 
+footer.site .credit {
+  margin: 1em;
+  color: gray;
+  font-size: 80%;
+  text-align: right;
+}
+
 header.textset {
   position: relative;
 }

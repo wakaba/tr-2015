@@ -1,4 +1,4 @@
-<html>
+<html t:params=$app>
 <t:include path=_macro.html.tm />
 <title>Terms - TR</title>
 <link rel=stylesheet href=/css/common.css>
@@ -13,4 +13,4 @@
 
 </section>
 
-<t:include path=_footer.html.tm />
+<t:include path=_footer.html.tm m:app=$app />
