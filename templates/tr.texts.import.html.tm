@@ -18,22 +18,6 @@
   <section class=config>
     <h1>Import</h1>
 
-    <!-- XXX -->
-    <form action=import.ndjson method=post enctype=multipart/form-data>
-      <input type=hidden name=from value=repo>
-      <button type=submit>XXX</button>
-        <tr>
-          <th><label for=import-arg_format>Argument format</label>
-          <td>
-            <select id=import-arg_format name=arg_format>
-              <option value=auto>Auto
-              <option value=printf>printf
-              <option value=percentn>%n
-              <option value=braced>{placeholder}
-            </select>
-      <p class=status hidden><progress></progress> <span class=message></span>
-    </form>
-
     <form action=import.ndjson method=post enctype=multipart/form-data>
       <input type=hidden name=from value=file>
       <table class=config>

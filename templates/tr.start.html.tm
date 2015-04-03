@@ -17,8 +17,9 @@
     <p class=done>ログイン
     <p class=done><a href=/tr>リポジトリー選択</a>
     <p class=selected><a href>編集対象選択</a>
-    <p>既存データインポート
-    <p>言語・ライセンス設定
+    <p>インポート
+    <p>言語設定
+    <p>ライセンス設定
     <p>初期設定完了
   </nav>
 

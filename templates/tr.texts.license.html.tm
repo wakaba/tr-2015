@@ -1,4 +1,5 @@
 <html t:params="$tr $tr_config $app" class=config-page>
+<t:my as=$start x="$app->bare_param ('start')">
 <title>License - Text set configuration - XXX</title>
 <link rel=stylesheet href=/css/common.css>
 <body onbeforeunload=" if (document.trModified) return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
@@ -15,7 +16,19 @@
     </hgroup>
   </header>
 
-  <t:include path=tr.texts._config_menu.html.tm m:selected="'license'" />
+  <t:if x=$start>
+    <nav>
+      <p class=done>ログイン
+      <p class=done><a href=/tr>リポジトリー選択</a>
+      <p class=done><a href=../../start>編集対象選択</a>
+      <p class=done><a href=start>インポート</a>
+      <p class=done><a href=langs>言語設定</a>
+      <p class=selected><a href>ライセンス設定</a>
+      <p>初期設定完了
+    </nav>
+  <t:else>
+    <t:include path=tr.texts._config_menu.html.tm m:selected="'license'" />
+  </t:if>
 
   <section class=config>
     <header>
@@ -23,6 +36,10 @@
     </header>
 
     <form action="license.ndjson" method=post>
+      <t:if x=$start>
+        <t:attr name="'data-next'" value="'./'">
+      </t:if>
+
       <table class=config>
         <tbody>
           <tr>
@@ -80,6 +97,9 @@
         server ('POST', form.action, new FormData (form), function (res) {
           showDone (res, status);
           document.trModified = false;
+          if (form.getAttribute ('data-next')) {
+            location.href = form.getAttribute ('data-next');
+          }
         }, function (json) {
           showError (json, status);
         }, function (json) {

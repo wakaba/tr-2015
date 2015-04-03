@@ -19,8 +19,9 @@
     <p class=done>ログイン
     <p class=done><a href=/tr>リポジトリー選択</a>
     <p class=done><a href=../../start>編集対象選択</a>
-    <p class=selected><a href>既存データインポート</a>
-    <p>言語・ライセンス設定
+    <p class=selected><a href>インポート</a>
+    <p>言語設定
+    <p>ライセンス設定
     <p>初期設定完了
   </nav>
 
@@ -30,20 +31,51 @@
     </header>
     <p class=status hidden><progress></progress> <span class=message></span>
 
-    <p>既存データのインポート
+    <p>リポジトリーに既に言語データファイル (<code>.po</code> ファイル)
+    が含まれている場合は、初期データとしてインポートできます。
 
-    <table class=config>
-      <tbody>
+    <form action=import.ndjson method=post enctype=multipart/form-data>
+      <input type=hidden name=from value=repo>
+
+      <table class=config>
         <tr>
-          <th>言語
+          <th><label for=import-arg_format>Argument format</label>
           <td>
-        <tr>
-          <th>ライセンス
-          <td>
-    </table>
+            <select id=import-arg_format name=arg_format>
+              <option value=auto>Auto
+              <option value=printf>printf
+              <option value=percentn>%n
+              <option value=braced>{placeholder}
+            </select>
+      </table>
 
-    <p><a href=./>完了</a>
+      <button type=submit>既存データをインポート</button>
+    </form>
 
+    <p class=info>リポジトリー内にないファイルからは、
+      初期設定完了後にインポート機能でインポートできます。
+
+    <p class=buttons><button type=button onclick="
+      location.href = 'langs?start=1';
+    ">次へ進む</button>
+
+    <script src=/js/core.js charset=utf-8 />
+    <script>
+      Array.prototype.forEach.call (document.querySelector ('section.config').querySelectorAll ('form[method=post]'), function (form) {
+        form.onsubmit = function () {
+          var status = document.querySelector ('.status');
+          showProgress ({init: true}, status);
+          server ('POST', form.action, new FormData (form), function (res) {
+            showDone (res, status);
+          }, function (json) {
+            showError (json, status);
+          }, function (json) {
+            showProgress (json, status);
+          });
+          return false;
+        };
+      });
+    </script>
   </section>
 </section>
 

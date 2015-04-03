@@ -258,7 +258,7 @@
   return false;
     ">
       <details>
-        <summary>メッセージの追加</summary>
+        <summary>テキストの追加</summary>
       <table class=config>
         <tr>
           <th><label for=add-msgid>メッセージID</label>
@@ -277,7 +277,7 @@
         <!-- XXX メイン言語でのテキスト -->
       </table>
         <p class=buttons><button type=submit>追加</button>
-        <p class=help><a href="/help/XXX" rel=help target=help>How to add lots of texts at once</a>
+        <p class=help><a href="/help#add" rel=help target=help>How to add lots of texts at once</a>
       </details>
     </form>
 </table>

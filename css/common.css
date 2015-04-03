@@ -503,7 +503,7 @@ html:not([data-scopes~=comment]) .comments-area button.toggle-edit {
 }
 
 html:not([data-scopes~=texts]) .text-header button.edit,
-html:not([data-scopes~=texts]) #add {
+html:not([data-scopes~=texts]) table #add {
   display: none;
 }
 
