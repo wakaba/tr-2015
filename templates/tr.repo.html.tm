@@ -36,19 +36,22 @@
 
     <details>
       <summary>ブランチを追加</summary>
-      <p class=info>ブランチは <a href=XXX>GitHub で追加</a>できます。
+      <p>ブランチを追加するには、
+      <a href=XXX>GitHub で追加</a>してから一覧を更新してください。
+      <p><button type=button class=reload-list onclick=" loadBranches () ">一覧を更新</button>
     </details>
 
     <script src=/js/time.js />
     <script src=/js/core.js charset=utf-8 />
     <script>
-      (function () {
+      function loadBranches () {
         var status = document.querySelector ('.branches .status');
         showProgress ({init: true, message: 'Loading...'}, status);
         server ('GET', 'info.ndjson', null, function (res) {
           var branches = res.data.branches;
           var tbody = document.querySelector ('.branches table tbody');
           var template = document.querySelector ('.branches .branch-row-template');
+          tbody.textContent = "";
           for (var n in branches) {
             var branch = branches[n];
             var tr = document.createElement ('tr');
@@ -69,7 +72,8 @@
         }, function (json) {
           showProgress (json, status);
         });
-      }) ();
+      } // loadBranches
+      loadBranches ();
     </script>
   </section>
 </section>

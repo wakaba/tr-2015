@@ -10,7 +10,6 @@
   <h1>テキストリポジトリー</h1>
 
   <p><input type=search placeholder=絞り込み>
-  <p><button type=button class=update-github>GitHub リポジトリー一覧を更新</button>
 
   <p class=status hidden><progress/> <span class=message>{status}</span>
 
@@ -39,19 +38,27 @@
           <details>
             <summary>リポジトリーを追加</summary>
 
-            <form action=javascript: onsubmit="
-              var url = this.elements.url.value;
-              location.href = '/tr/' + encodeURIComponent (url) + '/';
-              return false;
-            ">
-              <table class=config>
-                <tbody>
-                  <th><label for=add-repo-url>Git リポジトリー URL</label>
-                  <td><input name=url id=add-repo-url required>
-              </table>
-              <p class=buttons><button type=submit>追加</button>
-                <!-- XXX 翻訳者として ・ 開発者として -->
-            </form>
+            <dl class=switch>
+            <dt>一覧にない Git リポジトリーを追加する
+            <dd>
+              <form action=javascript: onsubmit="
+                var url = this.elements.url.value;
+                location.href = '/tr/' + encodeURIComponent (url) + '/';
+                return false;
+              ">
+                <table class=config>
+                  <tbody>
+                    <th><label for=add-repo-url>Git リポジトリー URL</label>
+                    <td><input name=url id=add-repo-url required>
+                </table>
+                <p class=buttons><button type=submit>追加</button>
+                  <!-- XXX 翻訳者として ・ 開発者として -->
+              </form>
+            <dt>新しい Git リポジトリーを作成する
+            <dd>
+              <p><a href=XXX>GitHub でリポジトリーを作成</a>してから、一覧を更新してください。
+              <p><button type=button class=update-github>GitHub リポジトリー一覧を更新</button>
+            </dl>
           </details>
 
   <script src=/js/core.js charset=utf-8 />

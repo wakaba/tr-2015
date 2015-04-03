@@ -72,6 +72,7 @@ sub send_json ($$) {
 sub start_json_stream ($) {
   my $self = $_[0];
   $self->{in_json_stream} = 1;
+  $self->http->set_status (202, reason_phrase => 'See payload body');
   $self->http->set_response_header
       ('Content-Type' => 'application/x-ndjson; charset=utf-8');
 } # start_json_stream

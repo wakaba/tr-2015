@@ -795,6 +795,15 @@ sub main ($$) {
         return $tr->discard;
       });
 
+    } elsif (@$path == 5 and $path->[4] eq 'start') {
+      # .../start
+      return $class->check_read ($app, $tr, html => 1)->then (sub {
+        return $app->temma ('tr.texts.start.html.tm', {
+          app => $app,
+          tr => $tr,
+        });
+      });
+
     } elsif (@$path == 5 and $path->[4] eq 'import') {
       # .../import
       return $class->check_read ($app, $tr, html => 1)->then (sub {

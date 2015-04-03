@@ -28,6 +28,7 @@
           <tr>
             <th colspan=2>識別子
             <th>言語名
+            <th>
         </thead>
         <tbody>
           <template class=lang-template>
@@ -42,6 +43,12 @@
               <span class=lang-label>{lang_label}</span>
               <input type=hidden name=lang_label_short value>
               <span class=lang-label-short>{lang_label_short}</span>
+            <td>
+              <button type=button onclick="
+                if (!confirm (getAttribute ('data-confirm'))) return;
+                parentNode.parentNode.parentNode.removeChild (parentNode.parentNode);
+                document.trModified = true;
+              " data-confirm=この言語を削除します>削除</button>
           </template>
       </table>
 

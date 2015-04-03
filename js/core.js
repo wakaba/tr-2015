@@ -4,7 +4,7 @@
     var nextChunk = 0;
     xhr.onreadystatechange = function () {
       if (xhr.readyState === 3 || xhr.readyState === 4) {
-        if (xhr.status === 200) {
+        if (xhr.status === 200 || xhr.status === 202) {
           if (/ndjson/.test (xhr.getResponseHeader ('Content-Type'))) {
             var responses = xhr.responseText.split (/\n/);
             while (nextChunk + 1 < responses.length) {

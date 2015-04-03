@@ -41,7 +41,7 @@
 
     <details>
       <summary>Add a text set</summary>
-      <form onsubmit=" location.href = './' + encodeURIComponent (elements.path.value) + '/#config-langs'; return false ">
+      <form onsubmit=" location.href = './' + encodeURIComponent (elements.path.value) + '/langs'; return false ">
         <p>
           <label>Directory: <input name=path pattern="(?:/[0-9a-zA-Z_.-]+)+" title="/path/to/text-set" placeholder="/myapp/data"></label>
           <button type=submit>Create</button>
