@@ -8,11 +8,14 @@
 
 <section class=repos>
   <h1>テキストリポジトリー</h1>
-
-  <p><input type=search placeholder=絞り込み>
-
   <p class=status hidden><progress/> <span class=message>{status}</span>
 
+  <div class=for-guest>
+    <p>現在ログインしていません。<a href=javascript: onclick=login()>ログイン</a>すると参加中のリポジトリーが表示されます。
+    GitHub アカウントでログインすると、編集できるリポジトリーが表示されます。
+  </div>
+
+  <p><input type=search placeholder=絞り込み>
   <table>
     <thead>
       <tr>

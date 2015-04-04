@@ -104,6 +104,16 @@ header.site nav a {
   color: inherit;
 }
 
+header.site nav * + .login-menu {
+  margin-top: 0.3em;
+  border-top: groove gray thin;
+  padding-top: 0.3em;
+}
+
+header.site nav * + .login-menu > .header {
+  display: none;
+}
+
 header.site .account {
   display: inline-block;
   position: relative;
@@ -790,22 +800,26 @@ table#texts > tbody.status td {
   top: 0;
   left: 0;
   right: 0;
+  min-height: 100%;
   z-index: 1000;
+  background: rgba(0, 0, 0, 0.3);
 }
 
-.dialog > section {
+.dialog > * {
   display: block;
   margin: 2em auto;
   border: 2px solid gray;
   padding: 0.5em;
   width: 50em;
   max-width: 90%;
+  min-height: 10em;
   background: white;
   color: black;
   box-shadow: gray 5px 5px;
 }
 
-.dialog > section > header {
+.dialog > section > header,
+.dialog > * > .header {
   position: relative;
   margin: 0 0 0.3em 0;
   font-size: 100%;
@@ -813,14 +827,16 @@ table#texts > tbody.status td {
   padding: 0 0.3em 0.3em;
 }
 
-.dialog > section > header > h1 {
+.dialog > section > header > h1,
+.dialog > * > .header > strong {
   display: block;
   margin: 0;
   padding: 0;
   font-size: 120%;
 }
 
-.dialog > section > header > button {
+.dialog > section > header > button,
+.dialog > * > .header > button {
   position: absolute;
   top: 0;
   right: 0;
@@ -828,7 +844,7 @@ table#texts > tbody.status td {
   font-size: 130%;
 }
 
-.dialog > section form > .buttons button {
+.dialog > * form > .buttons button {
   padding: 0.3em;
   min-width: 8em;
 }
@@ -1143,6 +1159,12 @@ table.text-sets {
   margin: 0;
   padding: 0;
   font-size: 120%;
+}
+
+.repos table tbody:empty {
+  display: table-cell;
+  border-style: none;
+  height: 3em;
 }
 
 progress {

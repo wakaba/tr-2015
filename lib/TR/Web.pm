@@ -1209,6 +1209,7 @@ sub main ($$) {
         server => $server,
         server_scope => $server_scope,
         callback_url => $app->http->url->resolve_string ('/account/cb')->stringify,
+        XXX => $app->text_param ('next'),
       });
     })->then (sub {
       my $json = $_[0];
@@ -1224,7 +1225,12 @@ sub main ($$) {
       code => $app->http->query_params->{code},
       state => $app->http->query_params->{state},
     })->then (sub {
-      return $app->send_redirect ('/');
+      my $url = $app->http->url->resolve_string ('XXX');
+      if ($url->ascii_origin eq $app->http->url->ascii_origin) {
+        return $app->send_redirect ($url->stringify);
+      } else {
+        return $app->send_redirect ('/');
+      }
     });
   } elsif (@$path == 2 and $path->[0] eq 'account' and $path->[1] eq 'info.json') {
     # /account/info.json
