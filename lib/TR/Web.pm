@@ -74,7 +74,7 @@ sub main ($$) {
     return $class->session ($app)->then (sub {
       my $account = $_[0];
       if ($app->http->request_method eq 'POST') {
-        # XXX CSRF
+        $app->requires_same_origin_or_referer_origin;
         my $op = $app->bare_param ('operation') // '';
         if ($op eq 'github') {
           $app->send_progress_json_chunk ('Preparing for GitHub API access...');
@@ -250,7 +250,7 @@ sub main ($$) {
     $app->start_json_stream if $1 eq 'ndjson';
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
     if ($app->http->request_method eq 'POST') {
-      # XXX CSRF
+      $app->requires_same_origin_or_referer_origin;
       return $class->session ($app)->then (sub {
         my $account = $_[0];
         return $app->throw_error (403) if not defined $account->{account_id};
@@ -874,7 +874,7 @@ sub main ($$) {
         # .../i/{text_id}/text.ndjson
         my $type = $1;
         $app->requires_request_method ({POST => 1});
-        # XXX CSRF
+        $app->requires_same_origin_or_referer_origin;
 
         my $id = $path->[5]; # XXX validation
         my $lang = $app->text_param ('lang') // '';
@@ -910,7 +910,7 @@ sub main ($$) {
       } elsif (@$path == 7 and $path->[6] eq 'meta') {
         # .../i/{text_id}/meta
         $app->requires_request_method ({POST => 1});
-        # XXX CSRF
+        $app->requires_same_origin_or_referer_origin;
 
         my $id = $path->[5]; # XXX validation
 
@@ -963,8 +963,7 @@ sub main ($$) {
       } elsif (@$path == 7 and $path->[6] eq 'comments') {
         # .../i/{text_id}/comments
         $app->requires_request_method ({POST => 1});
-        # XXX CSRF
-
+        $app->requires_same_origin_or_referer_origin;
         my $id = $path->[5]; # XXX validation
 
         return $class->get_push_token ($app, $tr, 'comment')->then (sub {
@@ -1028,10 +1027,8 @@ sub main ($$) {
 
     } elsif (@$path == 5 and $path->[4] eq 'add') {
       # .../add
-
       $app->requires_request_method ({POST => 1});
-      # XXX CSRF
-
+      $app->requires_same_origin_or_referer_origin;
       my $data = {texts => {}};
       return $class->get_push_token ($app, $tr, 'texts')->then (sub {
         return $tr->prepare_mirror ($_[0], $app);
@@ -1080,7 +1077,7 @@ sub main ($$) {
       # .../langs.ndjson
       my $type = $1;
       $app->requires_request_method ({POST => 1});
-      # XXX CSRF
+      $app->requires_same_origin_or_referer_origin;
       return $class->edit_text_set (
         $app, $tr, $type,
         sub {
@@ -1129,7 +1126,7 @@ sub main ($$) {
       # .../license.ndjson
       my $type = $1;
       $app->requires_request_method ({POST => 1});
-      # XXX CSRF
+      $app->requires_same_origin_or_referer_origin;
       return $class->edit_text_set (
         $app, $tr, $type,
         sub {
@@ -1244,7 +1241,7 @@ sub main ($$) {
   } elsif (@$path == 2 and $path->[0] eq 'account' and $path->[1] eq 'sshkey.json') {
     # /account/sshkey.json
     if ($app->http->request_method eq 'POST') {
-      # XXX CSRF
+      $app->requires_same_origin_or_referer_origin;
       my $comment = $app->config->get ('ssh_key.comment');
       $comment =~ s/\{time\}/time/ge;
       return $app->account_server (q</keygen>, {
