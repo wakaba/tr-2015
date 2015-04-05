@@ -509,7 +509,6 @@ sub get_data_as_jsonalizable ($%) {
       $data->{langs}->{$lang}->{label_short} = $lang; # XXX
     }
     my $root_path = path (__FILE__)->parent->parent->parent;
-    # XXX with_comments
     my $cmd = Promised::Command->new ([
       $root_path->child ('perl'),
       $root_path->child ('bin/dump-textset.pl'),
@@ -517,6 +516,7 @@ sub get_data_as_jsonalizable ($%) {
       $self->branch, # XXX branch not found error
       $self->{texts_dir} // '',
     ]);
+    $cmd->envs->{WITH_COMMENTS} = 1 if $args{with_comments};
     $cmd->stdout (\my $json);
     return $cmd->run->then (sub { return $cmd->wait })->then (sub {
       die $_[0] unless $_[0]->exit_code == 0;

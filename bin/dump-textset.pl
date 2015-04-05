@@ -8,6 +8,8 @@ use JSON::Functions::XS qw(perl2json_bytes);
 my ($git_url, $git_branch, $text_set_path) = @ARGV;
 die "Bad args" unless defined $text_set_path;
 
+my $WithComments = $ENV{WITH_COMMENTS};
+
 my $git_repo = Git::Raw::Repository->open ($git_url);
 my $branch = Git::Raw::Branch->lookup ($git_repo, $git_branch, 1)
     // die "Branch not found";
@@ -48,6 +50,12 @@ if (defined $set_parent_tree and $set_parent_tree->is_tree) {
           my $te = TR::TextEntry->new_from_text_id_and_source_bytes
               ($text_id, $entry->object->content);
           $dat_entries->{$text_id} = $te->as_jsonalizable;
+        } elsif ($type eq 'comments' and $WithComments) {
+          my $comments = $comments_entries->{$text_id} = [];
+          for (grep { length } split /\x0D?\x0A\x0D?\x0A/, $entry->object->content) {
+            push @$comments, TR::TextEntry->new_from_text_id_and_source_text
+                ($text_id, $_)->as_jsonalizable;
+          }
         }
       }
     }
@@ -59,6 +67,11 @@ my $json = {};
 for my $text_id (keys %$dat_entries) {
   $json->{texts}->{$text_id} = $dat_entries->{$text_id};
   $json->{texts}->{$text_id}->{langs} = {};
+}
+if ($WithComments) {
+  for my $text_id (keys %$dat_entries) {
+    $json->{texts}->{$text_id}->{comments} = $comments_entries->{$text_id} || [];
+  }
 }
 for my $text_id (keys %$txt_entries) {
   $json->{texts}->{$text_id}->{langs} = $txt_entries->{$text_id};
