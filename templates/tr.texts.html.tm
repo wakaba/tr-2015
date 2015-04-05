@@ -502,18 +502,50 @@
 
       var comments = fragment.querySelector ('.comments-area');
       comments.querySelector ('button.toggle-edit').onclick = function () {
-        toggleAreaEditor (comments, !this.classList.contains ('active'));
+        var editMode = !this.classList.contains ('active');
+  var edit = comments.querySelector ('form.edit');
+  var view = comments.querySelector ('.view');
+  var toggle = comments.querySelector ('button.toggle-edit');
+  if (editMode) {
+    edit.hidden = false;
+    view.hidden = true;
+  } else {
+    view.hidden = false;
+    edit.hidden = true;
+  }
+  comments.classList.toggle ('edit-mode', editMode);
+  toggle.classList.toggle ('active', editMode);
       };
       var commentForm = comments.querySelector ('form');
       commentForm.onsubmit = function () {
-        toggleAreaEditor (comments, false);
-        return saveArea (comments);
-      };
-      comments.trSync = function () {
-        var c = {body: commentForm.elements.body.value,
-                 last_modified: (new Date).valueOf () / 1000};
-        syncTextComments (comments, [c]);
-      };
+
+  var toggle = comments.querySelector ('button.toggle-edit');
+  toggle.classList.toggle ('active', false);
+
+        var status = comments.querySelector ('.status');
+        showProgress ({init: true}, status);
+        var saveButton = commentForm.querySelector ('[type=submit]');
+        saveButton.disabled = true;
+        server ('POST', commentForm.action, new FormData (commentForm), function (res) {
+          var c = {body: commentForm.elements.body.value,
+                   last_modified: (new Date).valueOf () / 1000};
+          syncTextComments (comments, [c]);
+          status.hidden = true;
+          saveButton.disabled = false;
+
+        var edit = comments.querySelector ('form.edit');
+        var view = comments.querySelector ('.view');
+        view.hidden = false;
+        edit.hidden = true;
+          comments.classList.toggle ('edit-mode', false);
+        }, function (json) {
+          showError (json, status);
+          saveButton.disabled = false;
+        }, function (json) {
+          showProgress (json, status);
+        });
+        return false;
+      }; // onsubmit
       if (text.comments && text.comments.length) {
         syncTextComments (comments, text.comments);
       }
@@ -686,50 +718,6 @@ function syncTextComments (commentsEl, textComments) {
     });
   });
 } // syncTextComments
-
-function toggleAreaEditor (area, editMode) {
-  var edit = area.querySelector ('form.edit');
-  var view = area.querySelector ('.view');
-  var toggle = area.querySelector ('button.toggle-edit');
-  if (editMode) {
-    edit.hidden = false;
-    view.hidden = true;
-  } else {
-    view.hidden = false;
-    edit.hidden = true;
-  }
-  area.classList.toggle ('edit-mode', editMode);
-  toggle.classList.toggle ('active', editMode);
-} // toggleAreaEditor
-
-function saveArea (area, onsaved) { // XXX promise
-  var formStatus = area.querySelector ('.status');
-  formStatus.hidden = false;
-  formStatus.querySelector ('.message').textContent = 'Saving...';
-  formStatus.querySelector ('progress').hidden = false;
-  var editButton = area.querySelector ('button.toggle-edit');
-  if (editButton) editButton.disabled = true;
-
-  var form = area.querySelector ('form');
-  var xhr = new XMLHttpRequest;
-  xhr.open ('POST', form.action, true);
-  var fd = new FormData (form);
-  xhr.onreadystatechange = function () {
-    if (xhr.readyState === 4) {
-      if (xhr.status < 400) {
-        if (onsaved) onsaved (JSON.parse (xhr.responseText));
-        if (area.trSync) area.trSync (area);
-        formStatus.hidden = true;
-      } else { // XXX
-        formStatus.querySelector ('.message').textContent = xhr.statusText;
-        formStatus.querySelector ('progress').hidden = true;
-      }
-      if (editButton) editButton.disabled = false;
-    }
-  };
-  xhr.send (fd);
-  return false;
-} // saveArea
 </script>
 
 </section>
