@@ -227,42 +227,41 @@
     <tr>
       <td data-colspan-delta=1>
         <progress></progress> <span class=message></span>
-  <tfoot>
-    <tr id=add>
-      <td data-colspan-delta=1 class=add-area>
+</table>
+<menu class=texts-lang-area-menu hidden>
+  <strong class=lang-label>{lang_label}</strong>
+  <button type=button class=toggle-edit>Edit</button>
+  <button type=button class=search>Search</button>
+  <a href data-href="i/{text_id}/history.json?lang={lang_key}" target=history>History</a>
+</menu>
 
-    <form action=add method=post onsubmit="
-  var form = this;
-  form.hidden = true;
-  var mainTable = document.getElementById ('texts');
-  var mainTableStatus = mainTable.querySelector ('tbody.status');
-  mainTableStatus.hidden = false;
-  mainTableStatus.querySelector ('.message').textContent = 'Adding...';
+<details id=add>
+  <summary>テキストの追加</summary>
 
-  var xhr = new XMLHttpRequest;
-  xhr.open ('POST', form.action, true);
-  var fd = new FormData (form);
-  xhr.onreadystatechange = function () {
-    if (xhr.readyState === 4) {
-      if (xhr.status < 400) {
-        var json = JSON.parse (xhr.responseText);
-        addTexts (json.texts);
-        form.reset ();
-      } else { // XXX
-      }
-      mainTableStatus.hidden = true;
-      form.hidden = false;
-    }
-  };
-  xhr.send (fd);
-  return false;
-    ">
-      <details>
-        <summary>テキストの追加</summary>
-      <table class=config>
+  <form action=add.ndjson method=post onsubmit="
+    var form = this;
+    var status = document.querySelector ('#texts tbody.status');
+    var saveButton = form.querySelector ('button[type=submit]');
+    saveButton.disabled = true;
+    showProgress ({init: true}, status);
+    server ('POST', form.action, new FormData (form), function (res) {
+      addTexts (res.data.texts);
+      saveButton.disabled = false;
+      status.hidden = true;
+      form.reset ();
+    }, function (json) {
+      showError (json, status);
+      saveButton.disabled = false;
+    }, function (json) {
+      showProgress (json, status);
+    });
+    return false;
+  ">
+    <table class=config>
+      <tbody>
         <tr>
           <th><label for=add-msgid>メッセージID</label>
-          <td><input type=text name=msgid pl:value="$app->text_param ('msgid') // ''" id=add-msgid>
+          <td><input type=text name=msgid pl:value="$app->text_param ('msgid') // ''" id=add-msgid><!-- XXX duplicate check -->
         <tr>
           <th><label for=add-desc>簡単な説明</label>
           <td><input type=text name=desc id=add-desc>
@@ -275,18 +274,12 @@
               <input type=hidden name=tag>
             </template>
         <!-- XXX メイン言語でのテキスト -->
+        <!-- XXX disable untill document.trLangKeys is available -->
       </table>
         <p class=buttons><button type=submit>追加</button>
         <p class=help><a href="/help#add" rel=help target=help>How to add lots of texts at once</a>
-      </details>
     </form>
-</table>
-<menu class=texts-lang-area-menu hidden>
-  <strong class=lang-label>{lang_label}</strong>
-  <button type=button class=toggle-edit>Edit</button>
-  <button type=button class=search>Search</button>
-  <a href data-href="i/{text_id}/history.json?lang={lang_key}" target=history>History</a>
-</menu>
+</details>
 
 <script src=/js/time.js charset=utf-8></script>
 <script src=/js/core.js charset=utf-8></script>
@@ -554,8 +547,7 @@
       if (cell.classList.contains ('selected')) return;
       if (t.classList.contains ('lang-area')) {
         //
-      } else if (t.classList.contains ('comments-area') ||
-                 t.classList.contains ('add-area')) {
+      } else if (t.classList.contains ('comments-area')) {
         cell = null;
         mainTableMenu.hidden = true;
       } else {
@@ -1020,7 +1012,7 @@ function saveArea (area, onsaved) { // XXX promise
       <button type=button class=close title="保存せず閉じる">閉じる</button>
     </header>
 
-    <form data-action="i/{text_id}/meta" method=post>
+    <form data-action="i/{text_id}/meta.ndjson" method=post>
       <table class=config>
         <tbody>
           <tr>
@@ -1088,10 +1080,23 @@ function saveArea (area, onsaved) { // XXX promise
       var form = root.querySelector ('form');
       form.action = form.getAttribute ('data-action').replace (/\{text_id\}/g, textId);
       form.onsubmit = function () {
-        return saveArea (root, function (text) {
-          showTextMetadata (textId, text, args.area);
+        var status = root.querySelector ('.status');
+        showProgress ({init: true}, status);
+        var saveButton = root.querySelector ('.save');
+        saveButton.disabled = true;
+        
+        server ('POST', form.action, new FormData (form), function (res) {
+          showTextMetadata (textId, res.data, args.area);
           modalDialog ('config-text', false);
+          status.hidden = true;
+          saveButton.disabled = false;
+        }, function (json) {
+          showError (json, status);
+          saveButton.disabled = false;
+        }, function (json) {
+          showProgress (json, status);
         });
+        return false;
       };
 
       ['msgid', 'text_id', 'desc'].forEach (function (n) {

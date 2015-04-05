@@ -908,62 +908,58 @@ sub main ($$) {
               $te->set (last_modified => time);
               return $tr->write_file_by_text_id_and_suffix
                   ($text_id, $lang . '.txt' => $te->as_source_text);
-            });
+            })->then (sub { return {} });
           },
           scope => 'edit/' . $lang,
           default_commit_message => 'Modified a text',
         );
 
-      } elsif (@$path == 7 and $path->[6] eq 'meta') {
-        # .../i/{text_id}/meta
+      } elsif (@$path == 7 and $path->[6] =~ /\Ameta\.(json|ndjson)\z/) {
+        # .../i/{text_id}/meta.json
+        # .../i/{text_id}/meta.ndjson
+        my $type = $1;
         $app->requires_request_method ({POST => 1});
         $app->requires_same_origin_or_referer_origin;
+        my $lang = $app->text_param ('lang') // '';
+        return $class->edit_text_set (
+          $app, $tr, $type,
+          sub {
+            my $path = $tr->text_id_and_suffix_to_relative_path
+                ($text_id, 'dat');
+            return $tr->mirror_repo->show_blob_by_path ($tr->branch, $path)->then (sub {
+              my $te = TR::TextEntry->new_from_text_id_and_source_text
+                  ($text_id, $_[0] // '');
 
-        my $te;
-        return $class->get_push_token ($app, $tr, 'texts')->then (sub {
-          return $tr->prepare_mirror ($_[0], $app);
-        })->then (sub {
-          return $tr->clone_from_mirror (push => 1);
-        })->then (sub {
-          return $tr->read_file_by_text_id_and_suffix ($text_id, 'dat');
-        })->then (sub {
-          $te = TR::TextEntry->new_from_text_id_and_source_text ($text_id, $_[0] // '');
+              $te->set (msgid => $app->text_param ('msgid'));
+              $te->set (desc => $app->text_param ('desc'));
 
-          $te->set (msgid => $app->text_param ('msgid'));
-          $te->set (desc => $app->text_param ('desc'));
+              my $enum = $te->enum ('tags');
+              %$enum = ();
+              $enum->{$_} = 1
+                  for grep { length } @{$app->text_param_list ('tag')};
 
-          my $enum = $te->enum ('tags');
-          %$enum = ();
-          $enum->{$_} = 1 for grep { length } @{$app->text_param_list ('tag')};
+              my $args = $te->list ('args');
+              $te->set ('args.desc.' . $_ => undef) for @$args;
+              @$args = ();
+              my $names = $app->text_param_list ('arg_name');
+              my $descs = $app->text_param_list ('arg_desc');
+              my %found;
+              for (0..$#$names) {
+                next if $found{$names->[$_]}++;
+                next unless length $names->[$_];
+                push @$args, $names->[$_];
+                $te->set ('args.desc.'.$names->[$_] => $descs->[$_]);
+              }
 
-          my $args = $te->list ('args');
-          $te->set ('args.desc.' . $_ => undef) for @$args;
-          @$args = ();
-          my $names = $app->text_param_list ('arg_name');
-          my $descs = $app->text_param_list ('arg_desc');
-          my %found;
-          for (0..$#$names) {
-            next if $found{$names->[$_]}++;
-            next unless length $names->[$_];
-            push @$args, $names->[$_];
-            $te->set ('args.desc.'.$names->[$_] => $descs->[$_]);
-          }
-
-          return $tr->write_file_by_text_id_and_suffix ($text_id, 'dat' => $te->as_source_text);
-        })->then (sub {
-          my $msg = $app->text_param ('commit_message') // '';
-          $msg = 'Added a message' unless length $msg; # XXX
-          return $tr->commit ($msg);
-        })->then (sub {
-          return $tr->push; # XXX failure
-        })->then (sub {
-          return $app->send_json ($te->as_jsonalizable);
-        }, sub {
-          $app->error_log ($_[0]);
-          return $app->send_error (500);
-        })->then (sub {
-          return $tr->discard;
-        });
+              return $tr->write_file_by_text_id_and_suffix
+                  ($text_id, 'dat' => $te->as_source_text)->then (sub {
+                return $te->as_jsonalizable;
+              });
+            });
+          },
+          scope => 'texts',
+          default_commit_message => 'Modified text metadata',
+        );
 
       } elsif (@$path == 7 and $path->[6] eq 'comments') {
         # .../i/{text_id}/comments
@@ -1038,44 +1034,35 @@ sub main ($$) {
         });
       } # .../i/{text_id}/...
 
-    } elsif (@$path == 5 and $path->[4] eq 'add') {
-      # .../add
+    } elsif (@$path == 5 and $path->[4] =~ /\Aadd\.(json|ndjson)\z/) {
+      # .../add.json
+      # .../add.ndjson
+      my $type = $1;
       $app->requires_request_method ({POST => 1});
       $app->requires_same_origin_or_referer_origin;
-      my $data = {texts => {}};
-      return $class->get_push_token ($app, $tr, 'texts')->then (sub {
-        return $tr->prepare_mirror ($_[0], $app);
-      })->then (sub {
-        return $tr->clone_from_mirror (push => 1);
-      })->then (sub {
-        my $id = $tr->generate_text_id;
-        my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
-        my $msgid = $app->text_param ('msgid');
-        if (defined $msgid and length $msgid) {
-          # XXX check duplication
-          $te->set (msgid => $msgid);
-        }
-        my $desc = $app->text_param ('desc');
-        $te->set (desc => $desc) if defined $desc and length $desc;
-        for (@{$app->text_param_list ('tag')}) {
-          $te->enum ('tags')->{$_} = 1;
-        }
-        $data->{texts}->{$id} = $te->as_jsonalizable;
-        return $tr->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
-      })->then (sub {
-        my $msg = $app->text_param ('commit_message') // '';
-        $msg = 'Added a message' unless length $msg; # XXX
-        return $tr->commit ($msg);
-      })->then (sub {
-        return $tr->push; # XXX failure
-      })->then (sub {
-        return $app->send_json ($data);
-      }, sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500);
-      })->then (sub {
-        return $tr->discard;
-      });
+      return $class->edit_text_set (
+        $app, $tr, $type,
+        sub {
+          my $text_id = $tr->generate_text_id;
+          my $te = TR::TextEntry->new_from_text_id_and_source_text
+              ($text_id, '');
+          my $msgid = $app->text_param ('msgid') // '';
+          $te->set (msgid => $msgid) if length $msgid;
+          my $desc = $app->text_param ('desc') // '';
+          $te->set (desc => $desc) if length $desc;
+          for (@{$app->text_param_list ('tag')}) {
+            $te->enum ('tags')->{$_} = 1;
+          }
+          my $json = {};
+          $json->{texts}->{$text_id} = $te->as_jsonalizable;
+          return $tr->write_file_by_text_id_and_suffix
+              ($text_id, 'dat' => $te->as_source_text)->then (sub {
+            return $json;
+          });
+        },
+        scope => 'texts',
+        default_commit_message => 'Added a text',
+      );
 
     } elsif (@$path == 5 and $path->[4] eq 'langs') {
       # .../langs
@@ -1121,7 +1108,7 @@ sub main ($$) {
 
             return $tr->write_file_by_path
                 ($tr->texts_path->child ('config.json'), $tr_config->as_source_text);
-          });
+          })->then (sub { return {} });
         },
         scope => 'repo',
         default_commit_message => 'Modified languages',
@@ -1159,7 +1146,7 @@ sub main ($$) {
             return $tr->write_file_by_path ($tr->texts_path->child ('config.json'), $tr_config->as_source_text)->then (sub {
               return $tr->write_license_file (%$license);
             });
-          });
+          })->then (sub { return {} });
         },
         scope => 'repo',
         default_commit_message => 'Modified license',
@@ -1570,6 +1557,7 @@ sub edit_text_set ($$$$$%) {
   my ($class, $app, $tr, $type, $code, %args) = @_;
   $app->start_json_stream if $type eq 'ndjson';
   $app->send_progress_json_chunk ('Checking the repository permission...', [1,6]);
+  my $return;
   return $class->get_push_token ($app, $tr, $args{scope})->then (sub {
     $app->send_progress_json_chunk ('Cloning the remote repository...', [2,6]);
     return $tr->prepare_mirror ($_[0], $app);
@@ -1580,6 +1568,7 @@ sub edit_text_set ($$$$$%) {
     $app->send_progress_json_chunk ('Applying the change...', [4,6]);
     return $code->();
   })->then (sub {
+    $return = $_[0];
     my $msg = $app->text_param ('commit_message') // '';
     $msg = $args{default_commit_message} unless length $msg;
     return $tr->commit ($msg);
@@ -1587,7 +1576,7 @@ sub edit_text_set ($$$$$%) {
     $app->send_progress_json_chunk ('Pushing the repository...',[5,6]);
     return $tr->push; # XXX failure
   })->then (sub {
-    return $app->send_last_json_chunk (200, 'Saved', {});
+    return $app->send_last_json_chunk (200, 'Saved', $return);
   }, sub {
     $app->error_log ($_[0]);
     return $app->send_error (500);
