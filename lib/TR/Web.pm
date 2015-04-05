@@ -5,7 +5,7 @@ use Path::Tiny;
 use Wanage::URL;
 use Encode;
 use Promise;
-use JSON::Functions::XS qw(json_bytes2perl perl2json_bytes);
+use JSON::Functions::XS qw(json_bytes2perl perl2json_bytes json_chars2perl perl2json_chars);
 use Wanage::HTTP;
 use Web::URL::Canonicalize;
 use Web::UserAgent::Functions qw(http_get http_post);
@@ -1206,7 +1206,7 @@ sub main ($$) {
         server => $server,
         server_scope => $server_scope,
         callback_url => $app->http->url->resolve_string ('/account/cb')->stringify,
-        XXX => $app->text_param ('next'),
+        app_data => (perl2json_chars {next => $app->text_param ('next')}),
       });
     })->then (sub {
       my $json = $_[0];
@@ -1222,7 +1222,9 @@ sub main ($$) {
       code => $app->http->query_params->{code},
       state => $app->http->query_params->{state},
     })->then (sub {
-      my $url = $app->http->url->resolve_string ('XXX');
+      my $json = $_[0];
+      my $app_data = json_chars2perl ($json->{app_data} // '{}');
+      my $url = $app->http->url->resolve_string ($app_data->{next} // '/');
       if ($url->ascii_origin eq $app->http->url->ascii_origin) {
         return $app->send_redirect ($url->stringify);
       } else {
