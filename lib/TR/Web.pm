@@ -9,6 +9,7 @@ use JSON::Functions::XS qw(json_bytes2perl perl2json_bytes json_chars2perl perl2
 use Wanage::HTTP;
 use Web::URL::Canonicalize;
 use Web::UserAgent::Functions qw(http_get http_post);
+use TR::Langs;
 use TR::AppServer;
 use TR::TextRepo;
 use TR::TextEntry;
@@ -718,7 +719,8 @@ sub main ($$) {
         my $format = $app->text_param ('format') // '';
         my $arg_format = $app->text_param ('arg_format') // '';
         if ($format eq 'po') { # XXX and pot
-          my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX lang validation
+          my $lang = $app->text_param ('lang')
+              or return $app->send_error (400, reason_phrase => '|lang| not specified');
           $arg_format ||= 'printf'; #$arg_format normalization
           $arg_format = 'printf' if $arg_format eq 'auto';
           require TR::Query;
@@ -733,6 +735,10 @@ sub main ($$) {
           return $tr->get_data_as_jsonalizable
               ($q, [$lang])->then (sub {
             my $json = $_[0];
+            unless ($json->{langs}->{$lang}) {
+              return $app->throw_error (400, reason_phrase => 'Bad |lang|');
+            }
+
             require Popopo::Entry;
             require Popopo::EntrySet;
             my $es = Popopo::EntrySet->new;
@@ -829,7 +835,7 @@ sub main ($$) {
       })->then (sub {
         my $from = $app->bare_param ('from') // '';
         if ($from eq 'file') {
-          my $lang = $app->text_param ('lang') // return $app->send_error (400); # XXX lang validation # XXX auto
+          my $lang = $app->text_param ('lang') // '';
           my $format = $app->text_param ('format') // '';
           $app->send_progress_json_chunk ('Importing the file...');
           return $tr->import_file (
@@ -869,16 +875,17 @@ sub main ($$) {
       });
 
     } elsif (@$path >= 7 and $path->[4] eq 'i') {
+      my $text_id = $path->[5];
+      return $app->throw_error (404, reason_phrase => 'Bad text ID')
+          unless TR::TextEntry::is_text_id $text_id;
+
       if (@$path == 7 and $path->[6] =~ /\Atext\.(json|ndjson)\z/) {
         # .../i/{text_id}/text.json
         # .../i/{text_id}/text.ndjson
         my $type = $1;
         $app->requires_request_method ({POST => 1});
         $app->requires_same_origin_or_referer_origin;
-
-        my $id = $path->[5]; # XXX validation
         my $lang = $app->text_param ('lang') // '';
-
         return $class->edit_text_set (
           $app, $tr, $type,
           sub {
@@ -889,18 +896,18 @@ sub main ($$) {
               return $app->throw_error (400, reason_phrase => 'Bad |lang|')
                   unless $lang_keys->{$lang};
               my $path = $tr->text_id_and_suffix_to_relative_path
-                  ($id, $lang . '.txt');
+                  ($text_id, $lang . '.txt');
               return $tr->mirror_repo->show_blob_by_path ($tr->branch, $path);
             })->then (sub {
               my $te = TR::TextEntry->new_from_text_id_and_source_text
-                  ($id, $_[0] // '');
+                  ($text_id, $_[0] // '');
               for (qw(body_0 body_1 body_2 body_3 body_4 forms)) {
                 my $v = $app->text_param ($_);
                 $te->set ($_ => $v) if defined $v;
               }
               $te->set (last_modified => time);
               return $tr->write_file_by_text_id_and_suffix
-                  ($id, $lang . '.txt' => $te->as_source_text);
+                  ($text_id, $lang . '.txt' => $te->as_source_text);
             });
           },
           scope => 'edit/' . $lang,
@@ -912,17 +919,15 @@ sub main ($$) {
         $app->requires_request_method ({POST => 1});
         $app->requires_same_origin_or_referer_origin;
 
-        my $id = $path->[5]; # XXX validation
-
         my $te;
         return $class->get_push_token ($app, $tr, 'texts')->then (sub {
           return $tr->prepare_mirror ($_[0], $app);
         })->then (sub {
           return $tr->clone_from_mirror (push => 1);
         })->then (sub {
-          return $tr->read_file_by_text_id_and_suffix ($id, 'dat');
+          return $tr->read_file_by_text_id_and_suffix ($text_id, 'dat');
         })->then (sub {
-          $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
+          $te = TR::TextEntry->new_from_text_id_and_source_text ($text_id, $_[0] // '');
 
           $te->set (msgid => $app->text_param ('msgid'));
           $te->set (desc => $app->text_param ('desc'));
@@ -944,7 +949,7 @@ sub main ($$) {
             $te->set ('args.desc.'.$names->[$_] => $descs->[$_]);
           }
 
-          return $tr->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
+          return $tr->write_file_by_text_id_and_suffix ($text_id, 'dat' => $te->as_source_text);
         })->then (sub {
           my $msg = $app->text_param ('commit_message') // '';
           $msg = 'Added a message' unless length $msg; # XXX
@@ -964,20 +969,24 @@ sub main ($$) {
         # .../i/{text_id}/comments
         $app->requires_request_method ({POST => 1});
         $app->requires_same_origin_or_referer_origin;
-        my $id = $path->[5]; # XXX validation
-
         return $class->get_push_token ($app, $tr, 'comment')->then (sub {
           return $tr->prepare_mirror ($_[0], $app);
         })->then (sub {
           return $tr->clone_from_mirror (push => 1);
         })->then (sub {
-          my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, '');
+          my $te = TR::TextEntry->new_from_text_id_and_source_text ($text_id, '');
           $te->set (id => $tr->generate_section_id);
-          $te->set (body => $app->text_param ('body') // ''); # XXX validation
+          my $body = $app->text_param ('body') // '';
+          if (1024 < length $body) {
+            return $app->throw_error (400, reason_phrase => 'Comment text too llong');
+          } elsif ($body eq '') {
+            return $app->throw_error (204, reason_phrase => 'Empty comment text');
+          }
+          $te->set (body => $body);
           # XXX author
           $te->set (last_modified => time);
           return $tr->append_section_to_file_by_text_id_and_suffix
-              ($id, 'comments' => $te->as_source_text);
+              ($text_id, 'comments' => $te->as_source_text);
         })->then (sub {
           my $msg = $app->text_param ('commit_message') // '';
           $msg = 'Added a comment' unless length $msg; # XXX
@@ -995,20 +1004,24 @@ sub main ($$) {
 
       } elsif (@$path == 7 and $path->[6] eq 'history.json') {
         # .../i/{text_id}/history.json
-
-        my $id = $path->[5]; # XXX validation
-
-        my $lang = $app->text_param ('lang') or return $app->send_error (400); # XXX validation
+        my $lang = $app->text_param ('lang') // '';
         return $class->check_read ($app, $tr, access_token => 1)->then (sub {
           return $tr->prepare_mirror ($_[0], $app);
         })->then (sub {
+          return $tr->get_tr_config;
+        })->then (sub {
+          my $tr_config = $_[0];
+          my $lang_keys = {map { $_ => 1 } grep { length }
+                           split /,/, $tr_config->get ('langs') // 'en'};
+          return $app->throw_error (404, reason_phrase => 'Bad |lang|')
+              unless $lang_keys->{$lang};
           return $tr->git_log_for_text_id_and_lang
-              ($id, $lang, with_file_text => 1);
+              ($text_id, $lang, with_file_text => 1);
         })->then (sub {
           my $parsed = $_[0];
           my @json;
           for (@{$parsed->{commits}}) {
-            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, decode 'utf-8', $_->{blob_data});
+            my $te = TR::TextEntry->new_from_text_id_and_source_text ($text_id, decode 'utf-8', $_->{blob_data});
             push @json, {lang_text => $te->as_jsonalizable,
                          commit => {commit => $_->{commit},
                                     author => $_->{author},
@@ -1023,7 +1036,7 @@ sub main ($$) {
         })->then (sub {
           return $tr->discard;
         });
-      }
+      } # .../i/{text_id}/...
 
     } elsif (@$path == 5 and $path->[4] eq 'add') {
       # .../add
@@ -1094,6 +1107,11 @@ sub main ($$) {
             for (0..$#$lang_keys) {
               my $lang_key = $lang_keys->[$_];
               next if $found{$lang_key}++;
+
+              return $app->throw_error (400, reason_pharse => "Bad language key |$lang_key|")
+                  unless TR::Langs::is_lang_key $lang_key;
+              # XXX validate lang.id
+
               push @lang_key, $lang_key;
               $tr_config->set_or_delete ("lang.id.$lang_key" => $lang_ids->[$_]);
               $tr_config->set_or_delete ("lang.label.$lang_key" => $lang_labels->[$_]);

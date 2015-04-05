@@ -32,7 +32,7 @@ if (defined $set_parent_tree and $set_parent_tree->is_tree) {
         next unless $entry->object->is_blob;
         next if $entry->file_mode & 020000; # symlinks
         my $name = $entry->name;
-        next unless $name =~ m{\A([0-9a-f]+)\.([0-9a-z-]+\.txt|dat|comments)\z};
+        next unless $name =~ m{\A([0-9a-f]{3,128})\.([0-9a-z-]{1,64}\.txt|dat|comments)\z};
         my $text_id = $name0.$1;
         my $type = $2;
         my $lang;

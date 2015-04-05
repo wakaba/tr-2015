@@ -3,6 +3,10 @@ use strict;
 use warnings;
 use Unicode::UTF8 qw(decode_utf8);
 
+sub is_text_id ($) {
+  return $_[0] =~ /\A[0-9a-f]{3,128}\z/;
+} # is_text_id
+
 sub _e ($) {
   my $s = $_[0];
   $s =~ s/([\x0D\x0A:\\])/{"\x0D" => "\\r", "\x0A" => "\\n", ":" => "\\C", "\\" => "\\\\"}->{$1}/ge;

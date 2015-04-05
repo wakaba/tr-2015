@@ -10,6 +10,7 @@ use Promised::Command;
 use Promised::File;
 use Digest::SHA qw(sha1_hex);
 use Wanage::URL;
+use TR::Langs;
 use TR::TextEntry;
 use TR::Git;
 use TR::GitBareRepository;
@@ -410,6 +411,7 @@ sub git_log_for_text_id_and_lang ($$$;%) {
           $commit->{blob_data} = $result;
         });
       } # $commit
+      # XXX removed text
       return $q->then (sub { return $parsed });
     });
   }
@@ -612,7 +614,6 @@ sub import_file ($$%) {
   my @added_lang;
   for my $file (@$files) {
     my $lang = $file->{lang};
-    push @added_lang, $lang;
     # XXX format=auto
     if ($file->{format} eq 'po') { # XXX and pot
       my $arg_format = $args{arg_format} || 'printf'; #$arg_format normalization
@@ -624,6 +625,9 @@ sub import_file ($$%) {
         # XXX onerror
         my $es = $parser->parse_string (decode 'utf-8', $_[0]); # XXX charset
         # XXX lang and ohter metadata from header
+
+        die "Bad language key |@$lang|" unless TR::Langs::is_lang_key $lang;
+        push @added_lang, $lang;
 
         my $p = Promise->resolve;
         for my $e (@{$es->entries}) {
