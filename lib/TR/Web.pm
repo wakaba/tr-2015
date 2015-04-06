@@ -863,6 +863,7 @@ sub main ($$) {
         $msg = 'Added a message' unless length $msg; # XXX
         return $tr->commit ($msg);
       })->then (sub {
+        # XXX $_[0]->{no_commit}
         $app->send_progress_json_chunk ('Pushing the repository...');
         return $tr->push; # XXX failure
       })->then (sub {
@@ -901,13 +902,21 @@ sub main ($$) {
             })->then (sub {
               my $te = TR::TextEntry->new_from_text_id_and_source_text
                   ($text_id, $_[0] // '');
+              my $modified;
               for (qw(body_0 body_1 body_2 body_3 body_4 forms)) {
                 my $v = $app->text_param ($_);
-                $te->set ($_ => $v) if defined $v;
+                next unless defined $v;
+                my $current = $te->get ($_);
+                if (not defined $current or not $current eq $v) {
+                  $te->set ($_ => $v);
+                  $modified = 1;
+                }
               }
-              $te->set (last_modified => time);
-              return $tr->write_file_by_text_id_and_suffix
-                  ($text_id, $lang . '.txt' => $te->as_source_text);
+              if ($modified) {
+                $te->set (last_modified => time);
+                return $tr->write_file_by_text_id_and_suffix
+                    ($text_id, $lang . '.txt' => $te->as_source_text);
+              }
             })->then (sub { return {} });
           },
           scope => 'edit/' . $lang,
@@ -1574,10 +1583,15 @@ sub edit_text_set ($$$$$%) {
     $msg = $args{default_commit_message} unless length $msg;
     return $tr->commit ($msg);
   })->then (sub {
-    $app->send_progress_json_chunk ('Pushing the repository...',[5,6]);
-    return $tr->push; # XXX failure
-  })->then (sub {
-    return $app->send_last_json_chunk (200, 'Saved', $return);
+    my $commit_result = $_[0];
+    if ($commit_result->{no_commit}) {
+      return $app->send_last_json_chunk (204, 'Not changed', {});
+    } else {
+      $app->send_progress_json_chunk ('Pushing the repository...',[5,6]);
+      return $tr->push->then (sub { # XXX failure
+        return $app->send_last_json_chunk (200, 'Saved', $return);
+      });
+    }
   }, sub {
     $app->error_log ($_[0]);
     return $app->send_error (500);

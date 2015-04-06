@@ -82,7 +82,17 @@ sub commit ($%) {
     return $cmd->wait;
   })->then (sub {
     my $result = $_[0];
-    die $result unless $result->is_success and $result->exit_code == 0;
+    if (not $result->is_success) {
+      die $result;
+    } elsif ($result->exit_code == 1) {
+      if ($stdout =~ /^(?:nothing to commit|no changes added to commit) /m) {
+        return {stdout => $stdout, stderr => $stderr, no_commit => 1};
+      } else {
+        die $result;
+      }
+    } elsif ($result->exit_code != 0) {
+      die $result;
+    }
     return {stdout => $stdout, stderr => $stderr};
   });
 } # commit

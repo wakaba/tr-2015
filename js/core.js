@@ -12,7 +12,7 @@
               nextChunk += 2;
               if (chunk.status === 102) {
                 onprogress (chunk);
-              } else if (chunk.status === 200) {
+              } else if (chunk.status === 200 || chunk.status === 204) {
                 ondone (chunk);
               } else {
                 onerror (chunk);
@@ -24,7 +24,11 @@
           }
         } else { // status !== 200
           if (xhr.readyState === 4) {
-            onerror ({status: xhr.status, message: xhr.statusText});
+            if (xhr.status === 0) {
+              onerror ({status: xhr.status, message: xhr.statusText || "Can't connect to the server"});
+            } else {
+              onerror ({status: xhr.status, message: xhr.statusText});
+            }
           }
         }
       }
@@ -51,6 +55,7 @@
       statusBar.hidden = false;
     }
     status.hidden = false;
+    status.setAttribute ('data-type', 'progress');
   } // showProgress
 
   function showError (json, status) {
@@ -60,6 +65,7 @@
     var statusBar = status.querySelector ('progress');
     statusBar.hidden = true;
     (status.scrollIntoViewIfNeeded || status.scrollIntoView).call (status);
+    status.setAttribute ('data-type', 'error');
   } // showError
 
   function showDone (json, status) {
@@ -68,4 +74,5 @@
     statusMessage.textContent = json.message || json.status;
     var statusBar = status.querySelector ('progress');
     statusBar.hidden = true;
+    status.setAttribute ('data-type', 'done');
   } // showDone

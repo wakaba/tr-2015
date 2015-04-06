@@ -20,6 +20,26 @@ hgroup a, h1 a {
   text-decoration: none;
 }
 
+.status {
+
+}
+
+.status[data-type=done] {
+  color: green;
+}
+
+.status[data-type=error] {
+  color: red;
+}
+
+.status[data-type=progress] {
+
+}
+
+progress {
+  max-width: 95%;
+}
+
 hr.resizer {
   position: absolute;
   display: block;
@@ -1170,10 +1190,6 @@ table.text-sets {
   display: table-cell;
   border-style: none;
   height: 3em;
-}
-
-progress {
-  max-width: 95%;
 }
 
 p.help {
