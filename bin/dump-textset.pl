@@ -53,7 +53,7 @@ if (defined $set_parent_tree and $set_parent_tree->is_tree) {
         } elsif ($type eq 'comments' and $WithComments) {
           my $comments = $comments_entries->{$text_id} = [];
           for (grep { length } split /\x0D?\x0A\x0D?\x0A/, $entry->object->content) {
-            push @$comments, TR::TextEntry->new_from_text_id_and_source_text
+            push @$comments, TR::TextEntry->new_from_text_id_and_source_bytes
                 ($text_id, $_)->as_jsonalizable;
           }
         }

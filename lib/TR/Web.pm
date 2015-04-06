@@ -961,42 +961,42 @@ sub main ($$) {
           default_commit_message => 'Modified text metadata',
         );
 
-      } elsif (@$path == 7 and $path->[6] eq 'comments') {
-        # .../i/{text_id}/comments
+      } elsif (@$path == 7 and $path->[6] =~ /\Acomments\.(json|ndjson)\z/) {
+        # .../i/{text_id}/comments.json
+        # .../i/{text_id}/comments.ndjson
+        my $type = $1;
         $app->requires_request_method ({POST => 1});
         $app->requires_same_origin_or_referer_origin;
-        return $class->get_push_token ($app, $tr, 'comment')->then (sub {
-          return $tr->prepare_mirror ($_[0], $app);
-        })->then (sub {
-          return $tr->clone_from_mirror (push => 1);
-        })->then (sub {
-          my $te = TR::TextEntry->new_from_text_id_and_source_text ($text_id, '');
-          $te->set (id => $tr->generate_section_id);
-          my $body = $app->text_param ('body') // '';
-          if (1024 < length $body) {
-            return $app->throw_error (400, reason_phrase => 'Comment text too llong');
-          } elsif ($body eq '') {
-            return $app->throw_error (204, reason_phrase => 'Empty comment text');
-          }
-          $te->set (body => $body);
-          # XXX author
-          $te->set (last_modified => time);
-          return $tr->append_section_to_file_by_text_id_and_suffix
-              ($text_id, 'comments' => $te->as_source_text);
-        })->then (sub {
-          my $msg = $app->text_param ('commit_message') // '';
-          $msg = 'Added a comment' unless length $msg; # XXX
-          return $tr->commit ($msg);
-        })->then (sub {
-          return $tr->push; # XXX failure
-        })->then (sub {
-          return $app->send_error (200); # XXX return JSON?
-        }, sub {
-          $app->error_log ($_[0]);
-          return $app->send_error (500);
-        })->then (sub {
-          return $tr->discard;
-        });
+        return $class->edit_text_set (
+          $app, $tr, $type,
+          sub {
+            my $keys = $_[0];
+            my $path = $tr->text_id_and_suffix_to_relative_path
+                ($text_id, 'comments'); # XXX commit rather than branch should be used
+            return $tr->repo->git ('checkout', [$tr->branch, '--', $path])->then (sub {
+              my $te = TR::TextEntry->new_from_text_id_and_source_text ($text_id, '');
+              $te->set (id => $tr->generate_section_id);
+              my $body = $app->text_param ('body') // '';
+              if (1024 < length $body) {
+                return $app->throw_error (400, reason_phrase => 'Comment text too llong');
+              } elsif ($body eq '') {
+                return $app->throw_error (204, reason_phrase => 'Empty comment text');
+              }
+              $te->set (body => $body);
+              my $name = $keys->{name} // '';
+              $name = $keys->{account_id} // 'unknown' unless length $name;
+              $te->set (author_name => $name);
+              $te->set (author_account_id => $keys->{account_id});
+              $te->set (last_modified => time);
+              return $tr->append_section_to_file_by_text_id_and_suffix
+                  ($text_id, 'comments' => $te->as_source_text)->then (sub {
+                return {comments => [$te->as_jsonalizable]};
+              });
+            });
+          },
+          scope => 'comment',
+          default_commit_message => 'Added a comment',
+        );
 
       } elsif (@$path == 7 and $path->[6] eq 'history.json') {
         # .../i/{text_id}/history.json
@@ -1558,15 +1558,16 @@ sub edit_text_set ($$$$$%) {
   $app->start_json_stream if $type eq 'ndjson';
   $app->send_progress_json_chunk ('Checking the repository permission...', [1,6]);
   my $return;
+  my $keys;
   return $class->get_push_token ($app, $tr, $args{scope})->then (sub {
     $app->send_progress_json_chunk ('Cloning the remote repository...', [2,6]);
-    return $tr->prepare_mirror ($_[0], $app);
+    return $tr->prepare_mirror ($keys = $_[0], $app);
   })->then (sub {
     $app->send_progress_json_chunk ('Cloning the repository...', [3,6]);
     return $tr->clone_from_mirror (push => 1, no_checkout => 1);
   })->then (sub {
     $app->send_progress_json_chunk ('Applying the change...', [4,6]);
-    return $code->();
+    return $code->($keys);
   })->then (sub {
     $return = $_[0];
     my $msg = $app->text_param ('commit_message') // '';

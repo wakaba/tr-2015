@@ -161,19 +161,19 @@
       <script class=lang-area-placeholder />
 
       <td class=comments-area>
-        <p class=header><button type=button class=toggle-edit title="コメントを書く">コメントを書く</button>
         <div class=comments-container></div>
         <template>
           <article>
-            <p class=body>
-            <footer><p><time></time></footer>
+            <p class=author_name>{author_name}
+            <p class=body>{body}
+            <footer><p><time>2000-01-01 00:00:00</time></footer>
           </article>
         </template>
         <div class=new-comment>
           <div class=view>
           </div>
-          <form data-action="i/{text_id}/comments" method=post class=edit hidden>
-            <p><textarea name=body></textarea>
+          <form data-action="i/{text_id}/comments.ndjson" method=post class=edit>
+            <p><textarea name=body required></textarea>
             <p class=buttons><button type=submit>投稿</button>
           </form>
           <p class=status hidden><progress></progress> <span class=message></span>
@@ -233,6 +233,9 @@
   <button type=button class=toggle-edit>Edit</button>
   <button type=button class=search>Search</button>
   <a href data-href="i/{text_id}/history.json?lang={lang_key}" target=history>History</a>
+</menu>
+<menu class=texts-comments-area-menu hidden>
+  <button type=button class=toggle-edit>Edit</button>
 </menu>
 
 <details id=add>
@@ -377,21 +380,39 @@
     argsArea.hidden = !((text.args || []).length > 0);
   } // showTextMetadata
 
-  function scrollToLangArea (cell) {
+  function scrollToLangOrCommentsArea (cell) {
     var row = cell.parentNode;
     var headerRow = row.previousElementSibling;
     var headerTop = headerRow.offsetParent.offsetTop + headerRow.offsetTop;
     if (headerTop < document.body.scrollTop) {
       document.body.scrollTop = headerTop;
     } else {
-      var menu = cell.querySelector ('.texts-lang-area-menu');
+      var menu = cell.querySelector ('.texts-lang-area-menu, .texts-comments-area-menu');
       var bottom = row.offsetTop + row.offsetParent.offsetTop + row.offsetHeight + (menu ? menu.offsetHeight : 0);
       var vpHeight = document.documentElement.clientHeight;
       if (document.body.scrollTop + vpHeight < bottom) {
         document.body.scrollTop = bottom - vpHeight;
       }
     }
-  } // scrollToLangArea
+  } // scrollToLangOrCommentsArea
+
+  function toggleLangOrCommentsAreaEdit (area, mode) {
+    if (mode === undefined) {
+      area.classList.toggle ('edit-mode');
+    } else {
+      area.classList.toggle ('edit-mode', mode);
+    }
+    var editMode = area.classList.contains ('edit-mode');
+    Array.prototype.forEach.call (area.querySelectorAll ('.toggle-edit'), function (el) {
+      el.classList.toggle ('active', editMode);
+    });
+    if (editMode) {
+      scrollToLangOrCommentsArea (area);
+      Array.prototype.filter.call (area.querySelectorAll ('.edit p[data-form], .new-comment .edit p'), function (el) {
+        return getComputedStyle (el).style !== 'none';
+      })[0].querySelector ('textarea').focus ();
+    }
+  } // toggleLangOrCommentsAreaEdit
 
   function addTexts (iTexts) {
     var mainTable = document.getElementById ('texts');
@@ -431,29 +452,12 @@
           el.textContent = document.trLangs[langKey].label_short;
         });
 
-        area.trToggleEdit = function (mode) {
-          if (mode === undefined) {
-            area.classList.toggle ('edit-mode');
-          } else {
-            area.classList.toggle ('edit-mode', mode);
-          }
-          var editMode = area.classList.contains ('edit-mode');
-          Array.prototype.forEach.call (area.querySelectorAll ('.toggle-edit'), function (el) {
-            el.classList.toggle ('active', editMode);
-          });
-          if (editMode) {
-            scrollToLangArea (area);
-            Array.prototype.filter.call (area.querySelectorAll ('.edit p[data-form]'), function (el) {
-              return getComputedStyle (el).style !== 'none';
-            })[0].querySelector ('textarea').focus ();
-          }
-        };
         area.ondblclick = function (ev) {
           if (ev.target.form) return;
-          area.trToggleEdit ();
+          toggleLangOrCommentsAreaEdit (area);
         };
         area.querySelector ('form.edit').onsubmit = function () {
-          area.trToggleEdit (false);
+          toggleLangOrCommentsAreaEdit (area, false);
           Array.prototype.forEach.call (area.querySelectorAll ('[type=submit]'), function (el) {
             el.disabled = true;
           });
@@ -469,7 +473,7 @@
               el.disabled = false;
             });
           }, function (json) {
-            area.trToggleEdit (true);
+            toggleLangOrCommentsAreaEdit (area, true);
             showError (json, formStatus);
             Array.prototype.forEach.call (area.querySelectorAll ('[type=submit]'), function (el) {
               el.disabled = false;
@@ -501,43 +505,22 @@
       }); // langKey
 
       var comments = fragment.querySelector ('.comments-area');
-      comments.querySelector ('button.toggle-edit').onclick = function () {
-        var editMode = !this.classList.contains ('active');
-  var edit = comments.querySelector ('form.edit');
-  var view = comments.querySelector ('.view');
-  var toggle = comments.querySelector ('button.toggle-edit');
-  if (editMode) {
-    edit.hidden = false;
-    view.hidden = true;
-  } else {
-    view.hidden = false;
-    edit.hidden = true;
-  }
-  comments.classList.toggle ('edit-mode', editMode);
-  toggle.classList.toggle ('active', editMode);
+      comments.ondblclick = function (ev) {
+        if (ev.target.form) return;
+        toggleLangOrCommentsAreaEdit (comments);
       };
       var commentForm = comments.querySelector ('form');
       commentForm.onsubmit = function () {
-
-  var toggle = comments.querySelector ('button.toggle-edit');
-  toggle.classList.toggle ('active', false);
-
         var status = comments.querySelector ('.status');
         showProgress ({init: true}, status);
         var saveButton = commentForm.querySelector ('[type=submit]');
         saveButton.disabled = true;
         server ('POST', commentForm.action, new FormData (commentForm), function (res) {
-          var c = {body: commentForm.elements.body.value,
-                   last_modified: (new Date).valueOf () / 1000};
-          syncTextComments (comments, [c]);
+          syncTextComments (comments, res.data.comments);
           status.hidden = true;
           saveButton.disabled = false;
-
-        var edit = comments.querySelector ('form.edit');
-        var view = comments.querySelector ('.view');
-        view.hidden = false;
-        edit.hidden = true;
-          comments.classList.toggle ('edit-mode', false);
+          commentForm.reset ();
+          toggleLangOrCommentsAreaEdit (comments, false);
         }, function (json) {
           showError (json, status);
           saveButton.disabled = false;
@@ -565,9 +548,11 @@
     });
   } // addTexts
 
+  // Cell selection
   (function () {
     var mainTable = document.querySelector ('#texts');
-    var mainTableMenu = document.querySelector ('.texts-lang-area-menu');
+    var langMenu = document.querySelector ('.texts-lang-area-menu');
+    var commentsMenu = document.querySelector ('.texts-comments-area-menu');
     mainTable.addEventListener ('click', function (ev) {
       if (ev.detail !== 1) return;
       var t = ev.target;
@@ -576,12 +561,17 @@
       }
       if (!t || t.localName !== 'td') return;
       var cell = t;
+      var cellType;
+      var menu;
       if (cell.classList.contains ('selected')) return;
       if (t.classList.contains ('lang-area')) {
-        //
+        cellType = 'lang';
+        menu = langMenu;
+        commentsMenu.hidden = true;
       } else if (t.classList.contains ('comments-area')) {
-        cell = null;
-        mainTableMenu.hidden = true;
+        cellType = 'comments';
+        menu = commentsMenu;
+        langMenu.hidden = true;
       } else {
         return;
       }
@@ -595,28 +585,31 @@
       var row = cell.parentNode;
       row.classList.add ('selected');
 
-      var langKey = cell.getAttribute ('data-lang');
-      var textId = row.getAttribute ('data-text-id');
-      mainTableMenu.hidden = false;
-      Array.prototype.forEach.call (mainTableMenu.querySelectorAll ('.lang-label'), function (el) {
-        el.textContent = document.trLangs[langKey].label;
-      });
-      var editButton = mainTableMenu.querySelector ('.toggle-edit');
+      if (cellType === 'lang') {
+        var langKey = cell.getAttribute ('data-lang');
+        var textId = row.getAttribute ('data-text-id');
+        Array.prototype.forEach.call (langMenu.querySelectorAll ('.lang-label'), function (el) {
+          el.textContent = document.trLangs[langKey].label;
+        });
+        langMenu.querySelector ('.search').onclick = function () {
+          showSearchSidebar (cell.querySelector ('[name=body_0]').value);
+          return false;
+        };
+        Array.prototype.forEach.call (langMenu.querySelectorAll ('a[data-href]'), function (el) {
+          el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, textId).replace (/\{lang_key\}/g, langKey);
+        });
+      } // cellType
+
+      var editButton = menu.querySelector ('.toggle-edit');
       editButton.onclick = function () {
-        cell.trToggleEdit ();
+        toggleLangOrCommentsAreaEdit (cell);
         return false;
       };
       editButton.classList.toggle ('active', cell.classList.contains ('edit-mode'));
-      mainTableMenu.querySelector ('.search').onclick = function () {
-        showSearchSidebar (cell.querySelector ('[name=body_0]').value);
-        return false;
-      };
-      Array.prototype.forEach.call (mainTableMenu.querySelectorAll ('a[data-href]'), function (el) {
-        el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, textId).replace (/\{lang_key\}/g, langKey);
-      });
-      cell.appendChild (mainTableMenu);
 
-      scrollToLangArea (cell);
+      menu.hidden = false;
+      cell.appendChild (menu);
+      scrollToLangOrCommentsArea (cell);
     });
   }) ();
 
@@ -710,6 +703,7 @@ function syncTextComments (commentsEl, textComments) {
   textComments.forEach (function (comment) {
     var df = document.createElement ('div');
     df.innerHTML = commentTemplate.innerHTML;
+    df.querySelector ('.author_name').textContent = comment.author_name;
     df.querySelector ('.body').textContent = comment.body;
     df.querySelector ('time').setAttribute ('datetime', new Date (comment.last_modified * 1000).toISOString ());
     new TER.Delta (df);
