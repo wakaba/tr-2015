@@ -51,6 +51,22 @@ sub psgi_app ($$) {
   };
 } # psgi_app
 
+my $CatchThenDiscard = sub {
+  my ($thenable, $app, $tr) = @_;
+  return $thenable->catch (sub {
+    if (UNIVERSAL::isa ($_[0], 'Warabe::App::Done')) {
+      #
+    } elsif (ref $_[0] eq 'HASH' and $_[0]->{bad_branch}) {
+      return $app->send_error (404, reason_phrase => 'Bad branch');
+    } else {
+      $app->error_log ($_[0]);
+      return $app->send_error (500);
+    }
+  })->then (sub {
+    return $tr->discard;
+  });
+}; # $CatchThenDiscard
+
 sub main ($$) {
   my ($class, $app) = @_;
   my $path = $app->path_segments;
@@ -186,12 +202,7 @@ sub main ($$) {
         app => $app,
         tr => $tr,
       });
-    })->catch (sub {
-      $app->error_log ($_[0]);
-      return $app->send_error (500);
-    })->then (sub {
-      return $tr->discard;
-    });
+    })->$CatchThenDiscard ($app, $tr);
   } elsif (@$path == 3 and $path->[0] eq 'tr' and
            $path->[2] =~ /\Ainfo\.(json|ndjson)\z/) {
     # /tr/{url}/info.json
@@ -217,12 +228,7 @@ sub main ($$) {
         }
         return $app->send_last_json_chunk (200, 'Saved', $parsed1);
       });
-    })->catch (sub {
-      $app->error_log ($_[0]);
-      return $app->send_error (500);
-    })->then (sub {
-      return $tr->discard;
-    });
+    })->$CatchThenDiscard ($app, $tr);
   } # /tr/{url}/info.json
 
   if ($path->[0] eq 'tr' and @$path == 3 and $path->[2] eq 'acl') {
@@ -423,14 +429,7 @@ sub main ($$) {
         } else {
           return $app->send_error (400, reason_phrase => 'Bad |operation|');
         }
-      })->catch (sub {
-        unless (UNIVERSAL::isa ($_[0], 'Warabe::App::Done')) {
-          $app->error_log ($_[0]);
-          return $app->send_error (500);
-        }
-      })->then (sub {
-        return $tr->discard;
-      });
+      })->$CatchThenDiscard ($app, $tr);
     } else { # GET
       return $class->session ($app)->then (sub {
         my $account = $_[0];
@@ -513,7 +512,7 @@ sub main ($$) {
     })->then (sub {
       return $tr->get_commit_logs ([$tr->branch]);
     })->then (sub {
-      my $parsed = $_[0]; # XXX if branch not found
+      my $parsed = $_[0];
       my $tree = $parsed->{commits}->[0]->{tree};
       return $tr->get_ls_tree ($tree, recursive => 1);
     })->then (sub {
@@ -554,12 +553,7 @@ sub main ($$) {
         }
         return $app->send_last_json_chunk (200, 'OK', {text_sets => $text_sets});
       });
-    })->catch (sub {
-      $app->error_log ($_[0]);
-      return $app->send_error (500);
-    })->then (sub {
-      return $tr->discard;
-    });
+    })->$CatchThenDiscard ($app, $tr);
   } # /tr/{url}/{branch}/info.json
 
   if ($path->[0] eq 'tr' and @$path >= 4) {
@@ -622,12 +616,7 @@ sub main ($$) {
         $json->{scopes} = $scopes;
         $json->{query} = $q->as_jsonalizable;
         $app->send_last_json_chunk (200, 'OK', $json);
-      })->catch (sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500); # XXX
-      })->then (sub {
-        return $tr->discard;
-      });
+      })->$CatchThenDiscard ($app, $tr);
     } elsif (@$path == 5 and $path->[4] =~ /\Ainfo\.(json|ndjson)\z/) {
       # .../info.json
       # .../info.ndjson
@@ -675,12 +664,7 @@ sub main ($$) {
         $json->{scopes} = $scopes;
 
         $app->send_last_json_chunk (200, 'OK', $json);
-      })->catch (sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500); # XXX
-      })->then (sub {
-        return $tr->discard;
-      });
+      })->$CatchThenDiscard ($app, $tr);
 
     } elsif (@$path == 5 and $path->[4] eq 'XXXupdate-index') {
       # .../XXXupdate-index
@@ -704,12 +688,7 @@ sub main ($$) {
         return $s->put_data ($json)->then (sub {
           return $app->send_error (200);
         });
-      })->catch (sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500);
-      })->then (sub {
-        return $tr->discard;
-      });
+      })->$CatchThenDiscard ($app, $tr);
 
     } elsif (@$path == 5 and $path->[4] eq 'export') {
       # .../export
@@ -794,12 +773,7 @@ sub main ($$) {
         } else {
           return $app->send_error (400, reason_phrase => 'Unknown format');
         }
-      })->catch (sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500);
-      })->then (sub {
-        return $tr->discard;
-      });
+      })->$CatchThenDiscard ($app, $tr);
 
     } elsif (@$path == 5 and $path->[4] eq 'start') {
       # .../start
@@ -868,12 +842,7 @@ sub main ($$) {
         return $tr->push; # XXX failure
       })->then (sub {
         return $app->send_last_json_chunk (200, 'Done', {});
-      }, sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500);
-      })->then (sub {
-        return $tr->discard;
-      });
+      })->$CatchThenDiscard ($app, $tr);
 
     } elsif (@$path >= 7 and $path->[4] eq 'i') {
       my $text_id = $path->[5];
@@ -981,7 +950,7 @@ sub main ($$) {
           sub {
             my $keys = $_[0];
             my $path = $tr->text_id_and_suffix_to_relative_path
-                ($text_id, 'comments'); # XXX commit rather than branch should be used
+                ($text_id, 'comments');
             return $tr->repo->git ('checkout', [$tr->branch, '--', $path])->then (sub {
               my $te = TR::TextEntry->new_from_text_id_and_source_text ($text_id, '');
               $te->set (id => $tr->generate_section_id);
@@ -1035,12 +1004,7 @@ sub main ($$) {
           return {history => \@json};
         })->then (sub {
           return $app->send_json ($_[0]);
-        }, sub {
-          $app->error_log ($_[0]);
-          return $app->send_error (500);
-        })->then (sub {
-          return $tr->discard;
-        });
+        })->$CatchThenDiscard ($app, $tr);
       } # .../i/{text_id}/...
 
     } elsif (@$path == 5 and $path->[4] =~ /\Aadd\.(json|ndjson)\z/) {
@@ -1170,12 +1134,7 @@ sub main ($$) {
         return $tr->get_recent_comments (limit => 50);
       })->then (sub {
         return $app->send_json ($_[0]);
-      })->catch (sub {
-        $app->error_log ($_[0]);
-        return $app->send_error (500);
-      })->then (sub {
-        return $tr->discard;
-      });
+      })->$CatchThenDiscard ($app, $tr);
 
     }
   }
@@ -1592,12 +1551,7 @@ sub edit_text_set ($$$$$%) {
         return $app->send_last_json_chunk (200, 'Saved', $return);
       });
     }
-  }, sub {
-    $app->error_log ($_[0]);
-    return $app->send_error (500);
-  })->then (sub {
-    return $tr->discard;
-  });
+  })->$CatchThenDiscard ($app, $tr);
 } # edit_text_set
 
 1;

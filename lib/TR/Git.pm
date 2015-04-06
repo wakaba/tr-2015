@@ -34,8 +34,7 @@ sub git_clone ($;%) {
       if defined $opt{ssh_private_key};
   $cmd->stdin (\'');
   $cmd->stdout (\my $stdout);
-  my $stderr = '';
-  $cmd->stderr (sub { $stderr .= $_[0] if defined $_[0]; AE::log alert => $_[0] if defined $_[0] });
+  $cmd->stderr (\my $stderr);
   $cmd->create_process_group (1);
   my $timer1; $timer1 = AE::timer 60, 0, sub {
     eval { kill -15, getpgrp $cmd->pid }; undef $timer1;
@@ -47,7 +46,16 @@ sub git_clone ($;%) {
     return $cmd->wait;
   })->then (sub {
     my $result = $_[0];
-    unless ($result->is_success and $result->exit_code == 0) {
+    if (not $result->is_success) {
+      die "$result\n$stderr";
+    } elsif ($result->exit_code == 1) {
+      if ($stderr =~ /^fatal: Remote branch .+ not found in upstream /ms) {
+        die {result => $result, stdout => $stdout, stderr => $stderr,
+             bad_branch => 1};
+      } else {
+        die "$result\n$stderr";
+      }
+    } elsif ($result->exit_code != 0) {
       die "$result\n$stderr";
     }
     return {stdout => $stdout};

@@ -52,7 +52,6 @@ sub branch ($;$) {
   }
   return $_[0]->{branch};
 } # branch
-# XXX branch should be resolved to commit at earlier stage?
 
 sub langs ($;$) {
   if (@_ > 1) {
@@ -180,12 +179,13 @@ sub prepare_mirror ($$$) {
       return git_home_config ($home_path, ["url.$keyed_url.insteadOf", $url]);
     });
   }
+  my $branch = $self->branch;
   if ($mirror_path->child ('config')->is_file) {
     my $mirror_repo = $self->mirror_repo;
     $mirror_repo->home_dir_name ($home_path);
     $mirror_repo->ssh_file_name ($self->{ssh_path});
     $mirror_repo->ssh_private_key_file_name ($self->{private_key_path});
-    return $p->then (sub {
+    $p = $p->then (sub {
       $app->send_progress_json_chunk ('Fetching the remote repository...');
       # XXX skip if guest access
       return $mirror_repo->fetch;
@@ -196,9 +196,11 @@ sub prepare_mirror ($$$) {
       $mirror_repo->ssh_private_key_file_name (undef);
     });
   } else {
-    return $p->then (sub {
+    $p = $p->then (sub {
       $app->send_progress_json_chunk ('Cloning the remote repository...');
-      return git_clone (['--mirror', $url, $mirror_path],
+      return git_clone (['--mirror',
+                         (defined $branch ? ('-b', $branch) : ()),
+                         $url, $mirror_path],
                         home => $home_path,
                         ssh => $self->{ssh_path},
                         ssh_private_key => $self->{private_key_path});
@@ -206,12 +208,18 @@ sub prepare_mirror ($$$) {
       $self->{fetched} = 1;
     });
   }
-  # XXX branch not found error
+  if (defined $branch) {
+    $p = $p->then (sub {
+      return $self->get_branches ($branch);
+    })->then (sub {
+      die {bad_branch => 1} unless $_[0]->{branches}->{$branch};
+    });
+  }
+  return $p;
 } # prepare_mirror
 
 sub clone_from_mirror ($;%) {
   my ($self, %args) = @_;
-  # XXX if $self->branch is not a branch
   my $p = git_clone ([
     '-b', $self->branch,
     ($args{no_checkout} ? '-n' : ()),
@@ -236,9 +244,9 @@ sub clone_from_mirror ($;%) {
   return $p;
 } # clone_from_mirror
 
-sub get_branches ($) {
-  my $self = $_[0];
-  return $self->mirror_repo->git ('branch', ['-v', '--no-abbrev'])->then (sub {
+sub get_branches ($;$) {
+  my ($self, $name) = @_;
+  return $self->mirror_repo->git ('branch', ['-v', '--no-abbrev', '--list', '--', (defined $name ? $name : ())])->then (sub {
     my $result = $_[0];
     my $parsed = {branches => {}};
     for (split /\x0A/, decode 'utf-8', $result->{stdout}) {
@@ -513,7 +521,7 @@ sub get_data_as_jsonalizable ($%) {
       $root_path->child ('perl'),
       $root_path->child ('bin/dump-textset.pl'),
       $self->mirror_repo_path,
-      $self->branch, # XXX branch not found error
+      $self->branch,
       $self->{texts_dir} // '',
     ]);
     $cmd->envs->{WITH_COMMENTS} = 1 if $args{with_comments};
@@ -737,8 +745,8 @@ sub commit ($$) {
   return $p->then (sub {
     return $self->repo->commit (
       message => $msg,
-      author_email => $self->{author_email}, # set by $self->set_key
-      author_name => $self->{author_name}, # set by $self->set_key
+      author_email => $self->{author_email}, # set by $self->prepare_mirror
+      author_name => $self->{author_name}, # set by $self->prepare_mirror
       committer_email => $self->config->get ('git.committer.email'),
       committer_name => $self->config->get ('git.committer.name'),
     );
