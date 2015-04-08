@@ -150,7 +150,7 @@ sub import_file ($$$%) {
 
   ## Text-set-global data
   {
-    my $path = defined $texts_dir ? path ($texts_dir)->child ('config.json') : path ('config.json');
+    my $path = defined $texts_dir ? path ($texts_dir)->child ('texts/config.json') : path ('texts/config.json');
     $edit_te->($path, undef, sub {
       my $te = $_[0];
       my @lang = split /,/, $te->get ('langs') // '';
