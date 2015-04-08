@@ -299,6 +299,7 @@
       cell.parentNode.removeChild (cell);
     });
     var template = mainTable.querySelector ('thead > tr > .lang-header-template');
+    langKeys = langKeys.splice (0, 10);
     langKeys.forEach (function (langKey) {
       var lang = langs[langKey];
       var th = document.createElement ('th');
@@ -422,12 +423,17 @@
       text.textId = textId;
       texts.push (text);
     }) (iTexts[textId]);
-    texts.sort (function (a, b) {
+    texts = texts.sort (function (a, b) {
       var aMsgid = a.msgid || '';
       var bMsgid = b.msgid || '';
       return aMsgid > bMsgid ? 1 : aMsgid < bMsgid ? -1 :
              a.textId > b.textId ? 1 : a.textId < b.textId ? -1 : 0;
-    }).forEach (function (text) {
+    });
+    if (texts.length > 100) {
+      // XXX show pager
+      texts = texts.splice (0, 100);
+    }
+    texts.forEach (function (text) {
       var fragment = document.createElement ('tbody');
       fragment.innerHTML = rowTemplate.innerHTML;
 
