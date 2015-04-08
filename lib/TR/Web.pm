@@ -804,44 +804,39 @@ sub main ($$) {
       return $class->get_push_token ($app, $tr, 'repo')->then (sub { # XXX scope
         return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
-        $app->send_progress_json_chunk ('Clonging the repository...');
+        $app->send_progress_json_chunk ('Cloning the repository...');
         return $tr->clone_from_mirror (push => 1);
       })->then (sub {
         my $from = $app->bare_param ('from') // '';
-        if ($from eq 'file') {
-          my $lang = $app->text_param ('lang') // '';
-          my $format = $app->text_param ('format') // '';
-          $app->send_progress_json_chunk ('Importing the file...');
-          return $tr->import_file (
-            [map {
-              my $v = $_;
-              +{get => sub { path ($v->as_f)->slurp }, # XXX
-                lang => $lang,
-                format => $format};
-            } @{$app->http->request_uploads->{file} || []}],
-            arg_format => $app->text_param ('arg_format') // '',
-            tags => $app->text_param_list ('tag')->grep (sub { length }),
-          );
-        } elsif ($from eq 'repo') {
-          $app->send_progress_json_chunk ('Importing...');
-          return $tr->import_auto (
-            format => $app->text_param ('format') // '',
-            arg_format => $app->text_param ('arg_format') // '',
-            tags => $app->text_param_list ('tag')->grep (sub { length }),
-          );
-        } else {
-          return $app->throw_error (400, reason_phrase => 'Bad |from|');
-        }
+        $app->send_progress_json_chunk ('Importing...');
+        my $lang = $app->text_param ('lang') // '';
+        my $format = $app->text_param ('format') // '';
+        return $tr->run_import (
+          from => $from,
+          files => [map {
+            my $v = $_;
+            +{file_name => $v->as_f . '', # XXX don't use Path::Class
+              lang => $lang,
+              format => $format};
+          } @{$app->http->request_uploads->{file} || []}],
+          format => $format,
+          arg_format => $app->text_param ('arg_format') // '',
+          tags => $app->text_param_list ('tag')->grep (sub { length }),
+        );
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
-        $msg = 'Added a message' unless length $msg; # XXX
+        $msg = 'Imported' unless length $msg;
         return $tr->commit ($msg);
       })->then (sub {
-        # XXX $_[0]->{no_commit}
-        $app->send_progress_json_chunk ('Pushing the repository...');
-        return $tr->push; # XXX failure
-      })->then (sub {
-        return $app->send_last_json_chunk (200, 'Done', {});
+        my $commit_result = $_[0];
+        if ($commit_result->{no_commit}) {
+          return $app->send_last_json_chunk (204, 'Not changed', {});
+        } else {
+          $app->send_progress_json_chunk ('Pushing the repository...');
+          return $tr->push->then (sub { # XXX failure
+            return $app->send_last_json_chunk (200, 'Done', {});
+          });
+        }
       })->$CatchThenDiscard ($app, $tr);
 
     } elsif (@$path >= 7 and $path->[4] eq 'i') {

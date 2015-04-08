@@ -2,8 +2,7 @@ package TR::TextRepo;
 use strict;
 use warnings;
 use Path::Tiny;
-use JSON::Functions::XS qw(json_bytes2perl);
-use AnyEvent::Util qw(run_cmd);
+use JSON::Functions::XS qw(json_bytes2perl perl2json_bytes);
 use Encode;
 use Promise;
 use Promised::Command;
@@ -598,131 +597,26 @@ sub get_data_as_jsonalizable ($%) {
   });
 } # get_data_as_jsonalizable
 
-sub import_file ($$%) {
-  my ($self, $files, %args) = @_;
-
-  my $new_text_ids = {};
-  my $modified_text_ids = {};
-  my $msgid_to_text_id = {};
-  my $q = $self->text_ids->then (sub {
-    my @id = keys %{$_[0]};
-    my $p = Promise->resolve;
-    for my $id (@id) {
-      $p = $p->then (sub {
-        return $self->read_file_by_text_id_and_suffix ($id, 'dat')->then (sub {
-          my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
-          my $msgid = $te->get ('msgid');
-          $msgid_to_text_id->{$msgid} = $id if defined $msgid;
-        });
-      });
-    }
-    return $p;
-  });
-
-  my @added_lang;
-  for my $file (@$files) {
-    my $lang = $file->{lang};
-    # XXX format=auto
-    if ($file->{format} eq 'po') { # XXX and pot
-      my $arg_format = $args{arg_format} || 'printf'; #$arg_format normalization
-      $arg_format = 'printf' if $arg_format eq 'auto'; # XXX
-
-      $q = $q->then (sub { return $file->{get}->() })->then (sub {
-        require Popopo::Parser;
-        my $parser = Popopo::Parser->new;
-        # XXX onerror
-        my $es = $parser->parse_string (decode 'utf-8', $_[0]); # XXX charset
-        # XXX lang and ohter metadata from header
-
-        die "Bad language key |@$lang|" unless TR::Langs::is_lang_key $lang;
-        push @added_lang, $lang;
-
-        my $p = Promise->resolve;
-        for my $e (@{$es->entries}) {
-          # XXX warn duplicate msgid
-          my $id = $msgid_to_text_id->{$e->msgid};
-          unless (defined $id) {
-            $id = $self->generate_text_id;
-            $msgid_to_text_id->{$e->msgid} = $id;
-            $new_text_ids->{$id} = $e->msgid;
-            $modified_text_ids->{$id} = 1;
-          }
-          $p = $p->then (sub {
-            return $self->read_file_by_text_id_and_suffix ($id, $lang . '.txt');
-          })->then (sub {
-            my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
-            $te->set (body_0 => $e->msgstr);
-            $te->set (last_modified => time); # XXX only when updated
-            $modified_text_ids->{$id} = 1; # XXX only when updated
-            # XXX and other fields
-            # XXX args
-            return $self->write_file_by_text_id_and_suffix ($id, $lang . '.txt' => $te->as_source_text);
-          });
-        }
-        return $p;
-      });
-    } else {
-      # XXX
-      die "Unknown format |$file->{format}|";
-    }
-  } # $file
-
-  ## Text data
-  for my $id (keys %$modified_text_ids) {
-    $q = $q->then (sub {
-      return $self->read_file_by_text_id_and_suffix ($id, 'dat');
-    })->then (sub {
-      my $te = TR::TextEntry->new_from_text_id_and_source_text ($id, $_[0] // '');
-      $te->set (msgid => $new_text_ids->{$id}) if defined $new_text_ids->{$id};
-      $te->enum ('tags')->{$_} = 1 for @{$args{tags}};
-      return $self->write_file_by_text_id_and_suffix ($id, 'dat' => $te->as_source_text);
-    });
-  }
-
-  ## Text-set-global data
-  $q = $q->then (sub {
-    return $self->read_file_by_path ($self->texts_path->child ('config.json'));
-  })->then (sub {
-    my $te = TR::TextEntry->new_from_text_id_and_source_text (undef, $_[0] // '');
-    my @lang = split /,/, $te->get ('langs') // '';
-    my %found;
-    $found{$_}++ for @lang;
-    push @lang, grep { not $found{$_}++ } @added_lang;
-    $te->set (langs => join ',', @lang);
-    return $self->write_file_by_path ($self->texts_path->child ('config.json'), $te->as_source_text);
-  });
-
-  return $q;
-} # import_file
-
-sub import_auto ($%) {
+sub run_import ($%) {
   my ($self, %args) = @_;
-
-  my $path = defined $self->{texts_dir} ? $self->{texts_dir} . '/' : '';
-  my $rev = $self->branch;
-  return $self->get_ls_tree (
-    $rev,
-    recursive => 1,
-    paths => [defined $path ? ($path) : ()],
-  )->then (sub {
-    my $data = $_[0];
-    my $files = [map { $data->{items}->{$_} } grep { m{\A\Q$path\E.+\.po\z} } keys %{$data->{items}}];
-    my $ps = [];
-    for my $file (@$files) {
-      $file->{file} =~ m{([^/]+)\.po\z};
-      my $lang = $1; # XXX validation, normalization
-      push @$ps, {
-        get => sub {
-          # XXX size restriction
-          return $self->mirror_repo->git ('show', [$file->{object}])->then (sub { return $_[0]->{stdout} });
-        },
-        lang => $lang,
-        format => 'po',
-      };
-    }
-    return $self->import_file ($ps, %args);
+  my $json_path = $self->{temp_path}->child ('import-'.rand.'.json');
+  my $json_file = Promised::File->new_from_path ($json_path);
+  return $json_file->write_byte_string (perl2json_bytes \%args)->then (sub {
+    my $root_path = path (__FILE__)->parent->parent->parent;
+    my $cmd = Promised::Command->new ([
+      $root_path->child ('perl'),
+      $root_path->child ('bin/import.pl'),
+      $self->repo_path,
+      $self->branch,
+      $self->{texts_dir} // '',
+      $json_path,
+    ]);
+    return $cmd->run->then (sub { return $cmd->wait });
+  })->then (sub {
+    my $result = $_[0];
+    die $result unless $result->exit_code == 0;
   });
-} # import_auto
+} # run_import
 
 sub add_by_paths ($$) {
   my ($self, $paths) = @_;
