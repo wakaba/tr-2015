@@ -8,6 +8,9 @@ use TR::Langs;
 use TR::TextEntry;
 use AnyEvent;
 use Promised::Command;
+use Git::Raw;
+use Git::Raw::Branch;
+use Git::Raw::Blob;
 
 sub generate_text_id () {
   return sha1_hex (time () . $$ . rand ());
@@ -51,26 +54,8 @@ sub text_id_and_suffix_to_relative_path ($$$) {
   return $path->child ((substr $id, 0, 2) . '/' . (substr $id, 2) . '.' . $suffix);
 } # text_id_and_suffix_to_relative_path
 
-sub checkout_a_file ($$) {
-  my ($repo_dir, $path) = @_;
-  return if path ($repo_dir)->child ($path)->is_file;
-  my $cv = AE::cv;
-  my $cmd = Promised::Command->new (['git', 'checkout', '--', $path]);
-  $cmd->wd ($repo_dir);
-  $cmd->run->then (sub { return $cmd->wait })->then (sub {
-    # error: pathspec '...' did not match any file(s) known to git.
-    return if $_[0]->exit_code == 1;
-    die $_[0] unless $_[0]->exit_code == 0;
-  })->then (sub {
-    $cv->send;
-  }, sub {
-    $cv->croak ($_[0]);
-  });
-  return $cv->recv;
-} # checkout_a_file
-
-sub import_file ($$$%) {
-  my ($repo_dir, $texts_dir, $msgid_to_text_id, %args) = @_;
+sub import_file ($$$$%) {
+  my ($root_tree, $repo_dir, $texts_dir, $msgid_to_text_id, %args) = @_;
 
   my $new_text_ids = {};
   my $modified_text_ids = {};
@@ -78,11 +63,23 @@ sub import_file ($$$%) {
 
   my $edit_te = sub ($$$) {
     my ($path, $id, $code) = @_;
-    checkout_a_file $repo_dir, $path;
     my $file_path = path ($repo_dir)->child ($path);
     my $te = TR::TextEntry->new_from_text_id_and_source_bytes
-        ($id, $file_path->is_file ? $file_path->slurp : '');
-    $code->($te);
+        ($id, do {
+          if ($file_path->is_file) {
+            $file_path->slurp;
+          } else {
+            my $file_entry = $root_tree->entry_bypath ($path);
+            if (defined $file_entry and
+                $file_entry->object->is_blog and
+                not $file_entry->file_mode & 020000) { # symlink
+              $file_entry->content;
+            } else {
+              '';
+            }
+          }
+        });
+    $code->($te) or return;
     $file_path->parent->mkpath;
     $file_path->spew_utf8 ($te->as_source_text);
     $modified_file_names->{$path} = 1;
@@ -90,6 +87,7 @@ sub import_file ($$$%) {
 
   my @added_lang;
   for my $file (@{$args{files}}) {
+    warn "|$file->{label}|...";
     my $lang = $file->{lang};
     # XXX format=auto
     if ($file->{format} eq 'po') { # XXX and pot
@@ -124,12 +122,13 @@ sub import_file ($$$%) {
             $te->set (body_0 => $new);
             $modified = 1;
           }
+          # XXX and other fields
+          # XXX args
           if ($modified) {
             $te->set (last_modified => time);
             $modified_text_ids->{$id} = 1;
           }
-          # XXX and other fields
-          # XXX args
+          return $modified;
         });
       }
     } else {
@@ -143,8 +142,19 @@ sub import_file ($$$%) {
     my $path = text_id_and_suffix_to_relative_path $texts_dir, $id, 'dat';
     $edit_te->($path, $id, sub {
       my $te = $_[0];
-      $te->set (msgid => $new_text_ids->{$id}) if defined $new_text_ids->{$id};
-      $te->enum ('tags')->{$_} = 1 for @{$args{tags}};
+      my $modified = 0;
+      if (defined $new_text_ids->{$id}) {
+        $te->set (msgid => $new_text_ids->{$id});
+        $modified = 1;
+      }
+      my $tags = $te->enum ('tags');
+      for (@{$args{tags}}) {
+        unless ($tags->{$_}) {
+          $tags->{$_} = 1;
+          $modified = 1;
+        }
+      }
+      return $modified;
     });
   }
 
@@ -158,6 +168,7 @@ sub import_file ($$$%) {
       $found{$_}++ for @lang;
       push @lang, grep { not $found{$_}++ } @added_lang;
       $te->set (langs => join ',', @lang);
+      return 1;
     });
   }
 
@@ -206,26 +217,11 @@ sub git_ls_tree ($$;%) {
   return $cv->recv;
 } # git_ls_tree
 
-sub git_show ($$) {
-  my ($repo_dir, $obj) = @_;
-  my $cmd = Promised::Command->new (['git', 'show', $obj]);
-  $cmd->wd ($repo_dir);
-  $cmd->stdout (\my $stdout);
-  my $cv = AE::cv;
-  $cmd->run->then (sub { return $cmd->wait })->then (sub {
-    die $_[0] unless $_[0]->exit_code == 0;
-    $cv->send ($stdout);
-  }, sub {
-    $cv->croak ($_[0]);
-  });
-  return $cv->recv;
-} # git_show
-
-sub import_auto ($$$$%) {
-  my ($repo_dir, $branch, $texts_dir, $msgid_to_text_id, %args) = @_;
+sub import_auto ($$$$$%) {
+  my ($root_tree, $repo_dir, $branch, $texts_dir, $msgid_to_text_id, %args) = @_;
 
   my $path = defined $texts_dir ? $texts_dir . '/' : '';
-  my $data = git_ls_tree (
+  my $data = git_ls_tree ( # XXX
     $repo_dir,
     $branch,
     recursive => 1,
@@ -239,30 +235,38 @@ sub import_auto ($$$$%) {
     $file->{file} =~ m{([^/]+)\.po\z};
     my $lang = lc $1; # XXX validation, normalization
     $lang =~ s/_/-/g;
-    warn "XXX importing |$file->{file}|...\n";
     push @$ps, {
-      bytes => git_show ($repo_dir, $file->{object}),
+      label => $file->{file},
+      bytes => Git::Raw::Blob->lookup ($root_tree->owner, $file->{object})->content,
       lang => $lang,
       format => 'po',
     };
   } # $file
-  return import_file ($repo_dir, $texts_dir, $msgid_to_text_id, %args);
+  return import_file ($root_tree, $repo_dir, $texts_dir, $msgid_to_text_id, %args);
 } # import_auto
 
 ## ------ Main ------
 
-my ($repo_dir, $branch, $texts_dir, $json_dir) = @ARGV;
+my ($repo_dir, $branch_name, $texts_dir, $json_dir) = @ARGV;
 die unless defined $json_dir;
 my $json = json_bytes2perl path ($json_dir)->slurp;
 undef $texts_dir unless length $texts_dir;
+# $repo_dir and $texts_dir must be safe values
+
+my $git_repo = Git::Raw::Repository->open ($repo_dir);
+my $git_branch = Git::Raw::Branch->lookup ($git_repo, $branch_name, 1)
+    // die "Branch |$branch_name| not found";
+my $root_tree = $git_branch->target->tree;
 
 my $from = $json->{from} // '';
 if ($from eq 'file') {
-  my $msgid_to_text_id = get_msgid_to_text_id_mapping ($repo_dir, $branch, $texts_dir);
-  import_file $repo_dir, $texts_dir, $msgid_to_text_id, %$json;
+  my $msgid_to_text_id = get_msgid_to_text_id_mapping
+      ($repo_dir, $branch_name, $texts_dir);
+  import_file $root_tree, $repo_dir, $texts_dir, $msgid_to_text_id, %$json;
 } elsif ($from eq 'repo') {
-  my $msgid_to_text_id = get_msgid_to_text_id_mapping ($repo_dir, $branch, $texts_dir);
-  import_auto $repo_dir, $branch, $texts_dir, $msgid_to_text_id, %$json;
+  my $msgid_to_text_id = get_msgid_to_text_id_mapping
+      ($repo_dir, $branch_name, $texts_dir);
+  import_auto $root_tree, $repo_dir, $branch_name, $texts_dir, $msgid_to_text_id, %$json;
 } else {
   die "Unknown |from|: |$from|";
 }

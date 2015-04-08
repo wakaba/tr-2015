@@ -19,6 +19,20 @@
     編集があると遠隔リポジトリーへと push します。
   </section>
 
+  <section id=textset>
+    <h1>テキスト集合</h1>
+
+    <p>テキスト集合ディレクトリーの名前に使えるのは、 ASCII
+    英数字と <code>-</code>, <code>_</code>, <code>.</code> のみです。
+    ディレクトリーの最初の文字は ASCII 英数字か <code>_</code>
+    でなければなりません。テキスト集合ディレクトリーの階層は
+    <code>/</code> で区切って <code>/foo/bar</code> のように表します。
+    リポジトリーの最上位階層は <code>/</code> と表します。
+    最初の <code>/</code> も含めて全体で64文字以内でなければなりません。
+    <p>テキスト集合を構成するファイル群は、テキスト集合ディレクトリー内の
+    <code>texts</code> ディレクトリー以下に保存されます。
+  </section>
+
   <section id=acl>
     <h1>編集権限</h1>
 

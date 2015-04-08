@@ -811,11 +811,12 @@ sub main ($$) {
         $app->send_progress_json_chunk ('Importing...');
         my $lang = $app->text_param ('lang') // '';
         my $format = $app->text_param ('format') // '';
-        return $tr->run_import (
+        return $tr->run_import ( # XXX progress
           from => $from,
           files => [map {
             my $v = $_;
             +{file_name => $v->as_f . '', # XXX don't use Path::Class
+              label => $v->filename,
               lang => $lang,
               format => $format};
           } @{$app->http->request_uploads->{file} || []}],
@@ -826,6 +827,7 @@ sub main ($$) {
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
         $msg = 'Imported' unless length $msg;
+        $app->send_progress_json_chunk ('Creating a commit...');
         return $tr->commit ($msg);
       })->then (sub {
         my $commit_result = $_[0];
@@ -1324,12 +1326,13 @@ sub create_text_repo ($$$) {
   }
 
   if (defined $path) {
-    if (($path eq '/' or $path =~ m{\A(?:/[0-9A-Za-z_.-]+)+\z}) and
-        not "$path/" =~ m{/\.\.?/}) {
+    if ($path eq '/' or $path =~ m{\A(?:/[0-9A-Za-z_][0-9A-Za-z_.-]*)+\z}) {
       #
     } else {
       return $app->throw_error (404, reason_phrase => 'Bad text set path');
     }
+    return $app->throw_error (404, reason_phrase => 'Text set path too long')
+        if 64 < length $path;
     $tr->texts_dir (substr $path, 1);
   }
 
