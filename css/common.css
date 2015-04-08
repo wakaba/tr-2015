@@ -531,7 +531,7 @@ html:not([data-scopes~=edit]) .lang-area button.toggle-edit {
   display: none;
 }
 
-html:not([data-scopes~=comment]) .comments-area button.toggle-edit {
+html:not([data-scopes~=comment]) .comments-area .new-comment {
   display: none;
 }
 
@@ -557,22 +557,22 @@ html:not([data-scopes~=texts]) table #add {
 }
 
 .lang-area .edit,
-.comments-area .edit {
+.comments-area .new-comment {
   display: none;
 }
 
 .lang-area.edit-mode .edit,
-.comments-area.edit-mode .edit {
+.comments-area.selected .new-comment {
   display: block;
 }
 
 .lang-area .edit p,
-.comments-area .edit p {
+.comments-area .new-comment p {
   margin: 0;
 }
 
 .lang-area .edit textarea,
-.comments-area .edit textarea {
+.comments-area .new-comment textarea {
   box-sizing: content-box;
   width: 15rem;
   min-height: 10em;
@@ -584,13 +584,12 @@ html:not([data-scopes~=texts]) table #add {
   line-height: 1.4;
 }
 
-.lang-area .edit select,
-.comments-area .edit select {
+.lang-area .edit select {
   width: 100%;
 }
 
 .lang-area .edit .buttons,
-.comments-area .edit .buttons {
+.comments-area .new-comment .buttons {
   float: right;
   margin: 0.3em 0;
   text-align: right;
@@ -599,7 +598,7 @@ html:not([data-scopes~=texts]) table #add {
 }
 
 .lang-area .edit .buttons::after,
-.comments-area .edit .buttons::after {
+.comments-area .new-comment .buttons::after {
   content: "";
   clear: both;
 }
@@ -612,8 +611,7 @@ html:not([data-scopes~=texts]) table #add {
   display: none;
 }
 
-.lang-area > .view p,
-.comments-area > .view p {
+.lang-area > .view p {
   margin: 0;
   padding: 0.1rem;
   line-height: 1.4;
@@ -623,8 +621,7 @@ html:not([data-scopes~=texts]) table #add {
   width: 15rem;
 }
 
-.selected > .lang-area > .view p,
-.selected > .comments-area > .view p {
+.selected > .lang-area > .view p {
   min-height: 5rem;
 }
 

@@ -53,7 +53,8 @@ sub git ($$$) {
   })->then (sub {
     my $result = $_[0];
     unless ($result->is_success and $result->exit_code == 0) {
-      die "$result\n$stderr";
+      warn $stderr;
+      die $result;
     }
     return {stdout => $stdout, stderr => $stderr};
   });

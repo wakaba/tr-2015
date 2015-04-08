@@ -951,7 +951,10 @@ sub main ($$) {
             my $keys = $_[0];
             my $path = $tr->text_id_and_suffix_to_relative_path
                 ($text_id, 'comments');
-            return $tr->repo->git ('checkout', [$tr->branch, '--', $path])->then (sub {
+            return $tr->repo->git ('checkout', [$tr->branch, '--', $path])->catch (sub {
+              ## Ignore |error: pathspec '....comments' did not match any file(s) known to git.|
+              die $_[0] unless UNIVERSAL::can ($_[0], 'exit_code') and $_[0]->exit_code == 1;
+            })->then (sub {
               my $te = TR::TextEntry->new_from_text_id_and_source_text ($text_id, '');
               $te->set (id => $tr->generate_section_id);
               my $body = $app->text_param ('body') // '';

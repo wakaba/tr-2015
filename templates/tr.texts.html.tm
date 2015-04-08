@@ -169,15 +169,11 @@
             <footer><p><time>2000-01-01 00:00:00</time></footer>
           </article>
         </template>
-        <div class=new-comment>
-          <div class=view>
-          </div>
-          <form data-action="i/{text_id}/comments.ndjson" method=post class=edit>
-            <p><textarea name=body required></textarea>
-            <p class=buttons><button type=submit>投稿</button>
-          </form>
-          <p class=status hidden><progress></progress> <span class=message></span>
-        </div>
+        <form data-action="i/{text_id}/comments.ndjson" method=post class=new-comment>
+          <p><textarea name=body required placeholder=補足説明、質問など></textarea>
+          <p class=buttons><button type=submit>投稿</button>
+        </form>
+        <p class=status hidden><progress></progress> <span class=message></span>
   </template> 
   <template class=lang-area-template>
     <!-- data-lang={lang} class=lang-area -->
@@ -235,7 +231,6 @@
   <a href data-href="i/{text_id}/history.json?lang={lang_key}" target=history>History</a>
 </menu>
 <menu class=texts-comments-area-menu hidden>
-  <button type=button class=toggle-edit>Edit</button>
 </menu>
 
 <details id=add>
