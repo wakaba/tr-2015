@@ -426,30 +426,12 @@ sub git_log_for_text_id_and_lang ($$$;%) {
   return $p;
 } # git_log_for_text_id_and_lang
 
-sub read_file_by_path ($$) {
-  my ($self, $path) = @_;
-  # XXX max file size
-  return Promise->new (sub {
-    if ($path->is_file) {
-      $_[0]->($path->slurp_utf8); # or exception # XXX blocking I/O
-    } else {
-      $_[0]->(undef);
-    }
-  });
-} # read_file_by_path
-
 sub write_file_by_path ($$$) {
   my ($self, $path) = @_;
   $path->parent->mkpath;
   $path->spew_utf8 ($_[2]); # or exception # XXX blocking I/O
   return $self->add_by_paths ([$path]);
 } # write_file_by_path
-
-sub read_file_by_text_id_and_suffix ($$$) {
-  my ($self, $id, $suffix) = @_;
-  my $path = $self->text_id_and_suffix_to_path ($id, $suffix);
-  return $self->read_file_by_path ($path);
-} # read_file_by_text_id_and_suffix
 
 sub write_file_by_text_id_and_suffix ($$$$) {
   my ($self, $id, $suffix, $text) = @_;
@@ -464,23 +446,6 @@ sub append_section_to_file_by_text_id_and_suffix ($$$$) {
   $path->append_utf8 ("\x0A\x0A" . $text); # or exception # XXX blocking I/O
   return $self->add_by_paths ([$path]);
 } # append_section_to_file_by_text_id_and_suffix
-
-sub text_ids ($) {
-  my $self = $_[0];
-  my %list;
-  my $texts_path = $self->texts_path;
-  if ($texts_path->is_dir) { # XXX blocking I/O ??; symlink ??
-    for my $path ($texts_path->children (qr/\A([0-9a-f]{2})\z/)) {
-      next unless $path->is_dir;
-      for my $path ($path->children (qr/\A([0-9a-f]+)\./)) {
-        if ($path =~ m{/([0-9a-f]{2})/([0-9a-f]+)\.}) {
-          $list{"$1$2"} = 1;
-        }
-      }
-    }
-  }
-  return Promise->new (sub { $_[0]->(\%list) });
-} # text_ids
 
 sub get_tr_config ($) {
   my $self = $_[0];

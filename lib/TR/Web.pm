@@ -998,7 +998,8 @@ sub main ($$) {
             my $te = TR::TextEntry->new_from_text_id_and_source_text ($text_id, decode 'utf-8', $_->{blob_data});
             push @json, {lang_text => $te->as_jsonalizable,
                          commit => {commit => $_->{commit},
-                                    author => $_->{author},
+                                    commit_message => $_->{body},
+                                    commit_author => $_->{author},
                                     committer => $_->{committer}}};
           }
           return {history => \@json};
