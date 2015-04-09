@@ -24,6 +24,11 @@ if ($config->get ('http.x-forwarded-*')) {
   $Wanage::HTTP::UseXForwardedFor = 1;
 }
 
+for (qw(WEBUA_DEBUG SQL_DEBUG)) {
+  my $value = $config->get ('env.' . $_);
+  $ENV{WEBUA_DEBUG} ||= $value if defined $value;
+}
+
 return TR::Web->psgi_app ($config);
 
 =head1 LICENSE
