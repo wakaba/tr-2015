@@ -97,7 +97,7 @@ sub main ($$) {
           $app->send_progress_json_chunk ('Preparing for GitHub API access...');
           return $app->account_server (q</token>, {
             sk => $app->http->request_cookies->{sk},
-            sk_context => $app->config->{account_sk_context},
+            sk_context => $app->config->get ('account.sk_context'),
             server => 'github',
           })->then (sub {
             my $json = $_[0];
@@ -322,7 +322,7 @@ sub main ($$) {
               if ($repo_type eq 'github') {
                 $app->account_server (q</token>, {
                   sk => $app->http->request_cookies->{sk},
-                  sk_context => $app->config->{account_sk_context},
+                  sk_context => $app->config->get ('account.sk_context'),
                   server => 'github',
                 })->then (sub {
                   my $json = $_[0];
@@ -352,7 +352,7 @@ sub main ($$) {
               } elsif ($repo_type eq 'ssh') {
                 $app->account_server (q</token>, {
                   sk => $app->http->request_cookies->{sk},
-                  sk_context => $app->config->{account_sk_context},
+                  sk_context => $app->config->get ('account.sk_context'),
                   server => 'ssh',
                 })->then (sub {
                   my $json = $_[0];
@@ -1164,7 +1164,7 @@ sub main ($$) {
 
     return $app->account_server (q</session>, {
       sk => $app->http->request_cookies->{sk},
-      sk_context => $app->config->{account_sk_context},
+      sk_context => $app->config->get ('account.sk_context'),
     })->then (sub {
       my $json = $_[0];
       $app->http->set_response_cookie
@@ -1176,7 +1176,7 @@ sub main ($$) {
            path => q</>) if $json->{set_sk};
       return $app->account_server (q</login>, {
         sk => $json->{sk},
-        sk_context => $app->config->{account_sk_context},
+        sk_context => $app->config->get ('account.sk_context'),
         server => $server,
         server_scope => $server_scope,
         callback_url => $app->http->url->resolve_string ('/account/cb')->stringify,
@@ -1190,7 +1190,7 @@ sub main ($$) {
     # /account/cb
     return $app->account_server (q</cb>, {
       sk => $app->http->request_cookies->{sk},
-      sk_context => $app->config->{account_sk_context},
+      sk_context => $app->config->get ('account.sk_context'),
       oauth_token => $app->http->query_params->{oauth_token},
       oauth_verifier => $app->http->query_params->{oauth_verifier},
       code => $app->http->query_params->{code},
@@ -1222,7 +1222,7 @@ sub main ($$) {
       $comment =~ s/\{time\}/time/ge;
       return $app->account_server (q</keygen>, {
         sk => $app->http->request_cookies->{sk},
-        sk_context => $app->config->{account_sk_context},
+        sk_context => $app->config->get ('account.sk_context'),
         server => 'ssh',
         comment => $comment,
       })->then (sub {
@@ -1232,7 +1232,7 @@ sub main ($$) {
     } else { # GET
       return $app->account_server (q</token>, {
         sk => $app->http->request_cookies->{sk},
-        sk_context => $app->config->{account_sk_context},
+        sk_context => $app->config->get ('account.sk_context'),
         server => 'ssh',
       })->then (sub {
         my $json = $_[0];
@@ -1318,7 +1318,7 @@ sub create_text_repo ($$$) {
   } elsif ($url =~ m{\Assh://git\@melon/(/git/pub/.+)\z}) {
     $url = qq{git\@melon:$1};
     $tr->repo_type ('ssh');
-  } elsif ($url =~ m{\Afile://\Q@{[path (__FILE__)->parent->parent->parent->child ('local/pub')]}\E/}) {
+  } elsif ($url =~ m{\Afile://demo/}) {
     $tr->repo_type ('file');
   } else {
     return $app->throw_error (404, reason_phrase => "Bad repository URL");
@@ -1350,7 +1350,7 @@ sub session ($$) {
   my ($class, $app) = @_;
   return $app->account_server (q</info>, {
     sk => $app->http->request_cookies->{sk},
-    sk_context => $app->config->{account_sk_context},
+    sk_context => $app->config->get ('account.sk_context'),
   });
 } # session
 

@@ -154,7 +154,8 @@ sub prepare_mirror ($$$) {
       return $cmd->run->then (sub { return $cmd->wait });
     });
   } elsif ($repo_type eq 'file') {
-    #
+    # XXX
+    $url =~ s{^file://demo/}{@{[path (__FILE__)->parent->parent->parent->child ('local/pub')]}/};
   } else {
     die "Unknown repository type |$repo_type|";
   }

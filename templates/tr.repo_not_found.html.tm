@@ -31,7 +31,7 @@
         <dd>
           <p>参加すると、このリポジトリーを編集できるようになります。
           <form action=./acl.json method=post><!-- XXX path -->
-            <input type=hidden name=operation value=get_ownership>
+            <input type=hidden name=operation value=join>
             <button type=submit>開発者として参加</button>
           </form><!-- XXX ajax -->
         

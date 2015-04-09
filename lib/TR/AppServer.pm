@@ -37,7 +37,7 @@ sub db ($) {
 sub account_server ($$$) {
   my ($self, $path, $params) = @_;
   my $prefix = $self->config->get ('account.url_prefix');
-  my $api_token = $self->config->{account_token};
+  my $api_token = $self->config->get ('account.token');
   return Promise->new (sub {
     my ($ok, $ng) = @_;
     http_post
