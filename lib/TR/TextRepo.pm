@@ -499,6 +499,14 @@ sub get_data_as_jsonalizable ($%) {
     my $all_texts = $_[0]->{texts};
     my $selected_texts = {};
 
+    if (@{$query->text_ids}) {
+      my $texts = {};
+      for my $text_id (@{$query->text_ids}) {
+        $texts->{$text_id} = $all_texts->{$text_id} if defined $all_texts->{$text_id};
+      }
+      $all_texts = $texts;
+    }
+
     my $msgids = {map { $_ => 1 } @{$query->msgids}};
     undef $msgids unless keys %$msgids;
     my $tag_ors = $query->tag_ors;
