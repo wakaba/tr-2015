@@ -4,6 +4,7 @@ cd `dirname $0`/..
 
 cat ../config.json | ./perl -MPath::Tiny -n -e '$root = path (".")->absolute; s/\@\@ROOT\@\@/$root/g; print' > local/config.json
 export APP_CONFIG=local/config.json
+export WEBUA_DEBUG=2
 
 while true
 do
