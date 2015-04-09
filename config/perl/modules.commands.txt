@@ -1,0 +1,5 @@
+AnyEvent
+Digest::SHA
+Encode
+Git::Raw
+Path::Tiny
