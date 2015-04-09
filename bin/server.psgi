@@ -17,20 +17,6 @@ TR::Config->from_file_name ($config_file_name)->then (sub {
   $cv->croak ($_[0]);
 });
 my $config = $cv->recv;
-
-
-#XXX
-use Path::Tiny;
-use MIME::Base64;
-my $key_path = path (__FILE__)->parent->parent->child ('local/keys/devel');
-$config->{es_url_prefix} = decode_base64 $key_path->child ('es-url-prefix.txt')->slurp;
-$config->{es_user} = decode_base64 $key_path->child ('es-user.txt')->slurp;
-$config->{es_password} = decode_base64 $key_path->child ('es-password.txt')->slurp;
-
-#$config->{account_url_prefix} = decode_base64 $key_path->child ('account-url-prefix.txt')->slurp;
-$config->{account_token} = decode_base64 $key_path->child ('account-token.txt')->slurp;
-$config->{account_sk_context} = 'tr';
-
 return TR::Web->psgi_app ($config);
 
 =head1 LICENSE
