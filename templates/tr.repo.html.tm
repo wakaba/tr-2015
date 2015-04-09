@@ -62,7 +62,7 @@
             tr.querySelector ('a').href = './' + encodeURIComponent (branch.name) + '/';
             tr.querySelector ('.name').textContent = branch.name;
             tr.querySelector ('.commit-message').textContent = branch.commit_message;
-            tr.querySelector ('.modified').textContent = new Date (parseInt (branch.commit_author.time) * 1000).toISOString ();
+            tr.querySelector ('.modified').textContent = new Date (parseInt ((branch.commit_author || {time: 0}).time) * 1000).toISOString ();
             tbody.appendChild (tr);
           }
           new TER (tbody);

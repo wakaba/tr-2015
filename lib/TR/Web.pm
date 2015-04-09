@@ -549,7 +549,6 @@ sub main ($$) {
           $_->{commit_message} = $log->{body};
           $_->{committer} = $log->{committer};
           $_->{commit_author} = $log->{author};
-          $_->{author} = $log->{author};
         }
         return $app->send_last_json_chunk (200, 'OK', {text_sets => $text_sets});
       });

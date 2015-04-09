@@ -67,7 +67,7 @@
             tr.onclick = function () { this.querySelector ('a').click () };
             tr.querySelector ('.path').textContent = set.path;
             tr.querySelector ('.commit-message').textContent = set.commit_message;
-            tr.querySelector ('.modified').textContent = new Date (parseInt (set.commit_author.time) * 1000).toISOString ();
+            tr.querySelector ('.modified').textContent = new Date (parseInt ((set.commit_author || {time: 0}).time) * 1000).toISOString ();
             var setURL = './' + encodeURIComponent (set.path) + '/';
             Array.prototype.forEach.call (tr.querySelectorAll ('a[data-href]'), function (a) {
               a.href = a.getAttribute ('data-href').replace (/\{text_set_url\}/g, setURL);
