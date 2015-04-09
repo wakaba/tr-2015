@@ -16,7 +16,7 @@ sub put_data ($$) {
     if (keys %{$data->{texts}}) {
       my $prefix = $self->{config}->get ('es.url_prefix');
       my $auth = [$self->{config}->get ('es.user'),
-                  $self->{config}->get ('es.password')}];
+                  $self->{config}->get ('es.password')];
 
       my $repo_url = $data->{repo_url};
       my $repo_path = $data->{repo_path};
@@ -61,9 +61,9 @@ sub search ($$) {
   $word =~ s{([+\-=&|><!(){}\[\]^"~*?:\\/])}{\\$1}g;
   $word = qq{"$word"};
 
-  my $prefix = $self->{config}->get ('es.url_prefix')};
-  my $auth = [$self->{config}->get ('es.user')},
-              $self->{config}->get ('es.password')}];
+  my $prefix = $self->{config}->get ('es.url_prefix');
+  my $auth = [$self->{config}->get ('es.user'),
+              $self->{config}->get ('es.password')];
   return Promise->new (sub {
     my ($ok, $ng) = @_;
     http_post_data
