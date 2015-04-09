@@ -669,6 +669,7 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] eq 'XXXupdate-index') {
       # .../XXXupdate-index
       # XXX request method
+      # XXX skip if non-default branch
       my $tr_config;
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
         return $tr->prepare_mirror ($_[0], $app);

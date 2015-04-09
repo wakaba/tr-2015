@@ -9,5 +9,5 @@ export WEBUA_DEBUG=2
 while true
 do
   echo "-----> Starting application server..."
-  ./plackup bin/server.psgi -p $PORT -s Twiggy::Prefork
+  ./plackup bin/server.psgi -p $PORT -s Twiggy::Prefork --max_workers=5
 done
