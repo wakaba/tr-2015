@@ -1171,8 +1171,8 @@ sub main ($$) {
           (sk => $json->{sk},
            expires => $json->{sk_expires},
            httponly => 1,
-           secure => 0, # XXX
-           domain => undef, # XXX
+           secure => $app->config->get ('cookie.secure'),
+           domain => $app->config->get ('cookie.domain'),
            path => q</>) if $json->{set_sk};
       return $app->account_server (q</login>, {
         sk => $json->{sk},
