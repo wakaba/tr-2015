@@ -1284,6 +1284,12 @@ sub main ($$) {
     }->{$1});
   }
 
+  if (@$path == 1 and $path->[0] eq 'robots.txt') {
+    # /robots.txt
+    # XXX
+    return $app->send_plain_text ("User-Agent: *\nDisallow: /\n");
+  }
+
   return $app->send_error (404);
 } # main
 
