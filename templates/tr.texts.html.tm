@@ -755,7 +755,11 @@ function syncTextComments (commentsEl, textComments) {
     <script>
       function showSearchSidebar (q) {
         var sidebar = document.querySelector ('body > .sidebar');
-        if (sidebar.hidden) sidebar.querySelector ('hr').click ();
+        if (sidebar.hidden) {
+          var resizer = sidebar.querySelector ('hr');
+          resizer.trInstallTemplate ();
+          resizer.click ();
+        }
         if (q) {
           sidebar.querySelector ('input[name=q]').value = q;
           sidebar.querySelector ('form').onsubmit ();
@@ -1176,14 +1180,7 @@ function syncTextComments (commentsEl, textComments) {
   function resizer (root) {
     Array.prototype.forEach.call (root.querySelectorAll ('hr.resizer'), function (resizer) {
       var resized = resizer.parentNode;
-      resizer.onmousedown = function (ev) {
-        document.trCurrentResizer = resizer;
-        document.trResizeStart = (new Date).valueOf ();
-        document.trTransparent = document.createElement ('div');
-        document.trTransparent.className = 'resizer-transparent';
-        document.body.appendChild (document.trTransparent);
-        resizer.classList.add ('resizing');
-        document.documentElement.classList.add ('resizing');
+      resizer.trInstallTemplate = function () {
         var style = resized.trResizeCSS;
         if (!style) {
           var cssTemplate = resized.querySelector ('.resize-css');
@@ -1197,6 +1194,16 @@ function syncTextComments (commentsEl, textComments) {
         if (resized.trResizeStyle !== "") {
           resized.trResizeStyle = resizer.getAttribute ('data-th-style') || "";
         }
+      }; // trInstallTemplate
+      resizer.onmousedown = function (ev) {
+        document.trCurrentResizer = resizer;
+        document.trResizeStart = (new Date).valueOf ();
+        document.trTransparent = document.createElement ('div');
+        document.trTransparent.className = 'resizer-transparent';
+        document.body.appendChild (document.trTransparent);
+        resizer.classList.add ('resizing');
+        document.documentElement.classList.add ('resizing');
+        this.trInstallTemplate ();
         if (resized.hidden) {
           resizer.onclick ();
           resizer.trResize (ev);
@@ -1205,7 +1212,7 @@ function syncTextComments (commentsEl, textComments) {
       resizer.onselectstart = function () { return false };
       resizer.trResize = function (ev) {
         if (document.trResizeStart + 200 > (new Date).valueOf ()) return;
-        var resizedWidth = ev.pageX - resized.offsetLeft;
+        var resizedWidth = ev ? ev.pageX - resized.offsetLeft : 16;
         if (resizedWidth < 16) resizedWidth = 16;
         if (resized.trResizeCSS) {
           resized.trResizeCSS.textContent = resized.trResizeCSS.trTemplate.replace (/%%WIDTH%%/g, resizedWidth + 'px');

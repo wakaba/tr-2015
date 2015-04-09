@@ -156,6 +156,8 @@ sub prepare_mirror ($$$) {
   } elsif ($repo_type eq 'file') {
     # XXX
     $url =~ s{^file://demo/}{@{[path (__FILE__)->parent->parent->parent->child ('local/pub')]}/};
+    $url2 = $url;
+    $self->{keyed_url_for_push} = $url;
   } else {
     die "Unknown repository type |$repo_type|";
   }
