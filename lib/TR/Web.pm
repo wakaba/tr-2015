@@ -1210,7 +1210,7 @@ sub main ($$) {
     return $class->session ($app)->then (sub {
       my $account = $_[0];
       return $app->send_json ({name => $account->{name}, # or undef
-                               account_id => ''.$account->{account_id}}); # or undef
+                               account_id => (defined $account->{account_id} ? ''.$account->{account_id} : undef)});
       # XXX icon
     });
     # XXX report remote API error

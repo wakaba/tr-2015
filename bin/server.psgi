@@ -17,6 +17,13 @@ TR::Config->from_file_name ($config_file_name)->then (sub {
   $cv->croak ($_[0]);
 });
 my $config = $cv->recv;
+
+if ($config->get ('http.x-forwarded-*')) {
+  $Wanage::HTTP::UseXForwardedScheme = 1;
+  $Wanage::HTTP::UseXForwardedHost = 1;
+  $Wanage::HTTP::UseXForwardedFor = 1;
+}
+
 return TR::Web->psgi_app ($config);
 
 =head1 LICENSE
