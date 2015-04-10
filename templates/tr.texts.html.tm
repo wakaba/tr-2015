@@ -21,6 +21,13 @@
   <meta itemprop=lang-params pl:content="join '&', map { 'lang=' . percent_encode_c $_ } @{$app->text_param_list ('lang')}">
 
   <nav class=toolbar>
+    <t:my as=$remote_url x="$tr->remote_viewer_url">
+    <t:if x="defined $remote_url">
+      <a pl:href=$remote_url target=remote>
+        GitHub で開く<!-- XXX -->
+      </a>
+    </t:if>
+
     <a href="#share" onclick=" modalDialog ('share', true); return false " class=share title="共有">Share</a>
     <a href=import class=import title="テキスト集合に外部データを取り込み" target=config>Import</a><!-- XXX lang= & tag=  -->
     <a href="#export" onclick=" modalDialog ('export', true); return false " class=export title="テキスト集合からデータファイルを生成">Export</a>

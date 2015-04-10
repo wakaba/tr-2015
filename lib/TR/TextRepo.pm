@@ -115,6 +115,19 @@ sub texts_path ($) {
   };
 } # texts_path
 
+sub remote_viewer_url ($) {
+  my $self = $_[0];
+  my $repo_type = $self->repo_type;
+  if ($repo_type eq 'github') {
+    my $url = $self->url; # https://github.com/{user}/{repo}
+    $url .= '/tree/' . percent_encode_c ($self->branch);
+    $url .= '/' . ($self->texts_dir // '/');
+    return $url;
+  } else {
+    return undef;
+  }
+} # remote_viewer_url
+
 sub prepare_mirror ($$$) {
   my ($self, $keys, $app) = @_;
   my $p = Promise->resolve;
