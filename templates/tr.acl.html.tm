@@ -32,7 +32,7 @@
       <template class=acl-row-template>
         <th><span class=account>{account}</span>
         <td>
-          <form action=acl method=post>
+          <form action=acl.ndjson method=post>
             <input type=hidden name=operation value=update_account_privilege>
             <ul>
               <li><label><input type=checkbox checked disabled> テキストの表示</label>
@@ -74,7 +74,7 @@
           <tr>
             <th>所有者
             <td><span class=owner-account data-no-owner="未設定"></span>
-              <form action=acl.json method=post>
+              <form action=acl.ndjson method=post>
                 <input type=hidden name=operation value=join>
                 <input type=hidden name=owner value=1>
                 <button type=submit>所有権を取得</button>
