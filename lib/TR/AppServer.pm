@@ -86,7 +86,7 @@ sub send_progress_json_chunk ($$;$) {
     $json->{max} = $values->[1];
   }
   $self->http->send_response_body_as_ref (\perl2json_bytes $json);
-  $self->http->send_response_body_as_ref (\"\nnull\n");
+  $self->http->send_response_body_as_ref (\"\n");
 } # send_progress_json_chunk
 
 sub send_last_json_chunk ($$$$) {
@@ -95,7 +95,7 @@ sub send_last_json_chunk ($$$$) {
     $self->http->send_response_body_as_ref
         (\perl2json_bytes {status => $status, message => $reason // $status,
                            data => $data});
-    $self->http->send_response_body_as_ref (\"\nnull\n");
+    $self->http->send_response_body_as_ref (\"\n");
   } else {
     $self->http->set_status ($status, reason_phrase => $reason);
     $self->http->set_response_header

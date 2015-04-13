@@ -7,9 +7,12 @@
         if (xhr.status === 200 || xhr.status === 202) {
           if (/ndjson/.test (xhr.getResponseHeader ('Content-Type'))) {
             var responses = xhr.responseText.split (/\n/);
-            while (nextChunk + 1 < responses.length) {
-              var chunk = JSON.parse (responses[nextChunk]);
-              nextChunk += 2;
+            while (nextChunk < responses.length - (xhr.readyState === 4 ? 0 : 1)) {
+              var json = responses[nextChunk].replace (/^\s+/, '');
+              nextChunk++;
+              if (!json) return;
+              var chunk = JSON.parse (json);
+              if (!chunk) return;
               if (chunk.status === 102) {
                 onprogress (chunk);
               } else if (chunk.status === 200 || chunk.status === 204) {
