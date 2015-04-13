@@ -607,6 +607,27 @@ sub run_import ($%) {
   });
 } # run_import
 
+sub run_export ($%) {
+  my ($self, %args) = @_;
+  my $json_path = $self->{temp_path}->child ('export-'.rand.'.json');
+  my $json_file = Promised::File->new_from_path ($json_path);
+  return $json_file->write_byte_string (perl2json_bytes \%args)->then (sub {
+    my $root_path = path (__FILE__)->parent->parent->parent;
+    my $cmd = Promised::Command->new ([
+      $root_path->child ('perl'),
+      $root_path->child ('bin/export.pl'),
+      $self->repo_path,
+      $self->branch,
+      $self->{texts_dir} // '',
+      $json_path,
+    ]);
+    return $cmd->run->then (sub { return $cmd->wait });
+  })->then (sub {
+    my $result = $_[0];
+    die $result unless $result->exit_code == 0;
+  });
+} # run_export
+
 sub add_by_paths ($$) {
   my ($self, $paths) = @_;
   return Promise->reject ("No file to add") unless @$paths;

@@ -395,9 +395,13 @@ sub main ($$) {
               created => $time,
               updated => $time,
             }], duplicate => {
-              is_owner => $app->db->bare_sql_fragment ('VALUES(is_owner)'),
+              ($rights->{is_owner} ? (
+                is_owner => $app->db->bare_sql_fragment ('VALUES(is_owner)'),
+                data => $app->db->bare_sql_fragment ('VALUES(data)'),
+              ) : ()),
               updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
             })->then (sub {
+              # XXX as developer / as translator scopes
               return $app->db->execute ('UPDATE `repo_access` SET is_owner = 0 AND updated = ? WHERE repo_url = ? AND account_id != ?', {
                 repo_url => Dongry::Type->serialize ('text', $tr->url),
                 account_id => Dongry::Type->serialize ('text', $account->{account_id}),
@@ -883,6 +887,8 @@ sub main ($$) {
                 return $tr->write_file_by_text_id_and_suffix
                     ($text_id, $lang . '.txt' => $te->as_source_text);
               }
+            })->then (sub {
+              return $tr->run_export;
             })->then (sub { return {} });
           },
           scope => 'edit/' . $lang,
@@ -930,7 +936,9 @@ sub main ($$) {
                   ($text_id, 'dat' => $te->as_source_text)->then (sub {
                 return $te->as_jsonalizable;
               });
-            });
+            })->then (sub {
+              return $tr->run_export;
+            })->then (sub { return {} });
           },
           scope => 'texts',
           default_commit_message => 'Modified text metadata',

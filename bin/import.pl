@@ -241,6 +241,7 @@ sub import_auto ($$$$$%) {
       lang => $lang,
       format => 'po',
     };
+    # XXX create export rule
   } # $file
   return import_file ($root_tree, $repo_dir, $texts_dir, $msgid_to_text_id, %args);
 } # import_auto
