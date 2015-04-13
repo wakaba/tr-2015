@@ -938,12 +938,13 @@ sub main ($$) {
 
               return $tr->write_file_by_text_id_and_suffix
                   ($text_id, 'dat' => $te->as_source_text)->then (sub {
+                $app->send_progress_json_chunk ('Running export rules...');
+              })->then (sub {
+                return $tr->run_export;
+              })->then (sub {
                 return $te->as_jsonalizable;
               });
-            })->then (sub {
-              $app->send_progress_json_chunk ('Running export rules...');
-              return $tr->run_export;
-            })->then (sub { return {} });
+            });
           },
           scope => 'texts',
           default_commit_message => 'Modified text metadata',

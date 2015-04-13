@@ -163,6 +163,17 @@
         </span>
 
         <span class=desc></span>
+
+        <span class=locations-area title="このテキストが使われている場所">
+          <template><!-- {span|a} class=location -->
+            <span class="if-label label">{label}</span>
+            <span class=unless-label>
+              <span class="if-file file">{file}</span>
+              <span class=if-line><span class=line>{line}</span><span class=if-column>.<span class=column>{column}</span></span></span>
+            </span>
+          </template>
+        </span>
+
         <span class=buttons><button type=button class=edit title="テキスト情報を編集" onclick=" modalDialog ('config-text', true, {area: parentNode.parentNode}) ">編集</button></span>
     <tr class=text-body>
       <script class=lang-area-placeholder />
@@ -360,6 +371,31 @@
       mid.href = './?msgid=' + encodeURIComponent (text.msgid);
       mid.setAttribute ('data-query', 'msgid:' + escapeQueryValue (text.msgid));
       mid.querySelector ('code').textContent = text.msgid;
+    }
+
+    if (text.locations && text.locations.length) {
+      var locArea = area.querySelector ('.locations-area');
+      Array.prototype.slice.call (locArea.querySelectorAll ('.location')).forEach (function (el) {
+        el.parentNode.removeChild (el);
+      });
+      var template = locArea.querySelector ('template');
+      text.locations.forEach (function (l) {
+        try { l = JSON.parse (l) } catch (e) { l = {} };
+        var loc = document.createElement (l.url ? 'a' : 'span');
+        loc.className = 'location';
+        loc.innerHTML = template.innerHTML;
+        ['label', 'file', 'line', 'column'].forEach (function (v) {
+          if (l[v]) {
+            loc.querySelector ('.' + v).textContent = l[v];
+            loc.classList.add ('has-' + v);
+          }
+        });
+        if (l.url) {
+          loc.href = l.url; // XXX resolve & validation
+          loc.target = 'location';
+        }
+        locArea.appendChild (loc);
+      });
     }
 
     area.querySelector ('.desc').textContent = text.desc || '';

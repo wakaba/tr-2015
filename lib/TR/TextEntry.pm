@@ -20,7 +20,7 @@ sub _ec ($) {
 } # _ec
 
 sub _ue ($) {
-  return $_[0] unless $_[0] =~ /\\/;
+  return $_[0] unless index ($_[0], '\\') > -1;
   my $v = $_[0];
   $v =~ s/\\([nrC\\])/{n => "\x0A", r => "\x0D", "C" => ":", "\\" => "\\"}->{$1}/ge;
   return $v;

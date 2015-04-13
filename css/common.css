@@ -401,6 +401,37 @@ thead, tbody, tfoot {
   padding: 0;
 }
 
+.text-header .locations-area {
+  display: block;
+  padding-left: 0.5em;
+  line-height: 1.3;
+  font-size: 80%;
+}
+
+.text-header .locations-area:empty {
+  display: none;
+}
+
+.text-header .locations-area .location {
+  display: inline;
+  margin-right: 0.5em;
+  text-decoration: none;
+  color: inherit;
+}
+
+.text-header .locations-area a.location:hover {
+  text-decoration: underline;
+}
+
+.text-header .locations-area .location:not(.has-label) .if-label { display: none }
+.text-header .locations-area .location:not(.has-file) .if-file { display: none }
+.text-header .locations-area .location:not(.has-line) .if-line { display: none }
+.text-header .locations-area .location:not(.has-column) .if-column { display: none }
+.text-header .locations-area .location.has-label .unless-label { display: none }
+.text-header .locations-area .location.has-file .unless-file { display: none }
+.text-header .locations-area .location.has-line .unless-line { display: none }
+.text-header .locations-area .location.has-column .unless-column { display: none }
+
 .text-header .desc {
   display: block;
   line-height: 1.3;
@@ -479,7 +510,8 @@ button.close::before,
 button.search::before,
 a.import::before,
 a.export::before,
-a.share::before {
+a.share::before,
+.locations-area .location::before {
   font-family: 'LigatureSymbols';
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -496,6 +528,7 @@ a.share::before { content: "link" }
 .texts-lang-area-menu button.toggle-edit::before { content: "pen " }
 .texts-comments-area-menu button.toggle-edit::before { content: "pen " }
 .texts-lang-area-menu button.search::before { content: "search " }
+.locations-area .location::before { content: "app " }
 
 button.toggle-edit.active {
   border-top-left-radius: 0.3rem;
