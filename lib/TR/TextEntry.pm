@@ -9,9 +9,15 @@ sub is_text_id ($) {
 
 sub _e ($) {
   my $s = $_[0];
-  $s =~ s/([\x0D\x0A:\\])/{"\x0D" => "\\r", "\x0A" => "\\n", ":" => "\\C", "\\" => "\\\\"}->{$1}/ge;
+  $s =~ s/([\x0D\x0A\\])/{"\x0D" => "\\r", "\x0A" => "\\n", "\\" => "\\\\"}->{$1}/ge;
   return $s;
 } # _e
+
+sub _ec ($) {
+  my $s = $_[0];
+  $s =~ s/([\x0D\x0A:\\])/{"\x0D" => "\\r", "\x0A" => "\\n", ":" => "\\C", "\\" => "\\\\"}->{$1}/ge;
+  return $s;
+} # _ec
 
 sub _ue ($) {
   return $_[0] unless $_[0] =~ /\\/;
@@ -36,11 +42,11 @@ sub new_from_text_id_and_source_text ($$$) {
       my ($n, $v) = ($1, $2);
       $props->{_ue $n} = _ue $v;
     } elsif (/\A&([^:]+):(.*)\z/) {
-      my ($n, $v) = ($1, $2);
-      $enum_props->{_ue $n}->{_ue $v} = 1;
+      my ($n, $v) = (_ue $1, _ue $2);
+      $enum_props->{$n}->{$v} = 1;
     } elsif (/\A\@([^:]+):(.*)\z/) {
-      my ($n, $v) = ($1, $2);
-      push @{$list_props->{_ue $n} ||= []}, _ue $v;
+      my ($n, $v) = (_ue $1, _ue $2);
+      push @{$list_props->{$n} ||= []}, $v;
     }
   }
   return $self;
@@ -83,20 +89,20 @@ sub as_source_text ($) {
   my $props = $self->{props};
   my @s;
   for (sort { $a cmp $b } keys %$props) {
-    my $s = '$' . (_e $_) . ':' . _e $props->{$_};
+    my $s = '$' . (_ec $_) . ':' . _e $props->{$_};
     push @s, $s;
   }
   my $enum_props = $self->{enum_props};
   for my $key (sort { $a cmp $b } keys %$enum_props) {
     for (sort { $a cmp $b } grep { $enum_props->{$key}->{$_} } keys %{$enum_props->{$key}}) {
-      my $s = '&' . (_e $key) . ':' . _e $_;
+      my $s = '&' . (_ec $key) . ':' . _e $_;
       push @s, $s;
     }
   }
   my $list_props = $self->{list_props};
   for my $key (sort { $a cmp $b } keys %$list_props) {
     for my $item (@{$list_props->{$key}}) {
-      my $s = '@' . (_e $key) . ':' . _e $item;
+      my $s = '@' . (_ec $key) . ':' . _e $item;
       push @s, $s;
     }
   }

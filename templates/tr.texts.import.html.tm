@@ -52,6 +52,13 @@
       <p class=buttons><button type=submit>Import</button>
       <p class=status hidden><progress></progress> <span class=message></span>
     </form>
+
+    <form action=import.ndjson method=post enctype=multipart/form-data>
+      <input type=hidden name=from value=config>
+      <p class=buttons><button type=submit>インポート設定に従ってリポジトリー内からインポート</button>
+      <p class=status hidden><progress></progress> <span class=message></span>
+    </form>
+
     <script src=/js/core.js charset=utf-8 />
     <script>
       Array.prototype.forEach.call (document.querySelector ('section.config').querySelectorAll ('form[method=post]'), function (form) {

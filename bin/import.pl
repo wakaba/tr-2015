@@ -3,7 +3,7 @@ use warnings;
 use Path::Tiny;
 use Encode;
 use Digest::SHA qw(sha1_hex);
-use JSON::Functions::XS qw(json_bytes2perl);
+use JSON::Functions::XS qw(json_bytes2perl perl2json_chars_for_record);
 use TR::Langs;
 use TR::TextEntry;
 use AnyEvent;
@@ -11,6 +11,7 @@ use Promised::Command;
 use Git::Raw;
 use Git::Raw::Branch;
 use Git::Raw::Blob;
+BEGIN { require 'gitraw.pl' };
 
 sub generate_text_id () {
   return sha1_hex (time () . $$ . rand ());
@@ -61,6 +62,18 @@ sub import_file ($$$$%) {
   my $modified_text_ids = {};
   my $modified_file_names = {};
 
+  my $touch_msgid = sub ($) {
+    my $msgid = $_[0];
+    my $text_id = $msgid_to_text_id->{$msgid};
+    unless (defined $text_id) {
+      $text_id = generate_text_id;
+      $msgid_to_text_id->{$msgid} = $text_id;
+      $new_text_ids->{$text_id} = $msgid;
+      $modified_text_ids->{$text_id} = 1;
+    }
+    return $text_id;
+  }; # $touch_msgid
+
   my $edit_te = sub ($$$) {
     my ($path, $id, $code) = @_;
     my $file_path = path ($repo_dir)->child ($path);
@@ -70,9 +83,7 @@ sub import_file ($$$$%) {
             $file_path->slurp;
           } else {
             my $file_entry = $root_tree->entry_bypath ($path);
-            if (defined $file_entry and
-                $file_entry->object->is_blog and
-                not $file_entry->file_mode & 020000) { # symlink
+            if (entry_is_blob $file_entry) {
               $file_entry->content;
             } else {
               '';
@@ -105,15 +116,9 @@ sub import_file ($$$$%) {
 
       for my $e (@{$es->entries}) {
         # XXX warn duplicate msgid
-        my $id = $msgid_to_text_id->{$e->msgid};
-        unless (defined $id) {
-          $id = generate_text_id;
-          $msgid_to_text_id->{$e->msgid} = $id;
-          $new_text_ids->{$id} = $e->msgid;
-          $modified_text_ids->{$id} = 1;
-        }
-        my $path = text_id_and_suffix_to_relative_path $texts_dir, $id, $lang.'.txt';
-        $edit_te->($path, $id, sub {
+        my $text_id = $touch_msgid->($e->msgid);
+        my $path = text_id_and_suffix_to_relative_path $texts_dir, $text_id, $lang.'.txt';
+        $edit_te->($path, $text_id, sub {
           my $te = $_[0];
           my $current = $te->get ('body_0');
           my $new = $e->msgstr;
@@ -126,10 +131,33 @@ sub import_file ($$$$%) {
           # XXX args
           if ($modified) {
             $te->set (last_modified => time);
-            $modified_text_ids->{$id} = 1;
+            $modified_text_ids->{$text_id} = 1;
           }
           return $modified;
         });
+      }
+    } elsif ($file->{format} eq 'tr-locations') {
+      my $json = json_bytes2perl $file->{bytes};
+      if (defined $json and ref $json eq 'HASH') {
+        if (defined $json->{msgids} and ref $json->{msgids} eq 'HASH') {
+          for my $msgid (keys %{$json->{msgids}}) {
+            my $entries = $json->{msgids}->{$msgid};
+            next unless (defined $entries and ref $entries eq 'ARRAY');
+            next unless @$entries;
+            my $new_locs = [map { perl2json_chars_for_record $_ } @$entries]; # XXX no indent
+
+            my $text_id = $touch_msgid->($msgid);
+            my $path = text_id_and_suffix_to_relative_path $texts_dir, $text_id, 'dat';
+            $edit_te->($path, $text_id, sub {
+              my $te = $_[0];
+              my $locs = $te->list ('locations');
+              my %found;
+              @$locs = grep { not $found{$_}++ } @$locs, @$new_locs;
+              return 1;
+            });
+            $modified_text_ids->{$text_id} = 1;
+          }
+        }
       }
     } else {
       # XXX
@@ -246,6 +274,30 @@ sub import_auto ($$$$$%) {
   return import_file ($root_tree, $repo_dir, $texts_dir, $msgid_to_text_id, %args);
 } # import_auto
 
+sub import_by_config ($$$$$$) {
+  my ($root_tree, $repo_dir, $texts_dir, $texts_tree, $config, $get_msgid_to_text_id) = @_;
+  my $msgid_to_text_id;
+  if (defined $config->{import} and ref $config->{import} eq 'ARRAY') {
+    for my $rule (@{$config->{import}}) {
+      next unless defined $rule and ref $rule eq 'HASH';
+      my $file_name = $rule->{file};
+      die "XXX |file| not specified" unless defined $file_name;
+      my $file_entry = $texts_tree->entry_bypath ($file_name);
+      undef $file_entry unless entry_is_blob $file_entry;
+      die "XXX |file| |$file_name| not found" unless defined $file_entry;
+      $msgid_to_text_id ||= $get_msgid_to_text_id->();
+      return import_file (
+        $root_tree, $repo_dir, $texts_dir, $msgid_to_text_id,
+        files => [{
+          label => $rule->{file},
+          bytes => $file_entry->object->content,
+          format => $rule->{format},
+        }],
+      );
+    }
+  }
+} # import_by_config
+
 ## ------ Main ------
 
 my ($repo_dir, $branch_name, $texts_dir, $json_dir) = @ARGV;
@@ -268,6 +320,13 @@ if ($from eq 'file') {
   my $msgid_to_text_id = get_msgid_to_text_id_mapping
       ($repo_dir, $branch_name, $texts_dir);
   import_auto $root_tree, $repo_dir, $branch_name, $texts_dir, $msgid_to_text_id, %$json;
+} elsif ($from eq 'config') {
+  my $texts_tree = get_texts_tree $git_branch, $texts_dir; # or undef
+  my $config = get_texts_config $texts_tree; # XXX search working directory first
+  import_by_config $root_tree, $repo_dir, $texts_dir, $texts_tree, $config, sub {
+    return get_msgid_to_text_id_mapping
+        ($repo_dir, $branch_name, $texts_dir);
+  };
 } else {
   die "Unknown |from|: |$from|";
 }

@@ -829,6 +829,9 @@ sub main ($$) {
           tags => $app->text_param_list ('tag')->grep (sub { length }),
         );
       })->then (sub {
+        $app->send_progress_json_chunk ('Running export rules...');
+        return $tr->run_export;
+      })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
         $msg = 'Imported' unless length $msg;
         $app->send_progress_json_chunk ('Creating a commit...');
@@ -888,6 +891,7 @@ sub main ($$) {
                     ($text_id, $lang . '.txt' => $te->as_source_text);
               }
             })->then (sub {
+              $app->send_progress_json_chunk ('Running export rules...');
               return $tr->run_export;
             })->then (sub { return {} });
           },
@@ -937,6 +941,7 @@ sub main ($$) {
                 return $te->as_jsonalizable;
               });
             })->then (sub {
+              $app->send_progress_json_chunk ('Running export rules...');
               return $tr->run_export;
             })->then (sub { return {} });
           },

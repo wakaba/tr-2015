@@ -6,6 +6,7 @@ use Git::Raw::Repository;
 use Git::Raw::Branch;
 use AnyEvent;
 use Promised::Command;
+BEGIN { require 'gitraw.pl' };
 
 sub get_dump ($$$$) {
   my $root_path = path (__FILE__)->parent->parent;
@@ -42,27 +43,8 @@ undef $texts_dir unless length $texts_dir;
 my $git_repo = Git::Raw::Repository->open ($repo_dir);
 my $git_branch = Git::Raw::Branch->lookup ($git_repo, $branch_name, 1)
     // die "Branch |$branch_name| not found";
-my $root_tree = $git_branch->target->tree;
-
-my $texts_tree = $root_tree;
-if (defined $texts_dir) {
-  my $texts_entry = $root_tree->entry_bypath ($texts_dir);
-  if (defined $texts_entry and $texts_entry->object->is_tree) {
-    $texts_tree = $texts_entry->object;
-  } else {
-    $texts_tree = undef;
-  }
-}
-
-my $config = {};
-if (defined $texts_tree) {
-  my $config_entry = $texts_tree->entry_bypath ('texts.json');
-  if (defined $config_entry and $config_entry->object->is_blob and
-      not $config_entry->file_mode & 020000) { # symlink
-    $config = json_bytes2perl $config_entry->object->content;
-    undef $config if defined $config and not ref $config eq 'HASH';
-  }
-}
+my $texts_tree = get_texts_tree $git_branch, $texts_dir; # or undef
+my $config = get_texts_config $texts_tree;
 
 my $modified_file_names = {};
 my $data = {};
@@ -71,15 +53,15 @@ if (defined $export and ref $export eq 'ARRAY') {
   for my $rule (@$export) {
     next unless ref $rule eq 'HASH';
 
-    # {lang => $lang_key, format => $format, arg_format => $arg_format,
+    # {lang => $lang_key, format => $format, argFormat => $arg_format,
     #  query => $query,
-    #  file_template => $file_name_template}
+    #  fileTemplate => $file_name_template}
     # XXX lang => undef = auto
 
     $data->{$rule->{query} // ''} ||= do {
       require TR::Query;
       my $q = TR::Query->parse_query (query => $rule->{query});
-      get_dump $repo_dir, $branch_name, $texts_dir, $rule->{query};
+      get_dump $repo_dir, $branch_name, $texts_dir, $rule->{query}; # XXX should use git index
     };
 
     if (($rule->{format} // '') eq 'po') {
@@ -139,12 +121,16 @@ if (defined $export and ref $export eq 'ARRAY') {
               $es->add_entry ($e);
             }
 
-      my $file_name = $rule->{file_template} // die "|file_template| is not specified";
+      my $file_name = $rule->{fileTemplate} // do {
+        # XXX
+        warn "|fileTemplate| is not specified";
+        next;
+      };
       $file_name =~ s/\{lang\}/$lang/g;
 
       my $repo_path = path ($repo_dir);
       my $file_path = (defined $texts_dir ? path ($texts_dir) : path ('.'))
-          ->child ('texts', $file_name); # XXX validation
+          ->child ($file_name); # XXX validation
       my $path = $repo_path->child ($file_path);
       $path->parent->mkpath; # or die XXX
       $path->spew_utf8 ($es->stringify); # or die XXX
