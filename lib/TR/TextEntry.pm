@@ -3,10 +3,6 @@ use strict;
 use warnings;
 use Unicode::UTF8 qw(decode_utf8);
 
-sub is_text_id ($) {
-  return $_[0] =~ /\A[0-9a-f]{3,128}\z/;
-} # is_text_id
-
 sub _e ($) {
   my $s = $_[0];
   $s =~ s/([\x0D\x0A\\])/{"\x0D" => "\\r", "\x0A" => "\\n", "\\" => "\\\\"}->{$1}/ge;
@@ -26,13 +22,13 @@ sub _ue ($) {
   return $v;
 } # _ue
 
-sub new_from_text_id_and_source_bytes ($$$) {
-  return shift->new_from_text_id_and_source_text ($_[0], decode_utf8 $_[1]);
-} # new_from_text_id_and_source_bytes
+sub new_from_source_bytes ($$) {
+  return shift->new_from_source_text (decode_utf8 $_[0]);
+} # new_from_source_bytes
 
-sub new_from_text_id_and_source_text ($$$) {
-  my ($class, $id, $text) = @_;
-  my $self = bless {text_id => $id}, $class;
+sub new_from_source_text ($$) {
+  my ($class, $text) = @_;
+  my $self = bless {}, $class;
   my $props = $self->{props} = {};
   my $enum_props = $self->{enum_props} = {};
   my $list_props = $self->{list_props} = {};
@@ -50,11 +46,7 @@ sub new_from_text_id_and_source_text ($$$) {
     }
   }
   return $self;
-} # new_from_text_id_and_source_text
-
-sub text_id ($) {
-  return $_[0]->{text_id};
-} # text_id
+} # new_from_source_text
 
 sub get ($$) {
   return $_[0]->{props}->{$_[1]}; # or undef

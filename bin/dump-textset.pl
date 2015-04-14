@@ -43,18 +43,18 @@ if (defined $set_parent_tree and $set_parent_tree->is_tree) {
           $type = 'txt';
         }
         if ($type eq 'txt') {
-          my $te = TR::TextEntry->new_from_text_id_and_source_bytes
-              ($text_id, $entry->object->content);
+          my $te = TR::TextEntry->new_from_source_bytes
+              ($entry->object->content);
           $txt_entries->{$text_id}->{$lang} = $te->as_jsonalizable;
         } elsif ($type eq 'dat') {
-          my $te = TR::TextEntry->new_from_text_id_and_source_bytes
-              ($text_id, $entry->object->content);
+          my $te = TR::TextEntry->new_from_source_bytes
+              ($entry->object->content);
           $dat_entries->{$text_id} = $te->as_jsonalizable;
         } elsif ($type eq 'comments' and $WithComments) {
           my $comments = $comments_entries->{$text_id} = [];
           for (grep { length } split /\x0D?\x0A\x0D?\x0A/, $entry->object->content) {
-            push @$comments, TR::TextEntry->new_from_text_id_and_source_bytes
-                ($text_id, $_)->as_jsonalizable;
+            push @$comments, TR::TextEntry->new_from_source_bytes
+                ($_)->as_jsonalizable;
           }
         }
       }

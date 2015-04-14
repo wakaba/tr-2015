@@ -77,8 +77,8 @@ sub import_file ($$$$%) {
   my $edit_te = sub ($$$) {
     my ($path, $id, $code) = @_;
     my $file_path = path ($repo_dir)->child ($path);
-    my $te = TR::TextEntry->new_from_text_id_and_source_bytes
-        ($id, do {
+    my $te = TR::TextEntry->new_from_source_bytes
+        (do {
           if ($file_path->is_file) {
             $file_path->slurp;
           } else {

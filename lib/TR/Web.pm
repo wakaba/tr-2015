@@ -14,6 +14,10 @@ use TR::AppServer;
 use TR::TextRepo;
 use TR::TextEntry;
 
+sub is_text_id ($) {
+  return $_[0] =~ /\A[0-9a-f]{3,128}\z/;
+} # is_text_id
+
 sub psgi_app ($$) {
   my ($class, $config) = @_;
   return sub {
@@ -851,7 +855,7 @@ sub main ($$) {
     } elsif (@$path >= 7 and $path->[4] eq 'i') {
       my $text_id = $path->[5];
       return $app->throw_error (404, reason_phrase => 'Bad text ID')
-          unless TR::TextEntry::is_text_id $text_id;
+          unless is_text_id $text_id;
 
       if (@$path == 7 and $path->[6] =~ /\Atext\.(json|ndjson)\z/) {
         # .../i/{text_id}/text.json
@@ -873,8 +877,7 @@ sub main ($$) {
                   ($text_id, $lang . '.txt');
               return $tr->mirror_repo->show_blob_by_path ($tr->branch, $path);
             })->then (sub {
-              my $te = TR::TextEntry->new_from_text_id_and_source_text
-                  ($text_id, $_[0] // '');
+              my $te = TR::TextEntry->new_from_source_text ($_[0] // '');
               my $modified;
               for (qw(body_0 body_1 body_2 body_3 body_4 forms)) {
                 my $v = $app->text_param ($_);
@@ -912,8 +915,7 @@ sub main ($$) {
             my $path = $tr->text_id_and_suffix_to_relative_path
                 ($text_id, 'dat');
             return $tr->mirror_repo->show_blob_by_path ($tr->branch, $path)->then (sub {
-              my $te = TR::TextEntry->new_from_text_id_and_source_text
-                  ($text_id, $_[0] // '');
+              my $te = TR::TextEntry->new_from_source_text ($_[0] // '');
 
               $te->set (msgid => $app->text_param ('msgid'));
               $te->set (desc => $app->text_param ('desc'));
@@ -966,7 +968,7 @@ sub main ($$) {
               ## Ignore |error: pathspec '....comments' did not match any file(s) known to git.|
               die $_[0] unless UNIVERSAL::can ($_[0], 'exit_code') and $_[0]->exit_code == 1;
             })->then (sub {
-              my $te = TR::TextEntry->new_from_text_id_and_source_text ($text_id, '');
+              my $te = TR::TextEntry->new_from_source_text ('');
               $te->set (id => $tr->generate_section_id);
               my $body = $app->text_param ('body') // '';
               if (1024 < length $body) {
@@ -1009,7 +1011,7 @@ sub main ($$) {
           my $parsed = $_[0];
           my @json;
           for (@{$parsed->{commits}}) {
-            my $te = TR::TextEntry->new_from_text_id_and_source_text ($text_id, decode 'utf-8', $_->{blob_data});
+            my $te = TR::TextEntry->new_from_source_text (decode 'utf-8', $_->{blob_data});
             push @json, {lang_text => $te->as_jsonalizable,
                          commit => {commit => $_->{commit},
                                     commit_message => $_->{body},
@@ -1032,8 +1034,7 @@ sub main ($$) {
         $app, $tr, $type,
         sub {
           my $text_id = $tr->generate_text_id;
-          my $te = TR::TextEntry->new_from_text_id_and_source_text
-              ($text_id, '');
+          my $te = TR::TextEntry->new_from_source_text ('');
           my $msgid = $app->text_param ('msgid') // '';
           $te->set (msgid => $msgid) if length $msgid;
           my $desc = $app->text_param ('desc') // '';

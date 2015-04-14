@@ -348,13 +348,13 @@ sub get_recent_comments ($;%) {
         $p = $p->then (sub {
           return $mirror_repo->show_blob_by_path ($commit->{tree}, $dat_file_name);
         })->then (sub {
-          my $te = TR::TextEntry->new_from_text_id_and_source_bytes ($id, $_[0] // '');
+          my $te = TR::TextEntry->new_from_source_bytes ($_[0] // '');
           my $entry = $te->as_jsonalizable;
           push @{$json->{texts}}, $entry;
           my $comments = $entry->{comments} = [];
           return $mirror_repo->show_blob_by_path ($commit->{tree}, $comments_file_name)->then (sub {
             for (grep { length } split /\x0D?\x0A\x0D?\x0A/, $_[0] // '') {
-              push @$comments, TR::TextEntry->new_from_text_id_and_source_bytes ($id, $_)->as_jsonalizable;
+              push @$comments, TR::TextEntry->new_from_source_bytes ($_)->as_jsonalizable;
             }
           });
         });
@@ -468,7 +468,7 @@ sub get_tr_config ($) {
   my $dir = $self->{texts_dir};
   $dir = defined $dir ? "$dir/texts" : 'texts';
   return $self->mirror_repo->show_blob_by_path ($self->branch, "$dir/config.json")->then (sub {
-    return TR::TextEntry->new_from_text_id_and_source_bytes (undef, $_[0] // '');
+    return TR::TextEntry->new_from_source_bytes ($_[0] // '');
   });
 } # get_tr_config
 
