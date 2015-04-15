@@ -174,7 +174,7 @@
           </template>
         </span>
 
-        <span class=buttons><button type=button class=edit title="テキスト情報を編集" onclick=" modalDialog ('config-text', true, {area: parentNode.parentNode}) ">編集</button></span>
+        <span class=buttons><button type=button class=edit title="テキスト情報を編集">編集</button></span>
     <tr class=text-body>
       <script class=lang-area-placeholder />
 
@@ -480,7 +480,13 @@
       var fragment = document.createElement ('tbody');
       fragment.innerHTML = rowTemplate.innerHTML;
 
-      showTextMetadata (text.textId, text, fragment.querySelector ('.text-header > th'));
+      var metaCell = fragment.querySelector ('.text-header > th');
+      showTextMetadata (text.textId, text, metaCell);
+      var metaEdit = metaCell.querySelector ('.edit');
+      metaEdit.onclick = metaCell.ondblclick = function () {
+        modalDialog ('config-text', true, {area: metaCell});
+        return false;
+      };
 
       var langAreaPlaceholder = fragment.querySelector ('.lang-area-placeholder');
       langKeys.forEach (function (langKey) {
