@@ -388,14 +388,22 @@ sub main ($$) {
               }
             },
           ])->then (sub {
-            my ($rights, $is_owner) = @{$_[0]};
+            my ($rights, $should_be_owner) = @{$_[0]};
             my $time = time;
-            $rights->{is_owner} = 0 unless $is_owner;
+            my $can_be_owner = !!$rights->{is_owner};
+            my $can_write = !!$rights->{is_owner};
+            $rights->{is_owner} = 0 unless $should_be_owner;
             return $app->db->insert ('repo_access', [{
               repo_url => Dongry::Type->serialize ('text', $tr->url),
               account_id => Dongry::Type->serialize ('text', $account->{account_id}),
               is_owner => $rights->{is_owner} ? 1 : 0,
-              data => ($rights->{is_owner} ? '{"read":1,"edit":1,"texts":1,"comment":1,"repo":1}' : '{"read":1}'),
+              data => Dongry::Type->serialize ('json', {
+                read => 1,
+                edit => $can_write,
+                texts => $can_write,
+                comment => $can_write,
+                repo => $can_be_owner,
+              }),
               created => $time,
               updated => $time,
             }], duplicate => {

@@ -72,6 +72,9 @@
             <td><span class=is-public data-true="全体に公開" data-false="権限がある人のみに公開">{is_public}</span>
               <p class=info><a href="https://github.com/XXX/XXX/settings" target=source-repo-config>遠隔 git リポジトリーの公開・非公開を変更</a>してから「所有権を取得」すると変更できます。
           <tr>
+            <!-- This section should be shown to any user who can read
+                 this repository such that he can always try to
+                 acquire ownership. -->
             <th>所有者
             <td><span class=owner-account data-no-owner="未設定"></span>
               <form action=acl.ndjson method=post>
