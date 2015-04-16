@@ -90,3 +90,7 @@
 	path = modules/teon
 	url = git://github.com/wakaba/perl-teon
 	track = master
+[submodule "modules/twiggy-packed"]
+	path = modules/twiggy-packed
+	url = git://github.com/wakaba/perl-twiggy-packed
+	track = master
