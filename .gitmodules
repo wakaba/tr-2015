@@ -94,3 +94,6 @@
 	path = modules/twiggy-packed
 	url = git://github.com/wakaba/perl-twiggy-packed
 	track = master
+[submodule "t_deps/modules/test-x1"]
+	path = t_deps/modules/test-x1
+	url = git://github.com/wakaba/perl-test-x1
