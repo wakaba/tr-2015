@@ -81,5 +81,9 @@ test {
   });
 } wait => $wait, n => 3, name => '/tr.json GET non user';
 
+# XXX /tr.json GET with sk
+# XXX /tr.ndjson
+# XXX /tr.* POST
+
 run_tests;
 stop_servers;
