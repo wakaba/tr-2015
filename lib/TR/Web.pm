@@ -1371,10 +1371,11 @@ sub create_text_repo ($$$) {
 
 sub session ($$) {
   my ($class, $app) = @_;
-  return $app->account_server (q</info>, {
-    sk => $app->http->request_cookies->{sk},
+  my $sk = $app->http->request_cookies->{sk};
+  return defined $sk ? $app->account_server (q</info>, {
+    sk => $sk,
     sk_context => $app->config->get ('account.sk_context'),
-  });
+  }) : Promise->resolve ({});
 } # session
 
 sub check_read ($$$;%) {
