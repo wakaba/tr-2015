@@ -121,8 +121,7 @@ sub web_server (;$) {
     $HTTPServer->plackup ($root_path->child ('plackup'));
     $HTTPServer->set_option ('--host' => $web_host) if defined $web_host;
     $HTTPServer->set_option ('--app' => $root_path->child ('bin/server.psgi'));
-#XXX
-#    $HTTPServer->set_option ('--server' => 'Twiggy::Prefork');
+    $HTTPServer->set_option ('--server' => 'Twiggy::Prefork');
     return $HTTPServer->start;
   })->then (sub {
     $cv->send ({host => $HTTPServer->get_host, hostname => $HTTPServer->get_hostname});
