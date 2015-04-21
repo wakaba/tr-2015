@@ -1310,13 +1310,22 @@ sub main ($$) {
         return $app->db->insert ('repo_access', [{
           repo_url => 'about:siteadmin',
           account_id => Dongry::Type->serialize ('text', $account->{account_id}),
-          is_owner => 0,
+          is_owner => 1,
           data => Dongry::Type->serialize ('json', {
             read => 1, edit => 1, texts => 1, comment => 1, repo => 1,
           }),
           created => $time,
           updated => $time,
-        }], duplicate => 'ignore')->then (sub {
+        }], duplicate => {
+          is_owner => $app->db->bare_sql_fragment ('VALUES(is_owner)'),
+          updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
+        })->then (sub {
+          return $app->db->execute ('UPDATE `repo_access` SET is_owner = 0 AND updated = ? WHERE repo_url = ? AND account_id != ?', {
+            repo_url => 'about:siteadmin',
+            account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+            updated => $time,
+          });
+        })->then (sub {
           return $app->send_redirect ('/tr/about:siteadmin/acl');
         });
       });
