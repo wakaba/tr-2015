@@ -13,6 +13,8 @@ use Promised::Docker::WebDriver;
 use MIME::Base64;
 use JSON::PS;
 use Web::UserAgent::Functions qw(http_get http_post);
+use Test::More;
+use Test::X1;
 
 our @EXPORT;
 
@@ -46,7 +48,7 @@ sub account_server () {
   $AccountServer = Promised::Plackup->new;
   $AccountServer->plackup ($root_path->child ('plackup'));
   $AccountServer->envs->{API_TOKEN} = rand;
-  $AccountServer->set_option ('--server' => 'Twiggy::Prefork');
+  $AccountServer->set_option ('--server' => 'Twiggy');
   $AccountServer->set_app_code (q{
     use Wanage::HTTP;
     use Wanage::URL;
@@ -55,6 +57,7 @@ sub account_server () {
     use JSON::PS;
     use MIME::Base64;
     my $api_token = $ENV{API_TOKEN};
+    my $Sessions = {};
     sub {
       my $env = shift;
       my $http = Wanage::HTTP->new_from_psgi_env ($env);
@@ -63,17 +66,39 @@ sub account_server () {
         $http->set_status (405);
       } elsif ($path eq '/session') {
         my $json = {};
-        $json->{sk} = rand;
-        $json->{sk_expires} = time + 1000;
-        unless ($http->query_params->{sk}->[0]) {
+        my $session = $Sessions->{$http->request_body_params->{sk}->[0] // ''};
+        unless (defined $session) {
           $json->{set_sk} = 1;
+          $session = {sk => rand, expires => time + 1000};
+          $Sessions->{$session->{sk}} = $session;
         }
+        $json->{sk} = $session->{sk};
+        $json->{sk_expires} = $session->{expires};
         $http->send_response_body_as_ref (\perl2json_bytes $json);
       } elsif ($path eq '/login') {
         my $json = {};
         my $server = $http->request_body_params->{server}->[0];
         $json->{authorization_url} = qq<http://$server/auth>;
         $http->send_response_body_as_ref (\perl2json_bytes $json);
+      } elsif ($path eq '/info') {
+        my $json = {};
+        my $session = $Sessions->{$http->request_body_params->{sk}->[0] // ''};
+        if (defined $session) {
+          $json->{account_id} = $session->{account_id};
+          $json->{name} = $session->{name};
+        }
+        $http->send_response_body_as_ref (\perl2json_bytes $json);
+
+      } elsif ($path eq '/-add-session') {
+        my $sk = rand;
+        $Sessions->{$sk} = {
+          sk => $sk,
+          expires => time + 1000,
+          account_id => (sprintf '%llu', int (2**63 + rand (2**62))),
+          name => rand,
+        };
+        $http->set_status (201);
+        $http->send_response_body_as_ref (\perl2json_bytes $Sessions->{$sk});
       } else {
         $http->set_status (404);
       }
@@ -106,8 +131,8 @@ sub web_server (;$) {
         $MySQLServer->create_db_and_execute_sqls (tr_test => $_[0]);
       }),
       $temp_file->write_byte_string (perl2json_bytes +{
-        alt_dsns => {master => {account => $dsn}},
-        #dsns => {account => $dsn},
+        alt_dsns => {master => {tr => $dsn}},
+        dsns => {tr => $dsn},
 
         'account.url_prefix' => 'http://' . $AccountServer->get_host,
         'account.token' => $AccountServer->envs->{API_TOKEN},
@@ -124,7 +149,9 @@ sub web_server (;$) {
     $HTTPServer->set_option ('--server' => 'Twiggy::Prefork');
     return $HTTPServer->start;
   })->then (sub {
-    $cv->send ({host => $HTTPServer->get_host, hostname => $HTTPServer->get_hostname});
+    $cv->send ({host => $HTTPServer->get_host,
+                hostname => $HTTPServer->get_hostname,
+                account_host => $AccountServer->get_host});
   });
   return $cv;
 } # web_server
@@ -141,5 +168,30 @@ sub stop_servers () {
   $cv->end;
   $cv->recv;
 } # stop_servers
+
+push @EXPORT, qw(login);
+sub login ($) {
+  my $c = $_[0];
+  my $host = $c->received_data->{account_host};
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    http_post
+        url => qq<http://$host/-add-session>,
+        anyevent => 1,
+        max_redirect => 0,
+        cb => sub {
+          $ok->($_[1]);
+        };
+  })->then (sub {
+    my $res = $_[0];
+    my $user = {};
+    test {
+      is $res->code, 201, 'status code' unless $res->code == 201;
+      $user = json_bytes2perl $res->content;
+      is ref $user, 'HASH' unless ref $user eq 'HASH';
+    } $c, name => '//account/-add-session';
+    return $user;
+  });
+} # login
 
 1;

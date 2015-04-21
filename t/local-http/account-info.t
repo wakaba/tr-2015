@@ -17,52 +17,7 @@ test {
   return Promise->new (sub {
     my ($ok, $ng) = @_;
     http_get
-        url => qq<http://$host/tr>,
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
-    my $res = $_[0];
-    test {
-      is $res->code, 200;
-    } $c;
-    done $c;
-    undef $c;
-  });
-} wait => $wait, n => 1, name => '/tr GET non user';
-
-test {
-  my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_get
-        url => qq<http://$host/tr/>,
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
-    my $res = $_[0];
-    test {
-      is $res->code, 302;
-      is $res->header ('Location'), qq<http://$host/tr>;
-    } $c;
-    done $c;
-    undef $c;
-  });
-} wait => $wait, n => 2, name => '/tr/ GET';
-
-test {
-  my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_get
-        url => qq<http://$host/tr.json>,
+        url => qq<http://$host/account/info.json>,
         anyevent => 1,
         max_redirect => 0,
         cb => sub {
@@ -73,14 +28,41 @@ test {
     test {
       is $res->code, 200;
       my $json = json_bytes2perl $res->content;
-      ok not keys %{$json->{joined}->{data} or {}};
-      ok not keys %{$json->{github}->{data} or {}};
+      is $json->{account_id}, undef;
+      is $json->{name}, undef;
       is $res->header ('Cache-Control'), 'private';
     } $c;
     done $c;
     undef $c;
   });
-} wait => $wait, n => 4, name => '/tr.json GET non user';
+} wait => $wait, n => 4, name => '/account/info.json GET non user';
+
+test {
+  my $c = shift;
+  my $host = $c->received_data->{host};
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    http_get
+        url => qq<http://$host/account/info.json>,
+        cookies => {sk => rand},
+        anyevent => 1,
+        max_redirect => 0,
+        cb => sub {
+          $ok->($_[1]);
+        };
+  })->then (sub {
+    my $res = $_[0];
+    test {
+      is $res->code, 200;
+      my $json = json_bytes2perl $res->content;
+      is $json->{account_id}, undef;
+      is $json->{name}, undef;
+      is $res->header ('Cache-Control'), 'private';
+    } $c;
+    done $c;
+    undef $c;
+  });
+} wait => $wait, n => 4, name => '/account/info.json GET bad session';
 
 test {
   my $c = shift;
@@ -90,7 +72,7 @@ test {
     return Promise->new (sub {
       my ($ok, $ng) = @_;
       http_get
-          url => qq<http://$host/tr.json>,
+          url => qq<http://$host/account/info.json>,
           cookies => {sk => $user->{sk}},
           anyevent => 1,
           max_redirect => 0,
@@ -102,19 +84,18 @@ test {
       test {
         is $res->code, 200;
         my $json = json_bytes2perl $res->content;
-        ok not keys %{$json->{joined}->{data} or {}};
-        ok not keys %{$json->{github}->{data} or {}};
+        is $json->{account_id}, $user->{account_id};
+        is $json->{name}, $user->{name};
+        isnt $json->{account_id}, undef;
+        isnt $json->{name}, undef;
+        like $res->content, qr{"account_id"\s*:\s*"[0-9]+"};
         is $res->header ('Cache-Control'), 'private';
       } $c;
       done $c;
       undef $c;
     });
   });
-} wait => $wait, n => 4, name => '/tr.json GET with session';
-
-# XXX /tr.json GET has data
-# XXX /tr.ndjson
-# XXX /tr.* POST
+} wait => $wait, n => 7, name => '/account/info.json GET with session';
 
 run_tests;
 stop_servers;

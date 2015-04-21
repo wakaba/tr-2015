@@ -91,6 +91,7 @@ sub main ($$) {
   } elsif (@$path == 1 and $path->[0] =~ /\Atr\.(json|ndjson)\z/) {
     # /tr.json
     # /tr.ndjson
+    $app->http->set_response_header ('Cache-Control', 'private'); # XXX unless error
     $app->start_json_stream if $1 eq 'ndjson';
     return $class->session ($app)->then (sub {
       my $account = $_[0];
@@ -1230,13 +1231,13 @@ sub main ($$) {
     });
   } elsif (@$path == 2 and $path->[0] eq 'account' and $path->[1] eq 'info.json') {
     # /account/info.json
+    $app->http->set_response_header ('Cache-Control' => 'private'); # XXX unless error
     return $class->session ($app)->then (sub {
       my $account = $_[0];
       return $app->send_json ({name => $account->{name}, # or undef
                                account_id => (defined $account->{account_id} ? ''.$account->{account_id} : undef)});
       # XXX icon
     });
-    # XXX report remote API error
   } elsif (@$path == 2 and $path->[0] eq 'account' and $path->[1] eq 'sshkey.json') {
     # /account/sshkey.json
     if ($app->http->request_method eq 'POST') {
