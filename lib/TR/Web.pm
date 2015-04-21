@@ -335,6 +335,7 @@ sub main ($$) {
                   return Promise->new (sub {
                     my ($ok, $ng) = @_;
                     $tr->url =~ m{^https://github.com/([^/]+/[^/]+)} or die;
+                    # XXX wiki repos
                     http_get
                         url => qq<https://api.github.com/repos/$1>,
                         header_fields => (defined $token ? {Authorization => 'token ' . $token} : undef),
@@ -1334,21 +1335,52 @@ sub create_text_repo ($$$) {
     $url =~ s{/+\z}{};
   }
 
-  # XXX max URL length
-  # XXX
-  if ($url =~ m{\A(?:https?://|git://|ssh://git\@)github\.com/([^/]+/[^/]+)\z}) {
-    $url = qq{https://github.com/$1};
-    $tr->repo_type ('github');
-  } elsif ($url =~ m{\Assh://git\@melon/(/git/pub/.+)\z}) {
-    $url = qq{git\@melon:$1};
-    $tr->repo_type ('ssh');
-  } elsif ($url =~ m{\Afile://demo/}) {
-    $tr->repo_type ('file');
-  } else {
-    return $app->throw_error (404, reason_phrase => "Bad repository URL");
-  }
+  my @rule = (
+    {
+      prefix => q<https://github.com/>,
+      repository_type => 'github',
+    },
+    {
+      prefix => q<http://github.com/>,
+      canonical_prefix => q<https://github.com/>,
+      repository_type => 'github',
+    },
+    {
+      prefix => q<git://github.com/>,
+      canonical_prefix => q<https://github.com/>,
+      repository_type => 'github',
+    },
+    {
+      prefix => q<ssh://git@github.com/>,
+      canonical_prefix => q<https://github.com/>,
+      repository_type => 'github',
+    },
+    {
+      prefix => q<ssh://git@melon//git/pub/>,
+      canonical_prefix => q<git@melon:/git/pub/>,
+      repository_type => 'ssh',
+    },
+    {
+      prefix => q<file://demo/>,
+      repository_type => 'file',
+    },
+  );
 
+  # XXX max URL length
+  my $rule;
+  for my $r (@rule) {
+    if ($url =~ m{\A\Q$r->{prefix}\E}) {
+      $rule = $r;
+      last;
+    }
+  }
+  return $app->throw_error (404, reason_phrase => "Bad repository URL: |$url|")
+      unless defined $rule;
+
+  $url =~ s{\A\Q$rule->{prefix}\E}{$rule->{canonical_prefix}}
+      if defined $rule->{canonical_prefix};
   $tr->url ($url);
+  $tr->repo_type ($rule->{repository_type});
 
   if (defined $branch) {
     return $app->throw_error (404, reason_phrase => 'Bad repository branch')
