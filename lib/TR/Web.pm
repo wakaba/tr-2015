@@ -371,8 +371,10 @@ sub main ($$) {
                 })->then (sub {
                   return {is_owner => 1, is_public => 0};
                 });
-              } elsif ($repo_type eq 'file') {
+              } elsif ($repo_type eq 'file-public') {
                 Promise->resolve ({is_owner => 1, is_public => 1});
+              } elsif ($repo_type eq 'file-private') {
+                Promise->resolve ({is_owner => 0, is_public => 0});
               } else { # $repo_type
                 Promise->reject ("Can't get ownership of a repository with type |$repo_type|");
               }
@@ -1294,6 +1296,35 @@ sub main ($$) {
     return $app->temma ('rule.html.tm', {app => $app});
   }
 
+  if (@$path == 2 and $path->[0] eq 'admin' and $path->[1] eq 'account') {
+    # /admin/account
+    $app->requires_basic_auth ({admin => $app->config->get ('admin.token')});
+    if ($app->http->request_method eq 'POST') {
+      $app->requires_same_origin_or_referer_origin;
+      return $class->session ($app)->then (sub {
+        my $account = $_[0];
+        unless (defined $account->{account_id}) {
+          return $app->send_error (403, reason_phrase => 'Need to login');
+        }
+        my $time = time;
+        return $app->db->insert ('repo_access', [{
+          repo_url => 'about:siteadmin',
+          account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+          is_owner => 0,
+          data => Dongry::Type->serialize ('json', {
+            read => 1, edit => 1, texts => 1, comment => 1, repo => 1,
+          }),
+          created => $time,
+          updated => $time,
+        }], duplicate => 'ignore')->then (sub {
+          return $app->send_redirect ('/tr/about:siteadmin/acl');
+        });
+      });
+    } else {
+      return $app->temma ('admin.account.html.tm', {app => $app});
+    }
+  }
+
   if (@$path == 2 and
       {js => 1, css => 1, data => 1, images => 1, fonts => 1}->{$path->[0]} and
       $path->[1] =~ /\A[0-9A-Za-z_-]+\.(js|css|jpe?g|gif|png|json|ttf|otf|woff)\z/) {
@@ -1362,16 +1393,26 @@ sub create_text_repo ($$$) {
     },
     {
       prefix => q<file://demo/>,
-      repository_type => 'file',
+      canonical_prefix => path (__FILE__)->parent->parent->parent->child ('local/pub') . '/',
+      repository_type => 'file-public',
     },
   );
 
   # XXX max URL length
   my $rule;
-  for my $r (@rule) {
-    if ($url =~ m{\A\Q$r->{prefix}\E}) {
-      $rule = $r;
-      last;
+  if ($url eq 'about:siteadmin') {
+    $rule = {
+      prefix => q<about:siteadmin>,
+      mapped_prefix => path (__FILE__)->parent->parent->parent->child
+          ('local/repos/siteadmin'),
+      repository_type => 'file-private',
+    };
+  } else {
+    for my $r (@rule) {
+      if ($url =~ m{\A\Q$r->{prefix}\E}) {
+        $rule = $r;
+        last;
+      }
     }
   }
   return $app->throw_error (404, reason_phrase => "Bad repository URL: |$url|")
@@ -1380,6 +1421,12 @@ sub create_text_repo ($$$) {
   $url =~ s{\A\Q$rule->{prefix}\E}{$rule->{canonical_prefix}}
       if defined $rule->{canonical_prefix};
   $tr->url ($url);
+  if (defined $rule->{mapped_prefix}) {
+    my $mapped_url = $url;
+    $mapped_url =~ s{\A\Q$rule->{prefix}\E}{$rule->{mapped_prefix}}
+        if defined $rule->{mapped_prefix};
+    $tr->mapped_url ($mapped_url);
+  }
   $tr->repo_type ($rule->{repository_type});
 
   if (defined $branch) {
@@ -1485,8 +1532,10 @@ sub check_read ($$$;%) {
             $server = 'github';
           } elsif ($repo_type eq 'ssh') {
             $server = 'ssh';
-          } elsif ($repo_type eq 'file') {
+          } elsif ($repo_type eq 'file-public') {
             return {access_token => ''};
+          } elsif ($repo_type eq 'file-private') {
+            return {};
           } else {
             die "Can't pull repository of type |$repo_type|";
           }
@@ -1558,8 +1607,10 @@ sub get_push_token ($$$$) {
       $server = 'github';
     } elsif ($repo_type eq 'ssh') {
       $server = 'ssh';
-    } elsif ($repo_type eq 'file') {
+    } elsif ($repo_type eq 'file-public') {
       return {access_token => ''};
+    } elsif ($repo_type eq 'file-private') {
+      return {};
     } else {
       die "Can't pull repository of type |$repo_type|";
     }

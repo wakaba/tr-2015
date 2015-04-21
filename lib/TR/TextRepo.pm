@@ -26,6 +26,13 @@ sub url ($;$) {
   return $_[0]->{url};
 } # url
 
+sub mapped_url ($;$) {
+  if (@_ > 1) {
+    $_[0]->{mapped_url} = $_[1];
+  }
+  return $_[0]->{mapped_url} // $_[0]->{url};
+} # mapped_url
+
 sub repo_type ($;$) {
   if (@_ > 1) {
     $_[0]->{repo_type} = $_[1];
@@ -148,7 +155,7 @@ sub prepare_mirror ($$$) {
   $mirror_path = $mirror_path->child ($self->path_name);
   $self->{mirror_repo_path} = $mirror_path;
 
-  my $url2 = my $url = $self->url;
+  my $url2 = my $url = $self->mapped_url;
   my $repo_type = $self->repo_type;
   if ($repo_type eq 'github') {
     if (defined $keys->{access_token}) {
@@ -166,11 +173,10 @@ sub prepare_mirror ($$$) {
       my $cmd = Promised::Command->new (['chmod', '0600', $self->{private_key_path}]);
       return $cmd->run->then (sub { return $cmd->wait });
     });
-  } elsif ($repo_type eq 'file') {
-    # XXX
-    $url =~ s{^file://demo/}{@{[path (__FILE__)->parent->parent->parent->child ('local/pub')]}/};
-    $url2 = $url;
-    $self->{keyed_url_for_push} = $url;
+  } elsif ($repo_type eq 'file-public') {
+    #
+  } elsif ($repo_type eq 'file-private') {
+    #
   } else {
     die "Unknown repository type |$repo_type|";
   }

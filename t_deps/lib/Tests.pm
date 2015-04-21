@@ -88,6 +88,12 @@ sub account_server () {
           $json->{name} = $session->{name};
         }
         $http->send_response_body_as_ref (\perl2json_bytes $json);
+      } elsif ($path eq '/profiles') {
+        my $json = {};
+        my %account_id = map { $_ => 1 } @{$http->request_body_params->{account_id}};
+        $json->{accounts}->{$_->{account_id}} = $_
+            for grep { $account_id{$_->{account_id}} } values %$Sessions;
+        $http->send_response_body_as_ref (\perl2json_bytes $json);
 
       } elsif ($path eq '/-add-session') {
         my $sk = rand;
@@ -113,7 +119,7 @@ push @EXPORT, qw(web_server);
 sub web_server (;$) {
   my $web_host = $_[0];
   my $cv = AE::cv;
-  my $bearer = rand;
+  my $admin_token = rand;
   $MySQLServer = Promised::Mysqld->new;
   Promise->all ([
     $MySQLServer->start,
@@ -140,6 +146,8 @@ sub web_server (;$) {
 
         'cookie.domain' => $web_host // '127.0.0.1',
         'cookie.secure' => 0,
+
+        'admin.token' => $admin_token,
       }),
     ]);
   })->then (sub {
@@ -151,7 +159,8 @@ sub web_server (;$) {
   })->then (sub {
     $cv->send ({host => $HTTPServer->get_host,
                 hostname => $HTTPServer->get_hostname,
-                account_host => $AccountServer->get_host});
+                account_host => $AccountServer->get_host,
+                admin_token => $admin_token});
   });
   return $cv;
 } # web_server
