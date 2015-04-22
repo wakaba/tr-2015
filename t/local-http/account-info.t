@@ -3,27 +3,13 @@ use warnings;
 use Path::Tiny;
 use lib glob path (__FILE__)->parent->parent->parent->child ('t_deps/lib');
 use Tests;
-use Test::More;
-use Test::X1;
-use Promise;
 use JSON::PS qw(json_bytes2perl);
-use Web::UserAgent::Functions qw(http_post http_get);
 
 my $wait = web_server;
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_get
-        url => qq<http://$host/account/info.json>,
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
+  return GET ($c, q</account/info.json>)->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 200;
@@ -39,17 +25,8 @@ test {
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_get
-        url => qq<http://$host/account/info.json>,
-        cookies => {sk => rand},
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
+  return GET ($c, q</account/info.json>, cookies => {
+    sk => rand,
   })->then (sub {
     my $res = $_[0];
     test {
@@ -66,19 +43,10 @@ test {
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
   login ($c)->then (sub {
     my $user = $_[0];
-    return Promise->new (sub {
-      my ($ok, $ng) = @_;
-      http_get
-          url => qq<http://$host/account/info.json>,
-          cookies => {sk => $user->{sk}},
-          anyevent => 1,
-          max_redirect => 0,
-          cb => sub {
-            $ok->($_[1]);
-          };
+    return GET ($c, q</account/info.json>, cookies => {
+      sk => $user->{sk},
     })->then (sub {
       my $res = $_[0];
       test {

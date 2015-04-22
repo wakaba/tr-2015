@@ -3,27 +3,13 @@ use warnings;
 use Path::Tiny;
 use lib glob path (__FILE__)->parent->parent->parent->child ('t_deps/lib');
 use Tests;
-use Test::More;
-use Test::X1;
-use Promise;
-use Web::UserAgent::Functions qw(http_post http_get);
 use JSON::PS;
 
 my $wait = web_server;
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_get
-        url => qq<http://$host/admin/account>,
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
+  return GET ($c, q</admin/account>)->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 401;
@@ -36,18 +22,9 @@ test {
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_get
-        url => qq<http://$host/admin/account>,
-        basic_auth => ['foo', 'bar'],
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
+  return GET ($c, q</admin/account>,
+    basic_auth => ['foo', 'bar'],
+  )->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 401;
@@ -60,18 +37,9 @@ test {
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_get
-        url => qq<http://$host/admin/account>,
-        basic_auth => ['admin', $c->received_data->{admin_token}],
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
+  return GET ($c, q</admin/account>,
+    basic_auth => ['admin', $c->received_data->{admin_token}],
+  )->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 200;
@@ -84,17 +52,7 @@ test {
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_post
-        url => qq<http://$host/admin/account>,
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
+  return POST ($c, q</admin/account>)->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 401;
@@ -107,18 +65,9 @@ test {
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_post
-        url => qq<http://$host/admin/account>,
-        basic_auth => ['foo', 'bar'],
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
+  return POST ($c, q</admin/account>,
+    basic_auth => ['foo', 'bar'],
+  )->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 401;
@@ -131,18 +80,9 @@ test {
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_post
-        url => qq<http://$host/admin/account>,
-        basic_auth => ['admin', $c->received_data->{admin_token}],
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
+  return POST ($c, q</admin/account>,
+    basic_auth => ['admin', $c->received_data->{admin_token}],
+  )->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 403;
@@ -154,109 +94,65 @@ test {
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
   return login ($c)->then (sub {
     my $account = $_[0];
-    return Promise->new (sub {
-      my ($ok, $ng) = @_;
-      http_post
-          url => qq<http://$host/admin/account>,
-          basic_auth => ['admin', $c->received_data->{admin_token}],
-          cookies => {sk => $account->{sk}},
-          anyevent => 1,
-          max_redirect => 0,
-          cb => sub {
-            $ok->($_[1]);
-          };
-    })->then (sub {
+    return POST ($c, q</admin/account>,
+      basic_auth => ['admin', $c->received_data->{admin_token}],
+      account => $account,
+    )->then (sub {
       my $res = $_[0];
       test {
         is $res->code, 302;
+        my $host = $c->received_data->{host};
         is $res->header ('Location'),
             qq{http://$host/tr/about:siteadmin/acl};
       } $c;
     })->then (sub {
-      return Promise->new (sub {
-        my ($ok, $ng) = @_;
-        http_get
-            url => qq<http://$host/tr/about:siteadmin/acl.json>,
-            cookies => {sk => $account->{sk}},
-            anyevent => 1,
-            max_redirect => 0,
-            cb => sub {
-              $ok->($_[1]);
-            };
-      })->then (sub {
-        my $res = $_[0];
-        test {
-          is $res->code, 200;
-          my $json = json_bytes2perl $res->content;
-          ok $json->{accounts}->{$account->{account_id}}->{scopes}->{repo};
-        } $c;
-        done $c;
-        undef $c;
-      });
+      return GET ($c, q</tr/about:siteadmin/acl.json>, account => $account);
+    })->then (sub {
+      my $res = $_[0];
+      test {
+        is $res->code, 200;
+        my $json = json_bytes2perl $res->content;
+        ok $json->{accounts}->{$account->{account_id}}->{scopes}->{repo};
+      } $c;
+      done $c;
+      undef $c;
     });
   });
 } wait => $wait, n => 4, name => '/admin/account POST with user';
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
   return login ($c)->then (sub {
     my $account = $_[0];
-    return Promise->new (sub {
-      my ($ok, $ng) = @_;
-      http_post
-          url => qq<http://$host/admin/account>,
-          basic_auth => ['admin', $c->received_data->{admin_token}],
-          cookies => {sk => $account->{sk}},
-          anyevent => 1,
-          max_redirect => 0,
-          cb => sub {
-            $ok->($_[1]);
-          };
-    })->then (sub {
-      return Promise->new (sub {
-        my ($ok, $ng) = @_;
-        http_post
-            url => qq<http://$host/admin/account>,
-            basic_auth => ['admin', $c->received_data->{admin_token}],
-            cookies => {sk => $account->{sk}},
-            anyevent => 1,
-            max_redirect => 0,
-            cb => sub {
-              $ok->($_[1]);
-            };
-      });
+    return POST ($c, q</admin/account>,
+      basic_auth => ['admin', $c->received_data->{admin_token}],
+      account => $account,
+    )->then (sub {
+      return POST ($c, q</admin/account>,
+        basic_auth => ['admin', $c->received_data->{admin_token}],
+        account => $account,
+      );
     })->then (sub {
       my $res = $_[0];
       test {
         is $res->code, 302;
+        my $host = $c->received_data->{host};
         is $res->header ('Location'),
             qq{http://$host/tr/about:siteadmin/acl};
       } $c;
     })->then (sub {
-      return Promise->new (sub {
-        my ($ok, $ng) = @_;
-        http_get
-            url => qq<http://$host/tr/about:siteadmin/acl.json>,
-            cookies => {sk => $account->{sk}},
-            anyevent => 1,
-            max_redirect => 0,
-            cb => sub {
-              $ok->($_[1]);
-            };
-      })->then (sub {
-        my $res = $_[0];
-        test {
-          is $res->code, 200;
-          my $json = json_bytes2perl $res->content;
-          ok $json->{accounts}->{$account->{account_id}}->{scopes}->{repo};
-        } $c;
-        done $c;
-        undef $c;
-      });
+      return GET ($c, q</tr/about:siteadmin/acl.json>, account => $account);
+    })->then (sub {
+      my $res = $_[0];
+      test {
+        is $res->code, 200;
+        my $json = json_bytes2perl $res->content;
+        ok $json->{accounts}->{$account->{account_id}}->{scopes}->{repo};
+      } $c;
+      done $c;
+      undef $c;
     });
   });
 } wait => $wait, n => 4, name => '/admin/account POST existing user';

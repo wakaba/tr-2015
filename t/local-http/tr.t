@@ -3,27 +3,13 @@ use warnings;
 use Path::Tiny;
 use lib glob path (__FILE__)->parent->parent->parent->child ('t_deps/lib');
 use Tests;
-use Test::More;
-use Test::X1;
-use Promise;
 use JSON::PS qw(json_bytes2perl);
-use Web::UserAgent::Functions qw(http_post http_get);
 
 my $wait = web_server;
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_get
-        url => qq<http://$host/tr>,
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
+  return GET ($c, q</tr>)->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 200;
@@ -35,20 +21,11 @@ test {
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_get
-        url => qq<http://$host/tr/>,
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
+  return GET ($c, q</tr/>)->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 302;
+      my $host = $c->received_data->{host};
       is $res->header ('Location'), qq<http://$host/tr>;
     } $c;
     done $c;
@@ -58,17 +35,7 @@ test {
 
 test {
   my $c = shift;
-  my $host = $c->received_data->{host};
-  return Promise->new (sub {
-    my ($ok, $ng) = @_;
-    http_get
-        url => qq<http://$host/tr.json>,
-        anyevent => 1,
-        max_redirect => 0,
-        cb => sub {
-          $ok->($_[1]);
-        };
-  })->then (sub {
+  return GET ($c, q</tr.json>)->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 200;
@@ -87,17 +54,7 @@ test {
   my $host = $c->received_data->{host};
   login ($c)->then (sub {
     my $user = $_[0];
-    return Promise->new (sub {
-      my ($ok, $ng) = @_;
-      http_get
-          url => qq<http://$host/tr.json>,
-          cookies => {sk => $user->{sk}},
-          anyevent => 1,
-          max_redirect => 0,
-          cb => sub {
-            $ok->($_[1]);
-          };
-    })->then (sub {
+    return GET ($c, q</tr.json>)->then (sub {
       my $res = $_[0];
       test {
         is $res->code, 200;

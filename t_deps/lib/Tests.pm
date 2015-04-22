@@ -18,6 +18,9 @@ use Test::X1;
 
 our @EXPORT;
 
+push @EXPORT, grep { not /^\$/ } @Test::More::EXPORT;
+push @EXPORT, @Test::X1::EXPORT;
+
 sub import ($;@) {
   my $from_class = shift;
   my ($to_class, $file, $line) = caller;
@@ -177,6 +180,50 @@ sub stop_servers () {
   $cv->end;
   $cv->recv;
 } # stop_servers
+
+push @EXPORT, qw(GET);
+sub GET ($$;%) {
+  my ($c, $path, %args) = @_;
+  my $host = $c->received_data->{host};
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    my $cookies = $args{cookies} || {};
+    $cookies->{sk} //= $args{account}->{sk}; # or undef
+    http_get
+        url => qq<http://$host$path>,
+        basic_auth => $args{basic_auth},
+        header_fields => $args{header_fields},
+        params => $args{params},
+        cookies => $cookies,
+        anyevent => 1,
+        max_redirect => 0,
+        cb => sub {
+          $ok->($_[1]);
+        };
+  });
+} # GET
+
+push @EXPORT, qw(POST);
+sub POST ($$;%) {
+  my ($c, $path, %args) = @_;
+  my $host = $c->received_data->{host};
+  return Promise->new (sub {
+    my ($ok, $ng) = @_;
+    my $cookies = $args{cookies} || {};
+    $cookies->{sk} //= $args{account}->{sk}; # or undef
+    http_post
+        url => qq<http://$host$path>,
+        basic_auth => $args{basic_auth},
+        header_fields => $args{header_fields},
+        params => $args{params},
+        cookies => $cookies,
+        anyevent => 1,
+        max_redirect => 0,
+        cb => sub {
+          $ok->($_[1]);
+        };
+  });
+} # POST
 
 push @EXPORT, qw(login);
 sub login ($) {
