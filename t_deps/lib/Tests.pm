@@ -154,7 +154,7 @@ sub web_server (;$) {
         'cookie.secure' => 0,
 
         'admin.token' => $admin_token,
-        'admin.directory' => $temp_dir_path->child ('siteadmin'),
+        'admin.repository' => $temp_dir_path->child ('siteadmin'),
 
         'repos.mirror' => $temp_dir_path->child ('mirrors'),
       }),

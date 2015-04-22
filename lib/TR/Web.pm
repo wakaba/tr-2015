@@ -1302,40 +1302,42 @@ sub main ($$) {
   if ($path->[0] eq 'admin') {
     if (@$path == 2 and $path->[1] eq 'repository-rules') {
       # /admin/repository-rules
-      return $app->temma ('admin.repository-rules.html.tm', {app => $app});
+      my $tr = $class->create_text_repo
+          ($app, 'about:siteadmin', 'master', '/');
+      return $class->check_read ($app, $tr)->then (sub {
+        return $app->temma ('admin.repository-rules.html.tm', {app => $app});
+      });
     }
 
     if (@$path == 2 and $path->[1] =~ /\Arepository-rules\.(json|ndjson)\z/) {
       # /admin/repository-rules.json
       # /admin/repository-rules.ndjson
       my $type = $1;
-      return $class->session ($app)->then (sub {
-        my $account = $_[0];
-        my $tr = $class->create_text_repo
-            ($app, 'about:siteadmin', 'master', '/');
-        if ($app->http->request_method eq 'POST') {
-          $app->requires_same_origin_or_referer_origin;
-          return $class->edit_text_set (
-            $app, $tr, $type,
-            sub {
-              return $tr->write_file_by_path ($tr->repo_path->child ('repository-rules.json'), $app->text_param ('json') // '{}')->then (sub { return {} });
-            },
-            scope => 'repo',
-            default_commit_message => 'Updated repository-rules.json',
-          );
-        } else {
-          $app->start_json_stream if $type eq 'ndjson';
-          return $class->check_read ($app, $tr, access_token => 1)->then (sub {
-            return $tr->prepare_mirror ($_[0], $app);
-          })->then (sub {
-            return $tr->mirror_repo->show_blob_by_path ($tr->branch, 'repository-rules.json');
-          })->then (sub {
-            my $json = json_bytes2perl $_[0] // '{}';
-            $json = {} unless defined $json and ref $json eq 'HASH';
-            return $app->send_last_json_chunk (200, 'OK', $json);
-          });
-        }
-      });
+      my $tr = $class->create_text_repo
+          ($app, 'about:siteadmin', 'master', '/');
+      if ($app->http->request_method eq 'POST') {
+        $app->requires_same_origin_or_referer_origin;
+        return $class->edit_text_set (
+          $app, $tr, $type,
+          sub {
+            return $tr->write_file_by_path ($tr->repo_path->child ('repository-rules.json'), $app->text_param ('json') // '{}')->then (sub { return {} });
+          },
+          scope => 'repo',
+          default_commit_message => 'Updated repository-rules.json',
+        );
+      } else { # GET
+        $app->start_json_stream if $type eq 'ndjson';
+        return $class->check_read ($app, $tr, access_token => 1)->then (sub {
+          $app->send_progress_json_chunk ('Cloning the repository...');
+          return $tr->prepare_mirror ($_[0], $app);
+        })->then (sub {
+          return $tr->mirror_repo->show_blob_by_path ($tr->branch, 'repository-rules.json');
+        })->then (sub {
+          my $json = json_bytes2perl $_[0] // '{}';
+          $json = {} unless defined $json and ref $json eq 'HASH';
+          return $app->send_last_json_chunk (200, 'OK', $json);
+        });
+      }
     }
 
     if (@$path == 2 and $path->[1] eq 'account') {

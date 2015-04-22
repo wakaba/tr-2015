@@ -9,6 +9,46 @@ my $wait = web_server;
 test {
   my $c = shift;
   return login ($c, admin => 1)->then (sub {
+    return GET ($c, q</admin/repository-rules>)->then (sub {
+      my $res = $_[0];
+      test {
+        is $res->code, 404;
+      } $c, name => 'no account';
+    });
+  })->then (sub {
+    return login ($c)->then (sub {
+      my $account = $_[0];
+      return GET ($c, q</admin/repository-rules>, account => $account)->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 404;
+        } $c, name => 'non-admin account';
+        done $c;
+        undef $c;
+      });
+    });
+  });
+} wait => $wait, n => 2, name => '/admin/repository-rules GET non-admin';
+
+test {
+  my $c = shift;
+  return login ($c, admin => 1)->then (sub {
+    my $account = $_[0];
+    return GET ($c, q</admin/repository-rules>, account => $account)->then (sub {
+      my $res = $_[0];
+      test {
+        is $res->code, 200;
+        like $res->content, qr{</html>};
+      } $c;
+      done $c;
+      undef $c;
+    });
+  });
+} wait => $wait, n => 2, name => '/admin/repository-rules GET admin';
+
+test {
+  my $c = shift;
+  return login ($c, admin => 1)->then (sub {
     return GET ($c, q</admin/repository-rules.json>)->then (sub {
       my $res = $_[0];
       test {
