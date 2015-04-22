@@ -3,10 +3,10 @@ Carp::Heavy~1.36
 Capture::Tiny~0.28
 Pod::Usage~1.67
 JSON::XS~3.01
-HTTP::Status~6.03
 Test::NoWarnings~1.04
-IO::HTML~1.001
+HTTP::Status~6.03
 Encode~2.73
+IO::HTML~1.001
 Digest::SHA~5.95
 File::Path~2.09
 Time::Local~1.2300
@@ -30,8 +30,9 @@ Types::Serialiser~1.0
 Test::Fatal~0.014
 Encode::Locale~1.04
 Unicode::Normalize~1.18
-Algorithm::Diff~1.1903
+Filter::Util::Call~1.54
 Socket~2.018
+Algorithm::Diff~1.1903
 Path::Tiny~0.068
 Digest::SHA1~2.13
 Test::Tester~0.114

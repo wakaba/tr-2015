@@ -52,6 +52,7 @@ sub git ($$$) {
     return $cmd->wait;
   })->then (sub {
     my $result = $_[0];
+    undef $cmd;
     unless ($result->is_success and $result->exit_code == 0) {
       warn $stderr;
       die $result;
@@ -83,6 +84,7 @@ sub commit ($%) {
     return $cmd->wait;
   })->then (sub {
     my $result = $_[0];
+    undef $cmd;
     if (not $result->is_success) {
       die $result;
     } elsif ($result->exit_code == 1) {

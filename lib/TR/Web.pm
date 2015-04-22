@@ -5,7 +5,7 @@ use Path::Tiny;
 use Wanage::URL;
 use Encode;
 use Promise;
-use JSON::Functions::XS qw(json_bytes2perl perl2json_bytes json_chars2perl perl2json_chars);
+use JSON::Functions::XS qw(json_bytes2perl perl2json_bytes json_chars2perl perl2json_chars perl2json_chars_for_record);
 use Wanage::HTTP;
 use Web::URL::Canonicalize;
 use Web::UserAgent::Functions qw(http_get http_post);
@@ -45,6 +45,9 @@ sub psgi_app ($$) {
         return $app->shutdown;
       }, sub {
         my $error = $_[0];
+        if (defined $error and ref $error eq 'HASH') {
+          $app->error_log (perl2json_chars_for_record $error);
+        }
         return $app->shutdown->then (sub { die $error });
       });
 
@@ -1296,43 +1299,99 @@ sub main ($$) {
     return $app->temma ('rule.html.tm', {app => $app});
   }
 
-  if (@$path == 2 and $path->[0] eq 'admin' and $path->[1] eq 'account') {
-    # /admin/account
-    $app->requires_basic_auth ({admin => $app->config->get ('admin.token')});
-    if ($app->http->request_method eq 'POST') {
-      $app->requires_same_origin_or_referer_origin;
+  if ($path->[0] eq 'admin') {
+    if (@$path == 2 and $path->[1] eq 'repository-rules') {
+      # /admin/repository-rules
+      return $app->temma ('admin.repository-rules.html.tm', {app => $app});
+    }
+
+    if (@$path == 2 and $path->[1] =~ /\Arepository-rules\.(json|ndjson)\z/) {
+      # /admin/repository-rules.json
+      # /admin/repository-rules.ndjson
+      my $type = $1;
       return $class->session ($app)->then (sub {
         my $account = $_[0];
-        unless (defined $account->{account_id}) {
-          return $app->send_error (403, reason_phrase => 'Need to login');
-        }
-        my $time = time;
-        return $app->db->insert ('repo_access', [{
-          repo_url => 'about:siteadmin',
-          account_id => Dongry::Type->serialize ('text', $account->{account_id}),
-          is_owner => 1,
-          data => Dongry::Type->serialize ('json', {
-            read => 1, edit => 1, texts => 1, comment => 1, repo => 1,
-          }),
-          created => $time,
-          updated => $time,
-        }], duplicate => {
-          is_owner => $app->db->bare_sql_fragment ('VALUES(is_owner)'),
-          updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
-        })->then (sub {
-          return $app->db->execute ('UPDATE `repo_access` SET is_owner = 0 AND updated = ? WHERE repo_url = ? AND account_id != ?', {
-            repo_url => 'about:siteadmin',
-            account_id => Dongry::Type->serialize ('text', $account->{account_id}),
-            updated => $time,
+        my $tr = $class->create_text_repo
+            ($app, 'about:siteadmin', 'master', '/');
+        if ($app->http->request_method eq 'POST') {
+          $app->requires_same_origin_or_referer_origin;
+          return $class->edit_text_set (
+            $app, $tr, $type,
+            sub {
+              return $tr->write_file_by_path ($tr->repo_path->child ('repository-rules.json'), $app->text_param ('json') // '{}')->then (sub { return {} });
+            },
+            scope => 'repo',
+            default_commit_message => 'Updated repository-rules.json',
+          );
+        } else {
+          $app->start_json_stream if $type eq 'ndjson';
+          return $class->check_read ($app, $tr, access_token => 1)->then (sub {
+            return $tr->prepare_mirror ($_[0], $app);
+          })->then (sub {
+            return $tr->mirror_repo->show_blob_by_path ($tr->branch, 'repository-rules.json');
+          })->then (sub {
+            my $json = json_bytes2perl $_[0] // '{}';
+            $json = {} unless defined $json and ref $json eq 'HASH';
+            return $app->send_last_json_chunk (200, 'OK', $json);
           });
-        })->then (sub {
-          return $app->send_redirect ('/tr/about:siteadmin/acl');
-        });
+        }
       });
-    } else {
-      return $app->temma ('admin.account.html.tm', {app => $app});
     }
-  }
+
+    if (@$path == 2 and $path->[1] eq 'account') {
+      # /admin/account
+      $app->requires_basic_auth ({admin => $app->config->get ('admin.token')});
+      if ($app->http->request_method eq 'POST') {
+        $app->requires_same_origin_or_referer_origin;
+        return $class->session ($app)->then (sub {
+          my $account = $_[0];
+          unless (defined $account->{account_id}) {
+            return $app->send_error (403, reason_phrase => 'Need to login');
+          }
+          my $time = time;
+          return $app->db->execute ('SELECT GET_LOCK(:name, :timeout)', {
+            name => 'repo_access=about:siteadmin',
+            timeout => 60,
+          }, source_name => 'master')->then (sub {
+            return $app->db->insert ('repo_access', [{
+              repo_url => 'about:siteadmin',
+              account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+              is_owner => 1,
+              data => Dongry::Type->serialize ('json', {
+                read => 1, edit => 1, texts => 1, comment => 1, repo => 1,
+              }),
+              created => $time,
+              updated => $time,
+            }], duplicate => {
+              is_owner => $app->db->bare_sql_fragment ('VALUES(is_owner)'),
+              updated => $app->db->bare_sql_fragment ('VALUES(updated)'),
+            });
+          })->then (sub {
+            return $app->db->execute ('UPDATE `repo_access` SET is_owner = 0 AND updated = ? WHERE repo_url = ? AND account_id != ?', {
+              repo_url => 'about:siteadmin',
+              account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+              updated => $time,
+            });
+          })->then (sub {
+            return $app->db->execute ('SELECT RELEASE_LOCK(:name)', {
+              name => 'repo_access=about:siteadmin',
+            }, source_name => 'master');
+          })->then (sub {
+            return $app->db->insert ('repo', [{
+              repo_url => 'about:siteadmin',
+              is_public => 0,
+              created => $time,
+              updated => $time,
+            }], duplicate => 'ignore');
+          })->then (sub {
+            return $app->send_redirect ('/tr/about:siteadmin/acl');
+          });
+        });
+      } else {
+        return $app->temma ('admin.account.html.tm', {app => $app});
+      }
+    }
+  } # /admin/
 
   if (@$path == 2 and
       {js => 1, css => 1, data => 1, images => 1, fonts => 1}->{$path->[0]} and
@@ -1412,8 +1471,7 @@ sub create_text_repo ($$$) {
   if ($url eq 'about:siteadmin') {
     $rule = {
       prefix => q<about:siteadmin>,
-      mapped_prefix => path (__FILE__)->parent->parent->parent->child
-          ('local/repos/siteadmin'),
+      mapped_prefix => $app->config->{siteadmin_path} . '/',
       repository_type => 'file-private',
     };
   } else {
@@ -1544,7 +1602,7 @@ sub check_read ($$$;%) {
           } elsif ($repo_type eq 'file-public') {
             return {access_token => ''};
           } elsif ($repo_type eq 'file-private') {
-            return {};
+            return {access_token => ''};
           } else {
             die "Can't pull repository of type |$repo_type|";
           }
@@ -1619,7 +1677,7 @@ sub get_push_token ($$$$) {
     } elsif ($repo_type eq 'file-public') {
       return {access_token => ''};
     } elsif ($repo_type eq 'file-private') {
-      return {};
+      return {access_token => ''};
     } else {
       die "Can't pull repository of type |$repo_type|";
     }

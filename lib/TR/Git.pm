@@ -46,6 +46,7 @@ sub git_clone ($;%) {
     return $cmd->wait;
   })->then (sub {
     my $result = $_[0];
+    undef $cmd;
     if (not $result->is_success) {
       die "$result\n$stderr";
     } elsif ($result->exit_code == 1) {
@@ -77,6 +78,7 @@ sub git_home_config ($$) {
     return $cmd->wait;
   })->then (sub {
     my $result = $_[0];
+    undef $cmd;
     unless ($result->is_success and $result->exit_code == 0) {
       die "$result\n$stderr";
     }

@@ -54,6 +54,7 @@ sub git ($$$;%) {
     return $cmd->wait;
   })->then (sub {
     my $result = $_[0];
+    undef $cmd;
     unless ($result->is_success and $result->exit_code == 0) {
       die "$result\n$stderr";
     }

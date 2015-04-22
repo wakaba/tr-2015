@@ -14,12 +14,15 @@ use MIME::Base64;
 use JSON::PS;
 use Web::UserAgent::Functions qw(http_get http_post);
 use Test::More;
+use Test::Differences;
 use Test::X1;
 
 our @EXPORT;
 
 push @EXPORT, grep { not /^\$/ } @Test::More::EXPORT;
+push @EXPORT, @Test::Differences::EXPORT;
 push @EXPORT, @Test::X1::EXPORT;
+push @EXPORT, @JSON::PS::EXPORT;
 
 sub import ($;@) {
   my $from_class = shift;
@@ -151,6 +154,9 @@ sub web_server (;$) {
         'cookie.secure' => 0,
 
         'admin.token' => $admin_token,
+        'admin.directory' => $temp_dir_path->child ('siteadmin'),
+
+        'repos.mirror' => $temp_dir_path->child ('mirrors'),
       }),
     ]);
   })->then (sub {
@@ -226,8 +232,8 @@ sub POST ($$;%) {
 } # POST
 
 push @EXPORT, qw(login);
-sub login ($) {
-  my $c = $_[0];
+sub login ($;%) {
+  my ($c, %args) = @_;
   my $host = $c->received_data->{account_host};
   return Promise->new (sub {
     my ($ok, $ng) = @_;
@@ -246,7 +252,14 @@ sub login ($) {
       $user = json_bytes2perl $res->content;
       is ref $user, 'HASH' unless ref $user eq 'HASH';
     } $c, name => '//account/-add-session';
-    return $user;
+    if ($args{admin}) {
+      return POST ($c, q</admin/account>,
+        basic_auth => ['admin', $c->received_data->{admin_token}],
+        account => $user,
+      )->then (sub { return $user });
+    } else {
+      return $user;
+    }
   });
 } # login
 

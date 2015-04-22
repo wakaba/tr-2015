@@ -117,7 +117,7 @@ sub send_error ($$;%) {
 my $RootPath = path (__FILE__)->parent->parent->parent;
 
 sub mirror_path ($) {
-  return $RootPath->child ('local/mirrors');
+  return $_[0]->{mirror_path} ||= $_[0]->config->get_path ('repos.mirror');
 } # mirror_path
 
 sub send_file ($$$) {

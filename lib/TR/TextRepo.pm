@@ -257,7 +257,7 @@ sub clone_from_mirror ($;%) {
     $repo->home_dir_name ($self->home_path);
     $repo->ssh_file_name ($self->{ssh_path});
     $repo->ssh_private_key_file_name ($self->{private_key_path});
-    my $keyed_url = $self->{keyed_url_for_push} // $self->url;
+    my $keyed_url = $self->{keyed_url_for_push} // $self->mapped_url;
     $p = $p->then (sub {
       return $repo->git ('remote', ['add', 'remoterepo', $keyed_url]);
     });
@@ -666,7 +666,7 @@ sub commit ($$) {
 
 sub push ($) {
   my $self = $_[0];
-  return $self->repo->git ('push', ['remoterepo']);
+  return $self->repo->git ('push', ['remoterepo', $self->branch]);
 } # push
 
 sub discard ($) {
