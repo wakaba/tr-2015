@@ -95,4 +95,24 @@
   </section>
 </section>
 
+<section>
+  <h1>サイト管理</h1>
+
+  <section>
+    <h1>サイト管理リポジトリー</h1>
+
+    <p>サイトごとに1つ、特別なリポジトリー (URL <code>about:siteadmin</code>)
+    があります。このリポジトリーにはサイト全体の設定が格納されています。
+    <p>このリポジトリーの編集権限は、他のリポジトリーと同じように編集できます。
+    また、利用者名 <code>admin</code> と初期設定時に発行されたパスワードを使って<a href=/admin/account>管理権限を取得</a>できます。
+  </section>
+
+  <section>
+    <h1>リポジトリー規則</h1>
+
+    <p>サイト管理者は<a href=/admin/repository-rules>リポジトリー規則の編集</a>を行えます。
+    リポジトリー規則に合致する Git リポジトリーをそのサイトで編集できるようになります。
+  </section>
+</section>
+
 <t:include path=_footer.html.tm m:app=$app />

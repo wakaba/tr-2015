@@ -7,6 +7,7 @@ use File::Temp;
 use AnyEvent;
 use Promise;
 use Promised::File;
+use Promised::Command;
 use Promised::Plackup;
 use Promised::Mysqld;
 use Promised::Docker::WebDriver;
@@ -186,6 +187,31 @@ sub stop_servers () {
   $cv->end;
   $cv->recv;
 } # stop_servers
+
+push @EXPORT, qw(git_repo);
+sub git_repo ($$) {
+  my ($dir_name, $commands) = @_;
+  return Promised::File->new_from_path ($dir_name)->mkpath->then (sub {
+    my $cmd = Promised::Command->new (['git', 'init']);
+    $cmd->wd ($dir_name);
+    return $cmd->run->then (sub {
+      return $cmd->wait;
+    })->then (sub {
+      die $_[0] unless $_[0]->exit_code == 0;
+    });
+  })->then (sub {
+    my $script_path = path ($dir_name)->child ('commands');
+    return Promised::File->new_from_path ($script_path)->write_char_string ($commands)->then (sub {
+      my $cmd = Promised::Command->new (['bash', $script_path]);
+      $cmd->wd ($dir_name);
+      return $cmd->run->then (sub {
+        return $cmd->wait;
+      })->then (sub {
+        die $_[0] unless $_[0]->exit_code == 0;
+      });
+    });
+  });
+} # git_repo
 
 push @EXPORT, qw(GET);
 sub GET ($$;%) {

@@ -20,4 +20,5 @@
 - "../../modules/twiggy-packed" tests
 - "../../t_deps/modules/promised-plackup" tests
 - "../../t_deps/modules/promised-mysqld" tests
+- "../../t_deps/modules/promised-timer" tests
 - "../../t_deps/modules/promised-docker-webdriver" tests

@@ -98,8 +98,8 @@ test {
       push @p, GET ($c, $t->{path}, account => $account)->then (sub {
         my $res = $_[0];
         test {
-          is $res->code, 404, $t->{path};
-          like $res->header ('Content-Type'), qr{text/};
+          is $res->code, 200, $t->{path};
+          like $res->header ('Content-Type'), qr{@{[$t->{mime} // 'text/html']}};
         } $c;
       });
     }

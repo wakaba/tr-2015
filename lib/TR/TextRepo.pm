@@ -267,8 +267,12 @@ sub clone_from_mirror ($;%) {
 
 sub get_branches ($;$) {
   my ($self, $name) = @_;
-  return $self->mirror_repo->git ('branch', ['-v', '--no-abbrev', '--list', '--', (defined $name ? $name : ())])->then (sub {
+  return $self->mirror_repo->git ('branch',
+    ['-v', '--no-abbrev', '--list', '--', (defined $name ? $name : ())],
+    timeout => 2,
+  )->then (sub {
     my $result = $_[0];
+warn "then";
     my $parsed = {branches => {}};
     for (split /\x0A/, decode 'utf-8', $result->{stdout}) {
       if (/^(\* |  )(\S+)\s+(\S+) (.*)$/) {

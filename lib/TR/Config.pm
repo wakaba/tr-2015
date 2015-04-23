@@ -3,8 +3,6 @@ use strict;
 use warnings;
 use Path::Tiny;
 use Encode;
-use Promised::File;
-use Promised::Command;
 use MIME::Base64;
 use JSON::PS;
 use Dongry::Database;
@@ -23,8 +21,11 @@ sub new_from_path ($$) {
     }
   }
   die "$path: Not a JSON object" unless defined $json;
-  return bless {base_path => $path->parent, json => $json}, $class;
+  return bless {base_path => $path->parent, json => $json,
+                root_pid => $$}, $class;
 } # new_from_path
+
+my $ShowFilePath = path (__FILE__)->parent->parent->parent->child ('bin/git-show-file.pl');
 
 sub load_siteadmin ($$) {
   my ($self, $path) = @_;
@@ -38,7 +39,28 @@ sub load_siteadmin ($$) {
     (system 'sh', '-c', "cd \Q$path\E && (git write-tree | GIT_COMMITTER_EMAIL=initial\@invalid GIT_COMMITTER_NAME=Initial GIT_AUTHOR_EMAIL=initial\@invalid GIT_AUTHOR_NAME=Initial xargs git commit-tree | xargs git branch master)") == 0
         or die "git: " . ($? >> 8);
   }
+  my $json = json_bytes2perl `perl \Q$ShowFilePath\E \Q$path\E master repository-rules.json`;
+  $json = {} unless defined $json and ref $json eq 'HASH';
+
+  my $rules = (defined $json->{rules} and ref $json->{rules} eq 'ARRAY') ? $json->{rules} : [];
+  $self->{repository_rules} = $rules;
 } # load_siteadmin
+
+sub reload_siteadmin ($) {
+  my $self = $_[0];
+  my $path = $self->{siteadmin_path};
+  my $json = json_bytes2perl `perl \Q$ShowFilePath\E \Q$path\E master repository-rules.json`;
+  $json = {} unless defined $json and ref $json eq 'HASH';
+
+  my $rules = (defined $json->{rules} and ref $json->{rules} eq 'ARRAY') ? $json->{rules} : [];
+  $self->{repository_rules} = $rules;
+
+  warn "siteadmin reloaded\n";
+} # reload_siteadmin
+
+sub sighup_root_process ($) {
+  kill 'HUP', $_[0]->{root_pid};
+} # sighup_root_process
 
 sub get ($$) {
   return $_[0]->{json}->{$_[1]};

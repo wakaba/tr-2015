@@ -375,7 +375,26 @@ sub main ($$) {
                   return {is_owner => 1, is_public => 0};
                 });
               } elsif ($repo_type eq 'file-public') {
-                Promise->resolve ({is_owner => 1, is_public => 1});
+                my $url = $tr->mapped_url;
+                if ($url =~ s{^file:///}{/}) {
+                  #
+                } elsif ($url =~ m{/}) {
+                  #
+                } else {
+                  undef $url;
+                }
+                if (defined $url) {
+                  use Promised::File; # XXX
+                  Promised::File->new_from_path ($url)->is_directory->then (sub {
+                    if ($_[0]) {
+                      return {is_owner => 1, is_public => 1};
+                    } else {
+                      return {status => 404, message => "Repository not found: <$url>"};
+                    }
+                  });
+                } else {
+                  Promise->resolve ({status => 404, message => 'Repository not found'});
+                }
               } elsif ($repo_type eq 'file-private') {
                 Promise->resolve ({is_owner => 0, is_public => 0});
               } else { # $repo_type
@@ -396,6 +415,9 @@ sub main ($$) {
             },
           ])->then (sub {
             my ($rights, $should_be_owner) = @{$_[0]};
+            if (defined $rights->{status}) {
+              return $app->throw_error ($rights->{status}, reason_phrase => $rights->{message});
+            }
             my $time = time;
             my $can_be_owner = !!$rights->{is_owner};
             my $can_write = !!$rights->{is_owner};
@@ -1320,7 +1342,11 @@ sub main ($$) {
         return $class->edit_text_set (
           $app, $tr, $type,
           sub {
-            return $tr->write_file_by_path ($tr->repo_path->child ('repository-rules.json'), $app->text_param ('json') // '{}')->then (sub { return {} });
+            $app->send_progress_json_chunk ('Updating the configuration file...');
+            return $tr->write_file_by_path ($tr->repo_path->child ('repository-rules.json'), $app->text_param ('json') // '{}')->then (sub {
+              $app->config->sighup_root_process;
+              return {};
+            });
           },
           scope => 'repo',
           default_commit_message => 'Updated repository-rules.json',
@@ -1436,38 +1462,6 @@ sub create_text_repo ($$$) {
     $url =~ s{/+\z}{};
   }
 
-  my @rule = (
-    {
-      prefix => q<https://github.com/>,
-      repository_type => 'github',
-    },
-    {
-      prefix => q<http://github.com/>,
-      canonical_prefix => q<https://github.com/>,
-      repository_type => 'github',
-    },
-    {
-      prefix => q<git://github.com/>,
-      canonical_prefix => q<https://github.com/>,
-      repository_type => 'github',
-    },
-    {
-      prefix => q<ssh://git@github.com/>,
-      canonical_prefix => q<https://github.com/>,
-      repository_type => 'github',
-    },
-    {
-      prefix => q<ssh://git@melon//git/pub/>,
-      canonical_prefix => q<git@melon:/git/pub/>,
-      repository_type => 'ssh',
-    },
-    {
-      prefix => q<file://demo/>,
-      canonical_prefix => path (__FILE__)->parent->parent->parent->child ('local/pub') . '/',
-      repository_type => 'file-public',
-    },
-  );
-
   # XXX max URL length
   my $rule;
   if ($url eq 'about:siteadmin') {
@@ -1477,7 +1471,9 @@ sub create_text_repo ($$$) {
       repository_type => 'file-private',
     };
   } else {
-    for my $r (@rule) {
+    for my $r (@{$app->config->{repository_rules}}) {
+      next unless defined $r and ref $r eq 'HASH';
+      next unless defined $r->{prefix} and length $r->{prefix};
       if ($url =~ m{\A\Q$r->{prefix}\E}) {
         $rule = $r;
         last;

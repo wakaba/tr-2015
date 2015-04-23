@@ -14,6 +14,10 @@ my $config_path = path ($config_file_name);
 my $config = TR::Config->new_from_path ($config_path);
 $config->load_siteadmin ($config->get_path ('admin.repository'));
 
+$Parallel::Prefork::BeforeSignalAction->{HUP} = sub {
+  $config->reload_siteadmin;
+};
+
 if ($config->get ('http.x-forwarded-*')) {
   $Wanage::HTTP::UseXForwardedScheme = 1;
   $Wanage::HTTP::UseXForwardedHost = 1;
