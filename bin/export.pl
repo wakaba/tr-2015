@@ -61,7 +61,7 @@ if (defined $export and ref $export eq 'ARRAY') {
     $data->{$rule->{query} // ''} ||= do {
       require TR::Query;
       my $q = TR::Query->parse_query (query => $rule->{query});
-      get_dump $repo_dir, $git_tree->id, $texts_dir, $rule->{query}; # XXX should use git index
+      get_dump $repo_dir, $git_tree->id, $texts_dir, $rule->{query};
     };
 
     if (($rule->{format} // '') eq 'po') {
@@ -122,24 +122,37 @@ if (defined $export and ref $export eq 'ARRAY') {
             }
 
       my $file_name = $rule->{fileTemplate} // do {
-        # XXX
-        warn "|fileTemplate| is not specified";
-        next;
+        print_status {error => 1, status => 409, message => '|fileTemplate| is not specified in an export rule'};
+        exit 1;
       };
       $file_name =~ s/\{lang\}/$lang/g;
+      unless ($file_name =~ m{\A
+              [A-Za-z0-9_][A-Za-z0-9_.\@+-]*
+        (?> / [A-Za-z0-9_][A-Za-z0-9_.\@+-]* )*
+      \z}x and 50 > length $file_name) {
+        print_status {error => 1, status => 409, message => "Exported file name |$file_name| is not allowed"};
+        exit 1;
+      }
 
       my $repo_path = path ($repo_dir);
       my $file_path = (defined $texts_dir ? path ($texts_dir) : path ('.'))
-          ->child ($file_name); # XXX validation
+          ->child ($file_name);
       my $path = $repo_path->child ($file_path);
-      $path->parent->mkpath; # or die XXX
-      $path->spew_utf8 ($es->stringify); # or die XXX
+      eval {
+        $path->parent->mkpath;
+        $path->spew_utf8 ($es->stringify);
+      };
+      if ($@) {
+        print_status {error => 1, status => 409, message => "Can't export to |$file_name|", diag => $@};
+        exit 1;
+      }
       $modified_file_names->{$file_path} = 1;
 
       # XXX "PO-Revision-Date should be max(last_modified)
 
     } else {
-      die "XXX unknown format |$rule->{format}|";
+      print_status {error => 1, status => 409, message => "Export format |$rule->{format}| is not supported"};
+      exit 1;
     }
   } # $rule
 }

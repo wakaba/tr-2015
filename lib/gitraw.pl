@@ -1,6 +1,6 @@
 use strict;
 use warnings;
-use JSON::Functions::XS qw(json_bytes2perl);
+use JSON::Functions::XS qw(json_bytes2perl perl2json_bytes);
 
 sub entry_is_blob ($) {
   my $entry = $_[0];
@@ -36,5 +36,10 @@ sub get_texts_config ($) {
   }
   return $config;
 } # get_texts_config
+
+sub print_status ($) {
+  print STDOUT perl2json_bytes $_[0];
+  print STDOUT "\x0A";
+} # print_status
 
 1;

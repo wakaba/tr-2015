@@ -96,6 +96,21 @@
 </section>
 
 <section>
+  <h1>ファイル出力</h1>
+
+  <section>
+    <h1>制約</h1>
+
+    <p>リポジトリー内のファイル名は、ディレクトリー名や区切りの
+    <code>/</code> も含めて50文字以下でなければなりません。
+    ファイル名に使えるのは ASCII 英数字、 <code>_</code>、
+    <code>.</code>、<code>@</code>、<code>+</code>、<code>-</code>
+    のみです。ディレクトリー名とファイル名の先頭文字は英数字か
+    <code>_</code> でなければなりません。
+  </section>
+</section>
+
+<section>
   <h1>サイト管理</h1>
 
   <section>

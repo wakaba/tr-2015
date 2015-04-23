@@ -622,6 +622,7 @@ sub run_export ($%) {
   my ($self, %args) = @_;
   my $json_path = $self->{temp_path}->child ('export-'.rand.'.json');
   my $json_file = Promised::File->new_from_path ($json_path);
+  my $onerror = delete $args{onerror};
   return $self->_run_add->then (sub {
     return $json_file->write_byte_string (perl2json_bytes \%args);
   })->then (sub {
@@ -633,6 +634,33 @@ sub run_export ($%) {
       $self->{texts_dir} // '',
       $json_path,
     ]);
+    my $emit_progress = sub {
+      my $input = $_[0];
+      if ($input =~ /\S/) {
+        my $json = json_bytes2perl $input;
+        if (defined $json and ref $json eq 'HASH') {
+          # XXX error log?
+          if (defined $json->{error} and defined $json->{status}) {
+            $onerror->($json);
+          }
+          # XXX progress
+        }
+      }
+    };
+    my $stdout = '';
+    $cmd->stdout (sub {
+      if (defined $_[0]) {
+        $stdout .= $_[0];
+        while ($stdout =~ s/^([^\x0A]*)\x0A//) {
+          $emit_progress->($1);
+        }
+      } else {
+        while ($stdout =~ s/^([^\x0A]*)\x0A//) {
+          $emit_progress->($stdout);
+        }
+        $emit_progress->($stdout);
+      }
+    });
     return $cmd->run->then (sub { return $cmd->wait });
   })->then (sub {
     my $result = $_[0];

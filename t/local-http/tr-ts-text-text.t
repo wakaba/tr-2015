@@ -138,5 +138,221 @@ test {
   });
 } wait => $wait, n => 8, name => 'texts.json POST with export';
 
+test {
+  my $c = shift;
+  login ($c)->then (sub {
+    my $account = $_[0];
+    my $text_id = new_text_id;
+    my $repo_name = rand;
+    my $path = $c->received_data->{repos_path}->child ('pub/' . $repo_name);
+    my $url = qq<file:///pub/$repo_name>;
+    return git_repo ($path, files => {
+      'texts.json' => (perl2json_bytes {
+        export => [
+          {
+            lang => 'en',
+            format => 'po',
+          },
+        ],
+      }),
+    })->then (sub {
+      my $rev = $_[0];
+      return POST ($c, ['tr', $url, 'acl.json'], params => {
+        operation => 'join',
+      }, account => $account)->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+        } $c, name => 'get access';
+        return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+          lang => 'en',
+          body_0 => 'abc',
+        }, account => $account);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 409;
+          my $json = json_bytes2perl $res->content;
+          is $json->{status}, 409;
+          is $json->{message}, '|fileTemplate| is not specified in an export rule';
+        } $c, name => 'Not edited';
+        return git_rev ($path);
+      })->then (sub {
+        my $current_rev = $_[0];
+        test {
+          is $current_rev, $rev;
+        } $c;
+      });
+    })->then (sub {
+      done $c;
+      undef $c;
+    });
+  });
+} wait => $wait, n => 5, name => 'texts.json POST with export broken (no fileTemplate)';
+
+test {
+  my $c = shift;
+  login ($c)->then (sub {
+    my $account = $_[0];
+    my $text_id = new_text_id;
+    my $repo_name = rand;
+    my $path = $c->received_data->{repos_path}->child ('pub/' . $repo_name);
+    my $url = qq<file:///pub/$repo_name>;
+    return git_repo ($path, files => {
+      'texts.json' => (perl2json_bytes {
+        export => [
+          {
+            lang => 'en',
+            format => 'po',
+            fileTemplate => '"en".po',
+          },
+        ],
+      }),
+    })->then (sub {
+      my $rev = $_[0];
+      return POST ($c, ['tr', $url, 'acl.json'], params => {
+        operation => 'join',
+      }, account => $account)->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+        } $c, name => 'get access';
+        return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+          lang => 'en',
+          body_0 => 'abc',
+        }, account => $account);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 409;
+          my $json = json_bytes2perl $res->content;
+          is $json->{status}, 409;
+          is $json->{message}, 'Exported file name |"en".po| is not allowed';
+        } $c, name => 'Not edited';
+        return git_rev ($path);
+      })->then (sub {
+        my $current_rev = $_[0];
+        test {
+          is $current_rev, $rev;
+        } $c;
+      });
+    })->then (sub {
+      done $c;
+      undef $c;
+    });
+  });
+} wait => $wait, n => 5, name => 'texts.json POST with export broken (bad file name)';
+
+test {
+  my $c = shift;
+  login ($c)->then (sub {
+    my $account = $_[0];
+    my $text_id = new_text_id;
+    my $repo_name = rand;
+    my $path = $c->received_data->{repos_path}->child ('pub/' . $repo_name);
+    my $url = qq<file:///pub/$repo_name>;
+    return git_repo ($path, files => {
+      'texts.json' => (perl2json_bytes {
+        export => [
+          {
+            lang => 'en',
+            format => 'PO',
+            fileTemplate => 'en.po',
+          },
+        ],
+      }),
+    })->then (sub {
+      my $rev = $_[0];
+      return POST ($c, ['tr', $url, 'acl.json'], params => {
+        operation => 'join',
+      }, account => $account)->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+        } $c, name => 'get access';
+        return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+          lang => 'en',
+          body_0 => 'abc',
+        }, account => $account);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 409;
+          my $json = json_bytes2perl $res->content;
+          is $json->{status}, 409;
+          is $json->{message}, 'Export format |PO| is not supported';
+        } $c, name => 'Not edited';
+        return git_rev ($path);
+      })->then (sub {
+        my $current_rev = $_[0];
+        test {
+          is $current_rev, $rev;
+        } $c;
+      });
+    })->then (sub {
+      done $c;
+      undef $c;
+    });
+  });
+} wait => $wait, n => 5, name => 'texts.json POST with export broken (unknown export format)';
+
+test {
+  my $c = shift;
+  login ($c)->then (sub {
+    my $account = $_[0];
+    my $text_id = new_text_id;
+    my $repo_name = rand;
+    my $path = $c->received_data->{repos_path}->child ('pub/' . $repo_name);
+    my $url = qq<file:///pub/$repo_name>;
+    return git_repo ($path, files => {
+      'texts.json' => (perl2json_bytes {
+        export => [
+          {
+            lang => 'en',
+            format => 'po',
+            fileTemplate => 'hoge/foo',
+          },
+          {
+            lang => 'en',
+            format => 'po',
+            fileTemplate => 'hoge',
+          },
+        ],
+      }),
+    })->then (sub {
+      my $rev = $_[0];
+      return POST ($c, ['tr', $url, 'acl.json'], params => {
+        operation => 'join',
+      }, account => $account)->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 200;
+        } $c, name => 'get access';
+        return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+          lang => 'en',
+          body_0 => 'abc',
+        }, account => $account);
+      })->then (sub {
+        my $res = $_[0];
+        test {
+          is $res->code, 409;
+          my $json = json_bytes2perl $res->content;
+          is $json->{status}, 409;
+          is $json->{message}, "Can't export to |hoge|";
+        } $c, name => 'Not edited';
+        return git_rev ($path);
+      })->then (sub {
+        my $current_rev = $_[0];
+        test {
+          is $current_rev, $rev;
+        } $c;
+      });
+    })->then (sub {
+      done $c;
+      undef $c;
+    });
+  });
+} wait => $wait, n => 5, name => 'texts.json POST with export broken (directory error)';
+
 run_tests;
 stop_servers;

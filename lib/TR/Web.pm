@@ -871,7 +871,9 @@ sub main ($$) {
         );
       })->then (sub {
         $app->send_progress_json_chunk ('Running export rules...');
-        return $tr->run_export;
+        return $tr->run_export (onerror => sub {
+          $app->send_last_json_chunk ($_[0]->{status}, $_[0]->{message}, {});
+        });
       })->then (sub {
         my $msg = $app->text_param ('commit_message') // '';
         $msg = 'Imported' unless length $msg;
@@ -932,7 +934,13 @@ sub main ($$) {
               }
             })->then (sub {
               $app->send_progress_json_chunk ('Running export rules...');
-              return $tr->run_export;
+              return $tr->run_export (onerror => sub {
+                $app->send_last_json_chunk
+                    ($_[0]->{status}, $_[0]->{message}, {
+                      status => $_[0]->{status},
+                      message => $_[0]->{message},
+                    });
+              });
             })->then (sub { return {} });
           },
           scope => 'edit/' . $lang,
@@ -979,7 +987,10 @@ sub main ($$) {
                   ($text_id, 'dat' => $te->as_source_text)->then (sub {
                 $app->send_progress_json_chunk ('Running export rules...');
               })->then (sub {
-                return $tr->run_export;
+                return $tr->run_export (onerror => sub {
+                  $app->send_last_json_chunk
+                      ($_[0]->{status}, $_[0]->{message}, {});
+                });
               })->then (sub {
                 return $te->as_jsonalizable;
               });

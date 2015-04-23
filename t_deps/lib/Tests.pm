@@ -120,8 +120,30 @@ sub git_repo ($%) {
     })->then (sub {
       die $_[0] unless $_[0]->exit_code == 0;
     });
-  })->then (sub { undef $dir_name });
+  })->then (sub {
+    my $cmd = Promised::Command->new (['git', 'rev-parse', 'HEAD']);
+    $cmd->wd ($dir_name);
+    $cmd->stdout (\my $stdout);
+    return $cmd->run->then (sub {
+      return $cmd->wait;
+    })->then (sub {
+      die $_[0] unless $_[0]->exit_code == 0;
+    })->then (sub { undef $dir_name; return $stdout });
+  });
 } # git_repo
+
+push @EXPORT, qw(git_rev);
+sub git_rev ($) {
+  my $dir_name = $_[0];
+  my $cmd = Promised::Command->new (['git', 'rev-parse', 'HEAD']);
+  $cmd->wd ($dir_name);
+  $cmd->stdout (\my $stdout);
+  return $cmd->run->then (sub {
+    return $cmd->wait;
+  })->then (sub {
+    die $_[0] unless $_[0]->exit_code == 0;
+  })->then (sub { return $stdout });
+} # git_rev
 
 push @EXPORT, qw(file_from_git_repo);
 sub file_from_git_repo ($$;%) {
