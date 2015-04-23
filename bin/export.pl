@@ -3,7 +3,7 @@ use warnings;
 use Path::Tiny;
 use JSON::Functions::XS qw(json_bytes2perl perl2json_bytes);
 use Git::Raw::Repository;
-use Git::Raw::Branch;
+use Git::Raw::Tree;
 use AnyEvent;
 use Promised::Command;
 BEGIN { require 'gitraw.pl' };
@@ -14,7 +14,7 @@ sub get_dump ($$$$) {
     $root_path->child ('perl'),
     $root_path->child ('bin/dump-textset.pl'),
     $_[0],
-    $_[1],
+    tree => $_[1],
     $_[2],
   ]);
   my $query = $_[3];
@@ -34,16 +34,16 @@ sub get_dump ($$$$) {
 
 ## ------ Main ------
 
-my ($repo_dir, $branch_name, $texts_dir, $json_dir) = @ARGV;
+my ($repo_dir, $texts_dir, $json_dir) = @ARGV;
 die unless defined $json_dir;
 my $json = json_bytes2perl path ($json_dir)->slurp;
 undef $texts_dir unless length $texts_dir;
 # $repo_dir and $texts_dir must be safe values
 
 my $git_repo = Git::Raw::Repository->open ($repo_dir);
-my $git_branch = Git::Raw::Branch->lookup ($git_repo, $branch_name, 1)
-    // die "Branch |$branch_name| not found";
-my $texts_tree = get_texts_tree $git_branch, $texts_dir; # or undef
+my $git_index = $git_repo->index;
+my $git_tree = $git_index->write_tree;
+my $texts_tree = get_texts_tree $git_tree, $texts_dir; # or undef
 my $config = get_texts_config $texts_tree;
 
 my $modified_file_names = {};
@@ -61,7 +61,7 @@ if (defined $export and ref $export eq 'ARRAY') {
     $data->{$rule->{query} // ''} ||= do {
       require TR::Query;
       my $q = TR::Query->parse_query (query => $rule->{query});
-      get_dump $repo_dir, $branch_name, $texts_dir, $rule->{query}; # XXX should use git index
+      get_dump $repo_dir, $git_tree->id, $texts_dir, $rule->{query}; # XXX should use git index
     };
 
     if (($rule->{format} // '') eq 'po') {

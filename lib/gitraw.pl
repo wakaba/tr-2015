@@ -11,7 +11,7 @@ sub entry_is_blob ($) {
 
 sub get_texts_tree ($$) {
   my ($git_branch, $texts_dir) = @_;
-  my $root_tree = $git_branch->target->tree;
+  my $root_tree = $git_branch->is_tree ? $git_branch : $git_branch->target->tree;
   my $texts_tree = $root_tree;
   if (defined $texts_dir) {
     my $texts_entry = $root_tree->entry_bypath ($texts_dir);

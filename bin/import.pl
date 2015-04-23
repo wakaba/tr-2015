@@ -23,7 +23,7 @@ sub get_msgid_to_text_id_mapping ($$$) {
     $root_path->child ('perl'),
     $root_path->child ('bin/dump-textset.pl'),
     $_[0],
-    $_[1],
+    branch => $_[1],
     $_[2],
   ]);
   # XXX no lang data

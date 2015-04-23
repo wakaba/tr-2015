@@ -511,6 +511,7 @@ sub get_data_as_jsonalizable ($%) {
       $root_path->child ('perl'),
       $root_path->child ('bin/dump-textset.pl'),
       $self->mirror_repo_path,
+      'branch',
       $self->branch,
       $self->{texts_dir} // '',
     ]);
@@ -621,13 +622,14 @@ sub run_export ($%) {
   my ($self, %args) = @_;
   my $json_path = $self->{temp_path}->child ('export-'.rand.'.json');
   my $json_file = Promised::File->new_from_path ($json_path);
-  return $json_file->write_byte_string (perl2json_bytes \%args)->then (sub {
+  return $self->_run_add->then (sub {
+    return $json_file->write_byte_string (perl2json_bytes \%args);
+  })->then (sub {
     my $root_path = path (__FILE__)->parent->parent->parent;
     my $cmd = Promised::Command->new ([
       $root_path->child ('perl'),
       $root_path->child ('bin/export.pl'),
       $self->repo_path,
-      $self->branch,
       $self->{texts_dir} // '',
       $json_path,
     ]);
@@ -646,9 +648,8 @@ sub add_by_paths ($$) {
   return Promise->resolve;
 } # add_by_paths
 
-sub commit ($$) {
-  my ($self, $msg) = @_;
-  $msg = ' ' unless length $msg;
+sub _run_add ($) {
+  my $self = $_[0];
   my $p = Promise->resolve;
   my @add = keys %{$self->{git_add} or {}};
   while (@add) {
@@ -656,7 +657,13 @@ sub commit ($$) {
     $p = $p->then (sub { return $self->repo->git ('add', \@x) });
   }
   delete $self->{git_add};
-  return $p->then (sub {
+  return $p;
+} # _run_add
+
+sub commit ($$) {
+  my ($self, $msg) = @_;
+  $msg = ' ' unless length $msg;
+  return $self->_run_add->then (sub {
     return $self->repo->commit (
       message => $msg,
       author_email => $self->{author_email}, # set by $self->prepare_mirror
@@ -665,7 +672,6 @@ sub commit ($$) {
       committer_name => $self->config->get ('git.committer.name'),
     );
   });
-  # XXX ignore nothing-to-commit error
 } # commit
 
 sub push ($) {

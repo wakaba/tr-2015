@@ -2,18 +2,27 @@ use strict;
 use warnings;
 use Git::Raw;
 use Git::Raw::Branch;
+use Git::Raw::Tree;
 use TR::TextEntry;
 use JSON::Functions::XS qw(perl2json_bytes);
 
-my ($git_url, $git_branch, $text_set_path) = @ARGV;
+my ($git_url, $ref_type, $ref, $text_set_path) = @ARGV;
 die "Bad args" unless defined $text_set_path;
 
 my $WithComments = $ENV{WITH_COMMENTS};
 
 my $git_repo = Git::Raw::Repository->open ($git_url);
-my $branch = Git::Raw::Branch->lookup ($git_repo, $git_branch, 1)
-    // die "Branch not found";
-my $root_tree = $branch->target->tree;
+my $root_tree;
+if ($ref_type eq 'branch') {
+  my $branch = Git::Raw::Branch->lookup ($git_repo, $ref, 1)
+      // die "Branch |$ref| not found";
+  $root_tree = $branch->target->tree;
+} elsif ($ref_type eq 'tree') {
+  $root_tree = Git::Raw::Tree->lookup ($git_repo, $ref)
+      // die "Tree |$ref| not found";
+} else {
+  die "Unknown ref type |$ref_type|";
+}
 
 my $dat_entries = {};
 my $txt_entries = {};

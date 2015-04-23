@@ -41,7 +41,7 @@ test {
         } $c, name => 'repository not found';
       });
 
-      push @p, git_repo ("$temp_dir/repo1", q{
+      push @p, git_repo ("$temp_dir/repo1", script => q{
         echo hoge > hoge
         git add hoge
         git commit -m "new"

@@ -12,8 +12,10 @@ use Promised::Plackup;
 use Promised::Mysqld;
 use Promised::Docker::WebDriver;
 use MIME::Base64;
+use Digest::SHA qw(sha1_hex);
 use JSON::PS;
 use Web::UserAgent::Functions qw(http_get http_post);
+use Wanage::URL qw(percent_encode_c);
 use Test::More;
 use Test::Differences;
 use Test::X1;
@@ -50,6 +52,94 @@ sub db_sqls () {
     return [split /;/, $_[0]];
   });
 } # db_sqls
+
+push @EXPORT, qw(git_repo);
+sub git_repo ($%) {
+  my ($repo_dir_name, %args) = @_;
+  my $dir_name = File::Temp->newdir;
+  return Promised::File->new_from_path ($repo_dir_name)->mkpath->then (sub {
+    my $cmd = Promised::Command->new (['git', 'init', '--bare']);
+    $cmd->wd ($repo_dir_name);
+    return $cmd->run->then (sub {
+      return $cmd->wait;
+    })->then (sub {
+      die $_[0] unless $_[0]->exit_code == 0;
+    });
+  })->then (sub {
+    return Promised::File->new_from_path ($dir_name)->mkpath;
+  })->then (sub {
+    my $cmd = Promised::Command->new (['git', 'clone', $repo_dir_name, $dir_name]);
+    $cmd->wd ($dir_name);
+    return $cmd->run->then (sub {
+      return $cmd->wait;
+    })->then (sub {
+      die $_[0] unless $_[0]->exit_code == 0;
+    });
+  })->then (sub {
+    my $files = $args{files} || {};
+    return unless keys %$files;
+    my @p;
+    my $dir_path = path ($dir_name);
+    for my $file_name (keys %$files) {
+      push @p, Promised::File->new_from_path ($dir_path->child ($file_name))->write_byte_string ($files->{$file_name});
+    }
+    return Promise->all (\@p)->then (sub {
+      my $cmd = Promised::Command->new (['git', 'add', '.']);
+      $cmd->wd ($dir_name);
+      return $cmd->run->then (sub {
+        return $cmd->wait;
+      })->then (sub {
+        die $_[0] unless $_[0]->exit_code == 0;
+      });
+    })->then (sub {
+      my $cmd = Promised::Command->new (['git', 'commit', '-m', 'Initial']);
+      $cmd->wd ($dir_name);
+      return $cmd->run->then (sub {
+        return $cmd->wait;
+      })->then (sub {
+        die $_[0] unless $_[0]->exit_code == 0;
+      });
+    });
+  })->then (sub {
+    return unless defined $args{script};
+    my $script_path = path ($dir_name)->child ('script');
+    return Promised::File->new_from_path ($script_path)->write_char_string ($args{script})->then (sub {
+      my $cmd = Promised::Command->new (['bash', $script_path]);
+      $cmd->wd ($dir_name);
+      return $cmd->run->then (sub {
+        return $cmd->wait;
+      })->then (sub {
+        die $_[0] unless $_[0]->exit_code == 0;
+      });
+    });
+  })->then (sub {
+    my $cmd = Promised::Command->new (['git', 'push', 'origin', 'master']);
+    $cmd->wd ($dir_name);
+    return $cmd->run->then (sub {
+      return $cmd->wait;
+    })->then (sub {
+      die $_[0] unless $_[0]->exit_code == 0;
+    });
+  })->then (sub { undef $dir_name });
+} # git_repo
+
+push @EXPORT, qw(file_from_git_repo);
+sub file_from_git_repo ($$;%) {
+  my ($dir_name, $file_name, %args) = @_;
+  my $cmd = Promised::Command->new ([
+    'perl',
+    path (__FILE__)->parent->parent->parent->child ('bin/git-show-file.pl'),
+    $dir_name, 'master', $file_name,
+  ]);
+  $cmd->stdout (\my $stdout);
+  return $cmd->run->then (sub {
+    return $cmd->wait;
+  })->then (sub {
+    die $_[0] unless $_[0]->exit_code == 0;
+  })->then (sub {
+    return $stdout;
+  });
+} # file_from_git_repo
 
 sub account_server () {
   $AccountServer = Promised::Plackup->new;
@@ -128,15 +218,26 @@ sub web_server (;$) {
   my $cv = AE::cv;
   my $admin_token = rand;
   $MySQLServer = Promised::Mysqld->new;
+  $MySQLServer->{_temp} = my $temp = File::Temp->newdir;
+  my $temp_dir_path = path ($temp)->absolute;
+  my $temp_path = $temp_dir_path->child ('file');
+  my $temp_repos_path = $temp_dir_path->child ('repos');
+  my $temp_file = Promised::File->new_from_path ($temp_path);
+  my $repo_rules = {rules => [
+    {
+      prefix => q<file:///pub/>,
+      mapped_prefix => $temp_repos_path->child ('pub') . '/',
+      repository_type => 'file-public',
+    },
+  ]};
   Promise->all ([
     $MySQLServer->start,
     account_server,
+    git_repo ($temp_repos_path->child ('siteadmin'), files => {
+      'repository-rules.json' => (perl2json_bytes $repo_rules),
+    }),
   ])->then (sub {
     my $dsn = $MySQLServer->get_dsn_string (dbname => 'tr_test');
-    $MySQLServer->{_temp} = my $temp = File::Temp->newdir;
-    my $temp_dir_path = path ($temp)->absolute;
-    my $temp_path = $temp_dir_path->child ('file');
-    my $temp_file = Promised::File->new_from_path ($temp_path);
     $HTTPServer = Promised::Plackup->new;
     $HTTPServer->envs->{APP_CONFIG} = $temp_path;
     return Promise->all ([
@@ -155,9 +256,9 @@ sub web_server (;$) {
         'cookie.secure' => 0,
 
         'admin.token' => $admin_token,
-        'admin.repository' => $temp_dir_path->child ('siteadmin'),
+        'admin.repository' => $temp_repos_path->child ('siteadmin'),
 
-        'repos.mirror' => $temp_dir_path->child ('mirrors'),
+        'repos.mirror' => $temp_dir_path->child ('mirror'),
       }),
     ]);
   })->then (sub {
@@ -170,7 +271,8 @@ sub web_server (;$) {
     $cv->send ({host => $HTTPServer->get_host,
                 hostname => $HTTPServer->get_hostname,
                 account_host => $AccountServer->get_host,
-                admin_token => $admin_token});
+                admin_token => $admin_token,
+                repos_path => $temp_repos_path});
   });
   return $cv;
 } # web_server
@@ -188,35 +290,11 @@ sub stop_servers () {
   $cv->recv;
 } # stop_servers
 
-push @EXPORT, qw(git_repo);
-sub git_repo ($$) {
-  my ($dir_name, $commands) = @_;
-  return Promised::File->new_from_path ($dir_name)->mkpath->then (sub {
-    my $cmd = Promised::Command->new (['git', 'init']);
-    $cmd->wd ($dir_name);
-    return $cmd->run->then (sub {
-      return $cmd->wait;
-    })->then (sub {
-      die $_[0] unless $_[0]->exit_code == 0;
-    });
-  })->then (sub {
-    my $script_path = path ($dir_name)->child ('commands');
-    return Promised::File->new_from_path ($script_path)->write_char_string ($commands)->then (sub {
-      my $cmd = Promised::Command->new (['bash', $script_path]);
-      $cmd->wd ($dir_name);
-      return $cmd->run->then (sub {
-        return $cmd->wait;
-      })->then (sub {
-        die $_[0] unless $_[0]->exit_code == 0;
-      });
-    });
-  });
-} # git_repo
-
 push @EXPORT, qw(GET);
 sub GET ($$;%) {
   my ($c, $path, %args) = @_;
   my $host = $c->received_data->{host};
+  $path = '/' . join '/', map { percent_encode_c $_ } @$path if ref $path;
   return Promise->new (sub {
     my ($ok, $ng) = @_;
     my $cookies = $args{cookies} || {};
@@ -239,6 +317,7 @@ push @EXPORT, qw(POST);
 sub POST ($$;%) {
   my ($c, $path, %args) = @_;
   my $host = $c->received_data->{host};
+  $path = '/' . join '/', map { percent_encode_c $_ } @$path if ref $path;
   return Promise->new (sub {
     my ($ok, $ng) = @_;
     my $cookies = $args{cookies} || {};
@@ -288,5 +367,10 @@ sub login ($;%) {
     }
   });
 } # login
+
+push @EXPORT, qw(new_text_id);
+sub new_text_id () {
+  return sha1_hex (time () . $$ . rand ());
+} # new_text_id
 
 1;

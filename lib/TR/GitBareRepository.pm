@@ -44,10 +44,11 @@ sub git ($$$;%) {
   $cmd->stderr ($opt{stderr} // \$stderr);
   $cmd->wd ($self->{dir_name});
   $cmd->create_process_group (1);
-  my $timer1; $timer1 = AE::timer 60, 0, sub {
+  my $timeout = $opt{timeout} || 60;
+  my $timer1; $timer1 = AE::timer $timeout, 0, sub {
     eval { kill -15, getpgrp $cmd->pid }; undef $timer1;
   };
-  my $timer2; $timer2 = AE::timer 70, 0, sub {
+  my $timer2; $timer2 = AE::timer $timeout + 10, 0, sub {
     eval { kill -9, getpgrp $cmd->pid }; undef $timer2;
   };
   return $cmd->run->then (sub {
@@ -56,7 +57,7 @@ sub git ($$$;%) {
     my $result = $_[0];
     undef $cmd;
     unless ($result->is_success and $result->exit_code == 0) {
-      die "$result\n$stderr";
+      die "$result\n$stdout\n$stderr";
     }
     return {stdout => $stdout, stderr => $stderr};
   });
