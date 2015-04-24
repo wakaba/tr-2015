@@ -843,53 +843,36 @@ sub main ($$) {
     } elsif (@$path == 5 and $path->[4] =~ /\Aimport\.(json|ndjson)\z/) {
       # .../import.json
       # .../import.ndjson
-
-      $app->start_json_stream if $1 eq 'ndjson';
-      $app->send_progress_json_chunk ('Checking the repository permission...');
-      return $class->get_push_token ($app, $tr, 'repo')->then (sub { # XXX scope
-        return $tr->prepare_mirror ($_[0], $app);
-      })->then (sub {
-        $app->send_progress_json_chunk ('Cloning the repository...');
-        return $tr->clone_from_mirror (push => 1);
-      })->then (sub {
-        my $from = $app->bare_param ('from') // '';
-        $app->send_progress_json_chunk ('Importing...');
-        my $lang = $app->text_param ('lang') // '';
-        my $format = $app->text_param ('format') // '';
-        return $tr->run_import ( # XXX progress
-          from => $from,
-          files => [map {
-            my $v = $_;
-            +{file_name => $v->as_f . '', # XXX don't use Path::Class
-              label => $v->filename,
-              lang => $lang,
-              format => $format};
-          } @{$app->http->request_uploads->{file} || []}],
-          format => $format,
-          arg_format => $app->text_param ('arg_format') // '',
-          tags => $app->text_param_list ('tag')->grep (sub { length }),
-        );
-      })->then (sub {
-        $app->send_progress_json_chunk ('Running export rules...');
-        return $tr->run_export (onerror => sub {
-          $app->send_last_json_chunk ($_[0]->{status}, $_[0]->{message}, {});
-        });
-      })->then (sub {
-        my $msg = $app->text_param ('commit_message') // '';
-        $msg = 'Imported' unless length $msg;
-        $app->send_progress_json_chunk ('Creating a commit...');
-        return $tr->commit ($msg);
-      })->then (sub {
-        my $commit_result = $_[0];
-        if ($commit_result->{no_commit}) {
-          return $app->send_last_json_chunk (204, 'Not changed', {});
-        } else {
-          $app->send_progress_json_chunk ('Pushing the repository...');
-          return $tr->push->then (sub { # XXX failure
-            return $app->send_last_json_chunk (200, 'Done', {});
+      my $type = $1;
+      return $class->edit_text_set (
+        $app, $tr, $type,
+        sub {
+          my $from = $app->bare_param ('from') // '';
+          $app->send_progress_json_chunk ('Importing...');
+          my $lang = $app->text_param ('lang') // '';
+          my $format = $app->text_param ('format') // '';
+          return $tr->run_import ( # XXX progress
+            from => $from,
+            files => [map {
+              my $v = $_;
+              +{file_name => $v->as_f . '', # XXX don't use Path::Class
+                label => $v->filename,
+                lang => $lang,
+                format => $format};
+            } @{$app->http->request_uploads->{file} || []}],
+            format => $format,
+            arg_format => $app->text_param ('arg_format') // '',
+            tags => $app->text_param_list ('tag')->grep (sub { length }),
+          )->then (sub {
+            $app->send_progress_json_chunk ('Running export rules...');
+            return $tr->run_export (onerror => sub {
+              $app->send_last_json_chunk ($_[0]->{status}, $_[0]->{message}, {});
+            });
           });
-        }
-      })->$CatchThenDiscard ($app, $tr);
+        },
+        scope => 'edit', # XXX scope
+        default_commit_message => 'Imported',
+      );
 
     } elsif (@$path >= 7 and $path->[4] eq 'i') {
       my $text_id = $path->[5];

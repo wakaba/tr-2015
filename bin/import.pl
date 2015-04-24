@@ -84,7 +84,7 @@ sub import_file ($$$$%) {
           } else {
             my $file_entry = $root_tree->entry_bypath ($path);
             if (entry_is_blob $file_entry) {
-              $file_entry->content;
+              $file_entry->object->content;
             } else {
               '';
             }

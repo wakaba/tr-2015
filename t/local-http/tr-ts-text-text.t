@@ -6,6 +6,11 @@ use Tests;
 
 my $wait = web_server;
 
+# XXX GET
+# XXX repo errors
+# XXX permission errors
+# XXX CSRF errors
+
 test {
   my $c = shift;
   login ($c)->then (sub {
@@ -47,7 +52,7 @@ test {
       undef $c;
     });
   });
-} wait => $wait, n => 3, name => 'texts.json POST new test';
+} wait => $wait, n => 3, name => 'texts.json POST new text';
 
 test {
   my $c = shift;

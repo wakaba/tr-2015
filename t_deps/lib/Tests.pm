@@ -349,6 +349,7 @@ sub POST ($$;%) {
         basic_auth => $args{basic_auth},
         header_fields => $args{header_fields},
         params => $args{params},
+        files => $args{files},
         cookies => $cookies,
         anyevent => 1,
         max_redirect => 0,
