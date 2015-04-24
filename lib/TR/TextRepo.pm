@@ -478,7 +478,25 @@ sub get_tr_config ($) {
   my $dir = $self->{texts_dir};
   $dir = defined $dir ? "$dir/texts" : 'texts';
   return $self->mirror_repo->show_blob_by_path ($self->branch, "$dir/config.json")->then (sub {
-    return TR::TextEntry->new_from_source_bytes ($_[0] // '');
+    my $json = json_bytes2perl $_[0] // '';
+    $json = {} unless defined $json and ref $json eq 'HASH';
+
+    my $lang_keys = $json->{avail_lang_keys} // [];
+    $lang_keys = [] unless ref $lang_keys eq 'ARRAY';
+    $lang_keys = ['en'] unless @$lang_keys;
+    my %found;
+    @$lang_keys = grep { not $found{$_}++ } grep { defined and not ref and TR::Langs::is_lang_key $_ } @$lang_keys;
+    $json->{avail_lang_keys} = $lang_keys;
+
+    $json->{langs} = {} unless defined $json->{langs} and ref $json->{langs} eq 'HASH';
+    for (values %{$json->{langs}}) {
+      $_ = {} unless defined $_ and ref $_ eq 'HASH';
+    }
+
+    $json->{license} = $json->{license} || {};
+    $json->{license} = {} unless ref $json->{license} eq 'HASH';
+
+    return $json;
   });
 } # get_tr_config
 
@@ -487,25 +505,36 @@ sub get_data_as_jsonalizable ($%) {
   my $data = {};
   my $selected_langs = {};
   return $self->get_tr_config->then (sub {
-    my $tr_config = $_[0];
-    my %found;
-    my $langs = [grep { not $found{$_}++ } grep { length } split /,/, $tr_config->get ('langs') // 'en'];
+    my $config = $_[0];
+    $data->{avail_lang_keys} = $config->{avail_lang_keys};
+
+    $data->{langs} = {map {
+      my $def = $config->{langs}->{$_};
+      my $id = $def->{id} // $_; # XXX validation
+      my $label_raw = $def->{label};
+      my $label = $label_raw // $_; # XXX system's default
+      my $label_short_raw = $def->{label_short};
+      my $label_short = $label_short_raw // $label; # XXX system's default
+      $_ => +{
+        key => $_,
+        id => $id,
+        label_raw => $label_raw,
+        label => $label,
+        label_short_raw => $label_short_raw,
+        label_short => $label_short,
+      };
+    } @{$data->{avail_lang_keys}}};
+
     if (@$selected_lang_list) {
-      my $avail_langs = {map { $_ => 1 } @$langs};
+      my $avail_langs = {map { $_ => 1 } @{$data->{avail_lang_keys}}};
       my %found;
       @$selected_lang_list = grep { not $found{$_}++ } grep { $avail_langs->{$_} } @$selected_lang_list;
     } else {
-      $selected_lang_list = $langs;
+      $selected_lang_list = $data->{avail_lang_keys};
     }
-
     $data->{selected_lang_keys} = $selected_lang_list;
     $selected_langs->{$_} = 1 for @$selected_lang_list;
-    for my $lang (@$langs) {
-      $data->{langs}->{$lang}->{key} = $lang;
-      $data->{langs}->{$lang}->{id} = $lang; # XXX
-      $data->{langs}->{$lang}->{label} = $lang; # XXX
-      $data->{langs}->{$lang}->{label_short} = $lang; # XXX
-    }
+
     my $root_path = path (__FILE__)->parent->parent->parent;
     my $cmd = Promised::Command->new ([
       $root_path->child ('perl'),

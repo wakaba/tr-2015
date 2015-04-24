@@ -327,6 +327,7 @@ sub GET ($$;%) {
         header_fields => $args{header_fields},
         params => $args{params},
         cookies => $cookies,
+        timeout => 30,
         anyevent => 1,
         max_redirect => 0,
         cb => sub {
@@ -351,6 +352,7 @@ sub POST ($$;%) {
         params => $args{params},
         files => $args{files},
         cookies => $cookies,
+        timeout => 30,
         anyevent => 1,
         max_redirect => 0,
         cb => sub {

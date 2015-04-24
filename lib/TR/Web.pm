@@ -678,16 +678,18 @@ sub main ($$) {
         $app->send_progress_json_chunk ('Reading metadata...');
         return $tr->get_tr_config;
       })->then (sub {
-        my $tr_config = $_[0];
+        my $config = $_[0];
         my $json = {};
 
-        my $lang_keys = [grep { length } split /,/, $tr_config->get ('langs') // 'en'];
-        $lang_keys = ['en'] unless @$lang_keys;
-        my $langs = {map {
-          my $id = $tr_config->get ("lang.id.$_") // $_;
-          my $label_raw = $tr_config->get ("lang.label.$_");
+        $json->{avail_lang_keys} = $config->{avail_lang_keys};
+        $json->{avail_lang_keys} = ['en'] unless @{$json->{avail_lang_keys}};
+
+        $json->{langs} = {map {
+          my $def = $config->{langs}->{$_};
+          my $id = $def->{id} // $_; # XXX validation
+          my $label_raw = $def->{label};
           my $label = $label_raw // $_; # XXX system's default
-          my $label_short_raw = $tr_config->get ("lang.label_short.$_");
+          my $label_short_raw = $def->{label_short};
           my $label_short = $label_short_raw // $label; # XXX system's default
           $_ => +{
             key => $_,
@@ -697,13 +699,9 @@ sub main ($$) {
             label_short_raw => $label_short_raw,
             label_short => $label_short,
           };
-        } @$lang_keys};
-        $json->{langs} = $langs;
-        $json->{avail_lang_keys} = $lang_keys;
+        } @{$json->{avail_lang_keys}}};
 
-        $json->{license}->{type} = $tr_config->get ('license');
-        $json->{license}->{additional_terms} = $tr_config->get ('additional_license_terms');
-        $json->{license}->{holders} = $tr_config->get ('license_holders');
+        $json->{license} = $config->{license};
 
         $json->{scopes} = $scopes;
 
@@ -714,23 +712,22 @@ sub main ($$) {
       # .../XXXupdate-index
       # XXX request method
       # XXX skip if non-default branch
-      my $tr_config;
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
         return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
         return $tr->get_tr_config;
       })->then (sub {
-        $tr_config = $_[0];
+        my $config = $_[0];
         require TR::Query;
-        return $tr->get_data_as_jsonalizable (TR::Query->parse_query, []);
-      })->then (sub {
-        my $json = $_[0];
-        $json->{repo_url} = $tr->url;
-        $json->{repo_path} = '/' . ($tr->texts_dir // '');
-        $json->{repo_license} = $tr_config->get ('license');
-        require TR::Search;
-        my $s = TR::Search->new_from_config ($app->config);
-        return $s->put_data ($json)->then (sub {
+        return $tr->get_data_as_jsonalizable (TR::Query->parse_query, [])->then (sub {
+          my $json = $_[0];
+          $json->{repo_url} = $tr->url;
+          $json->{repo_path} = '/' . ($tr->texts_dir // '');
+          $json->{repo_license} = $config->{license}->{type}; # XXX
+          require TR::Search;
+          my $s = TR::Search->new_from_config ($app->config);
+          return $s->put_data ($json);
+        })->then (sub {
           return $app->send_error (200);
         });
       })->$CatchThenDiscard ($app, $tr);
@@ -890,11 +887,11 @@ sub main ($$) {
           $app, $tr, $type,
           sub {
             return $tr->get_tr_config->then (sub {
-              my $tr_config = $_[0];
-              my $lang_keys = {map { $_ => 1 } grep { length }
-                               split /,/, $tr_config->get ('langs') // 'en'};
-              return $app->throw_error (400, reason_phrase => 'Bad |lang|')
-                  unless $lang_keys->{$lang};
+              my $config = $_[0];
+              unless (grep { $_ eq $lang } @{$config->{avail_lang_keys}}) {
+                $app->send_last_json_chunk (409, "Language key |$lang| is not allowed", {});
+                return $app->throw;
+              }
               my $path = $tr->text_id_and_suffix_to_relative_path
                   ($text_id, $lang . '.txt');
               return $tr->mirror_repo->show_blob_by_path ($tr->branch, $path);
@@ -1031,11 +1028,11 @@ sub main ($$) {
         })->then (sub {
           return $tr->get_tr_config;
         })->then (sub {
-          my $tr_config = $_[0];
-          my $lang_keys = {map { $_ => 1 } grep { length }
-                           split /,/, $tr_config->get ('langs') // 'en'};
-          return $app->throw_error (404, reason_phrase => 'Bad |lang|')
-              unless $lang_keys->{$lang};
+          my $config = $_[0];
+          unless (grep { $_ eq $lang } @{$config->{avail_lang_keys}}) {
+            $app->send_last_json_chunk (400, "Language key |$lang| is not allowed", {});
+            return $app->throw;
+          }
           return $tr->git_log_for_text_id_and_lang
               ($text_id, $lang, with_file_text => 1);
         })->then (sub {
@@ -1102,7 +1099,7 @@ sub main ($$) {
         $app, $tr, $type,
         sub {
           return $tr->get_tr_config->then (sub {
-            my $tr_config = $_[0];
+            my $config = $_[0];
 
             my $lang_keys = $app->text_param_list ('lang_key');
             my $lang_ids = $app->text_param_list ('lang_id');
@@ -1120,14 +1117,20 @@ sub main ($$) {
               # XXX validate lang.id
 
               push @lang_key, $lang_key;
-              $tr_config->set_or_delete ("lang.id.$lang_key" => $lang_ids->[$_]);
-              $tr_config->set_or_delete ("lang.label.$lang_key" => $lang_labels->[$_]);
-              $tr_config->set_or_delete ("lang.label_short.$lang_key" => $lang_label_shorts->[$_]);
+              my $lang = $config->{langs}->{$lang_key} = {
+                id => $lang_ids->[$_] // '',
+                label => $lang_labels->[$_] // '',
+                label_short => $lang_label_shorts->[$_] // '',
+              };
+              delete $lang->{id} if not length $lang->{id};
+              delete $lang->{label} if not length $lang->{label};
+              delete $lang->{label_short} if not length $lang->{label_short};
             }
-            $tr_config->set (langs => join ',', @lang_key);
+            $config->{avail_lang_keys} = \@lang_key;
 
             return $tr->write_file_by_path
-                ($tr->texts_path->child ('config.json'), $tr_config->as_source_text);
+                ($tr->texts_path->child ('config.json'),
+                 perl2json_chars_for_record $config);
           })->then (sub { return {} });
         },
         scope => 'repo',
@@ -1156,14 +1159,17 @@ sub main ($$) {
         $app, $tr, $type,
         sub {
           return $tr->get_tr_config->then (sub {
-            my $tr_config = $_[0];
-            my $license = {license => $app->text_param ('license'),
-                           license_holders => $app->text_param ('license_holders'),
-                           additional_license_terms => $app->text_param ('additional_license_terms')};
-            $tr_config->set (license => $license->{license});
-            $tr_config->set (license_holders => $license->{license_holders});
-            $tr_config->set (additional_license_terms => $license->{additional_license_terms});
-            return $tr->write_file_by_path ($tr->texts_path->child ('config.json'), $tr_config->as_source_text)->then (sub {
+            my $config = $_[0];
+            my $license = {type => $app->text_param ('type') // '',
+                           holders => $app->text_param ('holders') // '',
+                           additional_terms => $app->text_param ('additional_terms') // ''};
+            $config->{license} = $license;
+            delete $license->{type} unless length $license->{type};
+            delete $license->{holders} unless length $license->{holders};
+            delete $license->{additional_terms} unless length $license->{additional_terms};
+            return $tr->write_file_by_path
+                ($tr->texts_path->child ('config.json'),
+                 perl2json_chars_for_record $config)->then (sub {
               return $tr->write_license_file (%$license);
             });
           })->then (sub { return {} });

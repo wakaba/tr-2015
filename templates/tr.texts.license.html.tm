@@ -43,9 +43,9 @@
       <table class=config>
         <tbody>
           <tr>
-            <th><label for=config-license-license>ライセンス
+            <th><label for=config-license-type>ライセンス
             <td>
-              <select name=license id=config-license-license required>
+              <select name=type id=config-license-type required>
                 <option value>ライセンスを選択
                 <option value=CC0>CC0
                 <option value=Public-Domain>Public Domain
@@ -59,11 +59,11 @@
                 <option value=proprietary>独占的ライセンス
               </select>
           <tr>
-            <th><label for=config-license-license_holders>ライセンス保有者</label>
-            <td><input name=license_holders id=config-license-license_holders>
+            <th><label for=config-license-holders>ライセンス保有者</label>
+            <td><input name=holders id=config-license-holders>
           <tr>
-            <th><label for=config-license-additional_license_terms>追加のライセンス条項</label>
-            <td><textarea name=additional_license_terms id=config-license-additional_license_terms></textarea>
+            <th><label for=config-license-additional_terms>追加のライセンス条項</label>
+            <td><textarea name=additional_terms id=config-license-additional_terms></textarea>
       </table>
 
       <p class=buttons><button type=submit class=save>保存する</button>
@@ -77,9 +77,9 @@
         var status = document.querySelector ('.config .status');
         showProgress ({init: true, message: 'Loading...'}, status);
         server ('GET', 'info.ndjson', null, function (res) {
-          form.elements.license.value = res.data.license.type;
-          form.elements.license_holders.value = res.data.license.holders;
-          form.elements.additional_license_terms.value = res.data.license.additional_terms;
+          form.elements.type.value = res.data.license.type;
+          form.elements.holders.value = res.data.license.holders || '';
+          form.elements.additional_terms.value = res.data.license.additional_terms || '';
           status.hidden = true;
         }, function (json) {
           showError (json, status);
