@@ -12,6 +12,7 @@ my $config_file_name = $ENV{APP_CONFIG}
     // die "Usage: APP_CONFIG=config.json ./plackup bin/server.psgi";
 my $config_path = path ($config_file_name);
 my $config = TR::Config->new_from_path ($config_path);
+$config->load_langs;
 $config->load_siteadmin ($config->get_path ('admin.repository'));
 
 $Parallel::Prefork::BeforeSignalAction->{HUP} = sub {

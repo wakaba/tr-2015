@@ -512,9 +512,9 @@ sub get_data_as_jsonalizable ($%) {
       my $def = $config->{langs}->{$_};
       my $id = $def->{id} // $_; # XXX validation
       my $label_raw = $def->{label};
-      my $label = $label_raw // $_; # XXX system's default
+      my $label = $label_raw // $args{config}->get_lang_label ($_);
       my $label_short_raw = $def->{label_short};
-      my $label_short = $label_short_raw // $label; # XXX system's default
+      my $label_short = $label_short_raw // $args{config}->get_lang_label_short ($_);
       $_ => +{
         key => $_,
         id => $id,

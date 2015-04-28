@@ -58,6 +58,12 @@ sub reload_siteadmin ($) {
   warn "siteadmin reloaded\n";
 } # reload_siteadmin
 
+my $langs_path = path (__FILE__)->parent->parent->parent->child ('data/langs.json');
+sub load_langs ($) {
+  my $self = $_[0];
+  $self->{langs} = (json_bytes2perl $langs_path->slurp)->{langs};
+} # load_langs
+
 sub sighup_root_process ($) {
   kill 'HUP', $_[0]->{root_pid};
 } # sighup_root_process
@@ -69,6 +75,15 @@ sub get ($$) {
 sub get_path ($$) {
   return path ($_[0]->{json}->{$_[1]} // $_[1])->absolute ($_[0]->{base_path});
 } # get_path
+
+# XXX label for uncommon languages
+sub get_lang_label ($$) {
+  return $_[0]->{langs}->{$_[1] // ''}->{label} // $_[1] // '';
+} # get_lang_label
+
+sub get_lang_label_short ($$) {
+  return $_[0]->{langs}->{$_[1] // ''}->{label_short} // $_[1] // '';
+} # get_lang_label_short
 
 $Dongry::Types->{json} = {
   parse => sub {

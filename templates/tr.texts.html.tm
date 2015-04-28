@@ -115,7 +115,7 @@
 <table id=texts>
   <thead>
     <tr>
-      <template class=lang-header-template>
+      <template class=lang-header-template data-title="{lang_key}">
         <span class=lang-label>{lang_label}</span>
         <hr class=resizer data-th-style="width: %%WIDTH%%" data-td-selector="#texts tbody td.lang-area[data-lang='{lang_key}']">
         <script type=text/plain class=resize-css>
@@ -243,7 +243,7 @@
         <progress></progress> <span class=message></span>
 </table>
 <menu class=texts-lang-area-menu hidden>
-  <strong class=lang-label>{lang_label}</strong>
+  <strong class=lang-label-short data-title="{lang_label} ({lang_key})">{lang_label_short}</strong>
   <button type=button class=toggle-edit>Edit</button>
   <button type=button class=search>Search</button>
   <a href data-href="i/{text_id}/history.json?lang={lang_key}" target=history>History</a>
@@ -322,6 +322,8 @@
       var lang = langs[langKey];
       var th = document.createElement ('th');
       th.innerHTML = template.innerHTML;
+      th.title = template.getAttribute ('data-title').replace (/\{lang_key\}/g, lang.key);
+      th.lang = lang.id;
       th.abbr = lang.label_short;
       th.className = 'lang-header';
       th.setAttribute ('data-lang', lang.key);
@@ -640,6 +642,11 @@
         var textId = row.getAttribute ('data-text-id');
         Array.prototype.forEach.call (langMenu.querySelectorAll ('.lang-label'), function (el) {
           el.textContent = document.trLangs[langKey].label;
+        });
+        Array.prototype.forEach.call (langMenu.querySelectorAll ('.lang-label-short'), function (el) {
+          var lang = document.trLangs[langKey];
+          el.textContent = lang.label_short;
+          el.title = el.getAttribute ('data-title').replace (/\{lang_key\}/g, lang.key).replace (/\{lang_label\}/g, lang.label);
         });
         langMenu.querySelector ('.search').onclick = function () {
           showSearchSidebar (cell.querySelector ('[name=body_0]').value);

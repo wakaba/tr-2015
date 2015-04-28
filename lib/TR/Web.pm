@@ -653,6 +653,7 @@ sub main ($$) {
         return $tr->get_data_as_jsonalizable
             ($q,
              $app->text_param_list ('lang')->grep (sub { length }),
+             config => $app->config,
              with_comments => $app->bare_param ('with_comments'));
       })->then (sub {
         my $json = $_[0];
@@ -719,7 +720,10 @@ sub main ($$) {
       })->then (sub {
         my $config = $_[0];
         require TR::Query;
-        return $tr->get_data_as_jsonalizable (TR::Query->parse_query, [])->then (sub {
+        return $tr->get_data_as_jsonalizable (
+          TR::Query->parse_query, [],
+          config => $app->config,
+        )->then (sub {
           my $json = $_[0];
           $json->{repo_url} = $tr->url;
           $json->{repo_path} = '/' . ($tr->texts_dir // '');
@@ -754,7 +758,7 @@ sub main ($$) {
             tag_minuses => $app->text_param_list ('tag_minus'),
           );
           return $tr->get_data_as_jsonalizable
-              ($q, [$lang])->then (sub {
+              ($q, [$lang], config => $app->config)->then (sub {
             my $json = $_[0];
             unless ($json->{langs}->{$lang}) {
               return $app->throw_error (400, reason_phrase => 'Bad |lang|');
