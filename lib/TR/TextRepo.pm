@@ -600,7 +600,7 @@ sub get_data_as_jsonalizable ($%) {
 
       WORD: for my $word (@$words) {
         for my $lang (keys %{$text->{langs} or {}}) {
-          for (qw(body_0 body_1 body_2 body_3 body_4)) {
+          for (qw(body_0 body_1 body_2 body_3 body_4 body_5)) {
             my $value = $text->{langs}->{$lang}->{$_} // '';
             $value =~ s/\s+/ /g;
             if ($value =~ /\Q$word\E/i) {

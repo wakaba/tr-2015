@@ -32,5 +32,10 @@ my $Data = {};
   }
 }
 
+{
+  my $path = path (__FILE__)->parent->parent->child ('local/plural-forms.json');
+  $Data->{plural_forms} = json_bytes2perl $path->slurp;
+}
+
 print perl2json_bytes_for_record $Data;
 

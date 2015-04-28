@@ -41,10 +41,13 @@ pmbp-install: pmbp-upgrade
 
 data: data/langs.json local/plural-list.json
 
-data/langs.json: bin/create-langs.pl local/locale-names.json
+data/langs.json: bin/create-langs.pl local/locale-names.json \
+  local/plural-forms.json
 	$(PERL) bin/create-langs.pl > $@
 
-local/plural-list.json: local/plurals.json
+local/plural-list.json: local/plurals.json bin/create-plural-list.pl
+	$(PERL) bin/create-plural-list.pl > $@
+local/plural-forms.json: local/plural-list.json
 
 local/locale-names.json:
 	$(WGET) -O $@ https://raw.githubusercontent.com/manakai/data-locale/master/data/langs/locale-names.json

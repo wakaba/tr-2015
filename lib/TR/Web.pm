@@ -902,7 +902,7 @@ sub main ($$) {
             })->then (sub {
               my $te = TR::TextEntry->new_from_source_text ($_[0] // '');
               my $modified;
-              for (qw(body_0 body_1 body_2 body_3 body_4 forms)) {
+              for (qw(body_0 body_1 body_2 body_3 body_4 body_5 forms)) {
                 my $v = $app->text_param ($_);
                 next unless defined $v;
                 my $current = $te->get ($_);

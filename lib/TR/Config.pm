@@ -58,11 +58,15 @@ sub reload_siteadmin ($) {
   warn "siteadmin reloaded\n";
 } # reload_siteadmin
 
-my $langs_path = path (__FILE__)->parent->parent->parent->child ('data/langs.json');
-sub load_langs ($) {
-  my $self = $_[0];
-  $self->{langs} = (json_bytes2perl $langs_path->slurp)->{langs};
-} # load_langs
+{
+  my $langs_path = path (__FILE__)->parent->parent->parent->child ('data/langs.json');
+  my $plurals_path = path (__FILE__)->parent->parent->parent->child ('local/plural-list.json');
+  sub load_langs ($) {
+    my $self = $_[0];
+    $self->{langs} = (json_bytes2perl $langs_path->slurp)->{langs};
+    $self->{plurals} = (json_bytes2perl $plurals_path->slurp);
+  } # load_langs
+}
 
 sub sighup_root_process ($) {
   kill 'HUP', $_[0]->{root_pid};

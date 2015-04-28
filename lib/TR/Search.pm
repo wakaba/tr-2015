@@ -32,7 +32,7 @@ sub put_data ($$) {
                      repo_url => $repo_url,
                      repo_path => $repo_path,
                      repo_license => $repo_license};
-            $d->{ft} = join ' ', grep { defined } map { ($_->{body_0}, $_->{body_1}, $_->{body_2}, $_->{body_3}, $_->{body_4}) } values %{$d->{langs} or {}};
+            $d->{ft} = join ' ', grep { defined } map { ($_->{body_0}, $_->{body_1}, $_->{body_2}, $_->{body_3}, $_->{body_4}, $_->{body_5}) } values %{$d->{langs} or {}};
             $d->{pre} = perl2json_chars {map { $_ => $d->{langs}->{$_}->{body_0} } keys %{$d->{langs} or {}}};
             ((perl2json_bytes {index => {}}), (perl2json_bytes $d));
           } keys %{$data->{texts}}),

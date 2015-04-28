@@ -201,12 +201,14 @@
             <p class=body_2 data-form=2>
             <p class=body_3 data-form=3>
             <p class=body_4 data-form=4>
+            <p class=body_5 data-form=5>
             <menu class=text-form-tabs>
               <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=0>0</span>
               <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=1>1</span>
               <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</span>
               <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</span>
               <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</span>
+              <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=5>5</span>
             </menu>
     </div>
     <form data-action="i/{text_id}/text.ndjson" method=post class=edit>
@@ -216,12 +218,16 @@
             <p data-form=2><textarea name=body_2></textarea>
             <p data-form=3><textarea name=body_3></textarea>
             <p data-form=4><textarea name=body_4></textarea>
+            <p data-form=5><textarea name=body_5></textarea>
             <p>
               <select name=forms>
-                <option value=o data-fields=0>Only the default form
-                <option value=1o data-fields=0,1>Singular (1) and plural
-                <option value=0o data-fields=0,1>Singular (0, 1) and plural
-                <option value=test data-fields=0,2,3,4>Test
+                <t:for as=$x x="$app->config->{plurals}->{rule_list_1}">
+                  <option pl:value="$x->{value}" pl:label="$x->{label}" pl:data-fields="$x->{form_fields}">
+                </t:for>
+                <optgroup label=その他>
+                  <t:for as=$x x="$app->config->{plurals}->{rule_list_2}">
+                    <option pl:value="$x->{value}" pl:label="$x->{label}" pl:data-fields="$x->{form_fields}">
+                  </t:for>
               </select>
             <p class=buttons><button type=submit>保存</button>
             <menu class=text-form-tabs>
@@ -230,6 +236,7 @@
               <a href=javascript: onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=2>2</a>
               <a href=javascript: onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=3>3</a>
               <a href=javascript: onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=4>4</a>
+              <a href=javascript: onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=5>5</a>
             </menu>
     </form>
     <p class=status hidden>
@@ -300,6 +307,11 @@
 <script src=/js/time.js charset=utf-8></script>
 <script src=/js/core.js charset=utf-8></script>
 <script>
+  document.trPluralForms = [];
+  server ('GET', '/data/langs.json', null, function (res) {
+    document.trPluralForms = res.data.plural_forms;
+  }, function () { }, function () { });
+
   function escapeQueryValue (v) {
     return '"' + v.replace (/([\u0022\u005C])/g, function (x) { return '\\' + x }) + '"';
   } // escapeQueryValue
@@ -544,6 +556,7 @@
           if (langData.body_2) form.querySelector ('[name=body_2]').value = langData.body_2;
           if (langData.body_3) form.querySelector ('[name=body_3]').value = langData.body_3;
           if (langData.body_4) form.querySelector ('[name=body_4]').value = langData.body_4;
+          if (langData.body_5) form.querySelector ('[name=body_5]').value = langData.body_5;
           if (langData.forms) form.querySelector ('[name=forms]').value = langData.forms;
         }
 
@@ -731,6 +744,7 @@ function syncLangAreaView (area) {
   view.querySelector ('.body_2').textContent = edit.querySelector ('[name=body_2]').value;
   view.querySelector ('.body_3').textContent = edit.querySelector ('[name=body_3]').value;
   view.querySelector ('.body_4').textContent = edit.querySelector ('[name=body_4]').value;
+  view.querySelector ('.body_5').textContent = edit.querySelector ('[name=body_5]').value;
   syncLangAreaTabs (area);
 } // syncLangAreaView
 
@@ -738,19 +752,27 @@ function syncLangAreaTabs (area) {
   var edit = area.querySelector ('form.edit');
   var forms = edit.querySelector ('[name=forms]');
   var formsValue = forms.value;
-  var formsFields = forms.selectedOptions[0].getAttribute ('data-fields').split (/,/);
-  var hasFormsFields = {};
-  formsFields.forEach (function (v) {
-    hasFormsFields[v] = true;
-  });
-  area.setAttribute ('data-selected-form', formsFields[0]);
+  var selectedForm = forms.selectedOptions[0] || forms.options[0];
+  var formFields = selectedForm.getAttribute ('data-fields').split (/,/);
+  area.setAttribute ('data-selected-form', 0);
   var tabses = area.querySelectorAll ('.text-form-tabs');
   Array.prototype.forEach.call (tabses, function (el) {
-    el.hidden = !(formsFields.length > 1);
+    el.hidden = formFields.length == 1;
   });
-  Array.prototype.forEach.call (area.querySelectorAll ('.text-form-tabs > span[data-form]'), function (el) {
+  Array.prototype.forEach.call (area.querySelectorAll ('.text-form-tabs > [data-form]'), function (el) {
     var form = el.getAttribute ('data-form');
-    el.hidden = !hasFormsFields[form];
+    if (formFields[form] !== undefined) {
+      el.hidden = false;
+      // XXX langs.json need to be loaded before this line
+      var formDef = document.trPluralForms[formFields[form]] || {
+        label: form,
+        label_short: form,
+      };
+      el.title = formDef.label;
+      el.textContent = formDef.label_short;
+    } else {
+      el.hidden = true;
+    }
   });
 } // syncLangAreaView
 

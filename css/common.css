@@ -731,12 +731,14 @@ html:not([data-scopes~=texts]) table #add {
 .lang-area[data-selected-form="2"] p[data-form="2"] { display: block }
 .lang-area[data-selected-form="3"] p[data-form="3"] { display: block }
 .lang-area[data-selected-form="4"] p[data-form="4"] { display: block }
+.lang-area[data-selected-form="5"] p[data-form="5"] { display: block }
 
 .lang-area[data-selected-form="0"] .text-form-tabs > [data-form="0"],
 .lang-area[data-selected-form="1"] .text-form-tabs > [data-form="1"],
 .lang-area[data-selected-form="2"] .text-form-tabs > [data-form="2"],
 .lang-area[data-selected-form="3"] .text-form-tabs > [data-form="3"],
-.lang-area[data-selected-form="4"] .text-form-tabs > [data-form="4"] {
+.lang-area[data-selected-form="4"] .text-form-tabs > [data-form="4"],
+.lang-area[data-selected-form="5"] .text-form-tabs > [data-form="5"] {
   border-top-color: transparent;
   color: black;
   background: #eee;
