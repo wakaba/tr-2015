@@ -22,7 +22,7 @@ test {
     return git_repo ($path, files => {
       'dummy' => '',
     })->then (sub {
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account);
     })->then (sub {
@@ -30,7 +30,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'get access';
-      return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+      return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
         lang => 'en',
         body_0 => 'abc',
       }, account => $account);
@@ -39,7 +39,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'edited';
-      return POST ($c, ['tr', $url, 'master', '/', 'import.json'], params => {
+      return POST ($c, ['r', $url, 'master', '/', 'import.json'], params => {
         from => 'file',
         format => 'po',
         lang => 'en',
@@ -66,7 +66,7 @@ msgstr "ABCD"},
         }),
       ]);
     })->then (sub {
-      return GET ($c, ['tr', $url, 'master', '/', 'data.json'], params => {
+      return GET ($c, ['r', $url, 'master', '/', 'data.json'], params => {
       }, account => $account);
     })->then (sub {
       my $res = $_[0];
@@ -100,7 +100,7 @@ test {
     return git_repo ($path, files => {
       'dummy' => '',
     })->then (sub {
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account);
     })->then (sub {
@@ -108,7 +108,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'get access';
-      return POST ($c, ['tr', $url, 'master', '/', 'import.json'], params => {
+      return POST ($c, ['r', $url, 'master', '/', 'import.json'], params => {
         from => 'file',
         format => 'po',
         lang => 'en',
@@ -126,7 +126,7 @@ msgstr "ABCD"},
       test {
         is $res->code, 200;
       } $c, name => 'imported (en)';
-      return POST ($c, ['tr', $url, 'master', '/', 'import.json'], params => {
+      return POST ($c, ['r', $url, 'master', '/', 'import.json'], params => {
         from => 'file',
         format => 'po',
         lang => 'fr',
@@ -144,7 +144,7 @@ msgstr "XYZW"},
       test {
         is $res->code, 200;
       } $c, name => 'imported (fr)';
-      return GET ($c, ['tr', $url, 'master', '/', 'data.json'], params => {
+      return GET ($c, ['r', $url, 'master', '/', 'data.json'], params => {
       }, account => $account);
     })->then (sub {
       my $res = $_[0];
@@ -181,7 +181,7 @@ test {
     return git_repo ($path, files => {
       'dummy' => '',
     })->then (sub {
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account);
     })->then (sub {
@@ -189,7 +189,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'get access';
-      return POST ($c, ['tr', $url, 'master', '/', 'import.json'], params => {
+      return POST ($c, ['r', $url, 'master', '/', 'import.json'], params => {
         from => 'file',
         format => 'po',
         lang => 'en',
@@ -217,7 +217,7 @@ msgstr "XYZW"},
       test {
         is $res->code, 200;
       } $c, name => 'imported (fr)';
-      return GET ($c, ['tr', $url, 'master', '/', 'data.json'], params => {
+      return GET ($c, ['r', $url, 'master', '/', 'data.json'], params => {
       }, account => $account);
     })->then (sub {
       my $res = $_[0];

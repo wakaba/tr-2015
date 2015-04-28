@@ -20,7 +20,7 @@ test {
     return git_repo ($path, files => {
       'dummy' => '',
     })->then (sub {
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account);
     })->then (sub {
@@ -28,7 +28,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'get access';
-      return GET ($c, ['tr', $url, 'master', '/', 'info.json'], account => $account);
+      return GET ($c, ['r', $url, 'master', '/', 'info.json'], account => $account);
     })->then (sub {
       my $res = $_[0];
       test {
@@ -69,7 +69,7 @@ test {
         license => {type => 'hoge'},
       },
     })->then (sub {
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account);
     })->then (sub {
@@ -77,7 +77,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'get access';
-      return GET ($c, ['tr', $url, 'master', '/', 'info.json'], account => $account);
+      return GET ($c, ['r', $url, 'master', '/', 'info.json'], account => $account);
     })->then (sub {
       my $res = $_[0];
       test {
@@ -114,7 +114,7 @@ test {
         license => 12,
       },
     })->then (sub {
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account);
     })->then (sub {
@@ -122,7 +122,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'get access';
-      return GET ($c, ['tr', $url, 'master', '/', 'info.json'], account => $account);
+      return GET ($c, ['r', $url, 'master', '/', 'info.json'], account => $account);
     })->then (sub {
       my $res = $_[0];
       test {
@@ -163,7 +163,7 @@ test {
         license => {type => 'hoge'},
       },
     })->then (sub {
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account);
     })->then (sub {
@@ -171,7 +171,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'get access';
-      return GET ($c, ['tr', $url, 'master', '/hoge/fuga', 'info.json'], account => $account);
+      return GET ($c, ['r', $url, 'master', '/hoge/fuga', 'info.json'], account => $account);
     })->then (sub {
       my $res = $_[0];
       test {

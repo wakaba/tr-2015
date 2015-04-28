@@ -22,7 +22,7 @@ test {
     return git_repo ($path, files => {
       'dummy' => '',
     })->then (sub {
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account);
     })->then (sub {
@@ -30,7 +30,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'get access';
-      return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+      return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
         lang => 'en',
         body_0 => 'abc',
       }, account => $account);
@@ -67,7 +67,7 @@ test {
         avail_lang_keys => ['es', 'it'],
       },
     })->then (sub {
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account);
     })->then (sub {
@@ -75,7 +75,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'get access';
-      return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+      return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
         lang => 'it',
         body_0 => 'abc',
       }, account => $account);
@@ -118,7 +118,7 @@ test {
         ],
       }),
     })->then (sub {
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account);
     })->then (sub {
@@ -126,7 +126,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'get access';
-      return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'meta.json'], params => {
+      return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'meta.json'], params => {
         msgid => 'hoge.foo',
       }, account => $account);
     })->then (sub {
@@ -134,7 +134,7 @@ test {
       test {
         is $res->code, 200;
       } $c, name => 'set msgid';
-      return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+      return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
         lang => 'en',
         body_0 => 'abc',
       }, account => $account);
@@ -158,7 +158,7 @@ test {
         }),
       ]);
     })->then (sub {
-      return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+      return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
         lang => 'en',
         body_0 => 'XYZ',
       }, account => $account);
@@ -207,14 +207,14 @@ test {
       }),
     })->then (sub {
       my $rev = $_[0];
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account)->then (sub {
         my $res = $_[0];
         test {
           is $res->code, 200;
         } $c, name => 'get access';
-        return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+        return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
           lang => 'en',
           body_0 => 'abc',
         }, account => $account);
@@ -260,14 +260,14 @@ test {
       }),
     })->then (sub {
       my $rev = $_[0];
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account)->then (sub {
         my $res = $_[0];
         test {
           is $res->code, 200;
         } $c, name => 'get access';
-        return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+        return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
           lang => 'en',
           body_0 => 'abc',
         }, account => $account);
@@ -313,14 +313,14 @@ test {
       }),
     })->then (sub {
       my $rev = $_[0];
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account)->then (sub {
         my $res = $_[0];
         test {
           is $res->code, 200;
         } $c, name => 'get access';
-        return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+        return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
           lang => 'en',
           body_0 => 'abc',
         }, account => $account);
@@ -371,14 +371,14 @@ test {
       }),
     })->then (sub {
       my $rev = $_[0];
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account)->then (sub {
         my $res = $_[0];
         test {
           is $res->code, 200;
         } $c, name => 'get access';
-        return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+        return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
           lang => 'en',
           body_0 => 'abc',
         }, account => $account);
@@ -418,14 +418,14 @@ test {
       },
     })->then (sub {
       my $rev = $_[0];
-      return POST ($c, ['tr', $url, 'acl.json'], params => {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
         operation => 'join',
       }, account => $account)->then (sub {
         my $res = $_[0];
         test {
           is $res->code, 200;
         } $c, name => 'get access';
-        return POST ($c, ['tr', $url, 'master', '/', 'i', $text_id, 'text.ndjson'], params => {
+        return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.ndjson'], params => {
           lang => 'fr',
           body_0 => 'abc',
         }, account => $account);

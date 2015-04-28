@@ -8,7 +8,7 @@
       menu.hidden = !menu.hidden;
     ">アカウント</button>
     <menu hidden class=contextmenu>
-      <p><a href=/tr>リポジトリー一覧</a>
+      <p><a href=/r>リポジトリー一覧</a>
       <div class=login-menu>
         <div class=header>
           <strong>ログイン</strong>

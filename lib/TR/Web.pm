@@ -83,17 +83,17 @@ sub main ($$) {
     return $app->temma ('index.html.tm', {app => $app});
   }
 
-  if (@$path == 1 and $path->[0] eq 'tr') {
-    # /tr
+  if (@$path == 1 and $path->[0] eq 'r') {
+    # /r
     return $app->temma ('tr.html.tm', {
       app => $app,
     });
-  } elsif (@$path == 2 and $path->[0] eq 'tr' and $path->[1] eq '') {
-    # /tr/
-    return $app->send_redirect ('/tr');
-  } elsif (@$path == 1 and $path->[0] =~ /\Atr\.(json|ndjson)\z/) {
-    # /tr.json
-    # /tr.ndjson
+  } elsif (@$path == 2 and $path->[0] eq 'r' and $path->[1] eq '') {
+    # /r/
+    return $app->send_redirect ('/r');
+  } elsif (@$path == 1 and $path->[0] =~ /\Ar\.(json|ndjson)\z/) {
+    # /r.json
+    # /r.ndjson
     $app->http->set_response_header ('Cache-Control', 'private'); # XXX unless error
     $app->start_json_stream if $1 eq 'ndjson';
     return $class->session ($app)->then (sub {
@@ -202,8 +202,8 @@ sub main ($$) {
     });
   }
 
-  if ($path->[0] eq 'tr' and $path->[2] eq '' and @$path == 3) {
-    # /tr/{url}/
+  if ($path->[0] eq 'r' and $path->[2] eq '' and @$path == 3) {
+    # /r/{url}/
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
     return $class->check_read ($app, $tr, html => 1)->then (sub {
       return $app->temma ('tr.repo.html.tm', {
@@ -211,10 +211,10 @@ sub main ($$) {
         tr => $tr,
       });
     })->$CatchThenDiscard ($app, $tr);
-  } elsif (@$path == 3 and $path->[0] eq 'tr' and
+  } elsif (@$path == 3 and $path->[0] eq 'r' and
            $path->[2] =~ /\Ainfo\.(json|ndjson)\z/) {
-    # /tr/{url}/info.json
-    # /tr/{url}/info.ndjson
+    # /r/{url}/info.json
+    # /r/{url}/info.ndjson
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
     $app->start_json_stream if $1 eq 'ndjson';
     $app->send_progress_json_chunk ('Checking the repository permission...');
@@ -237,10 +237,10 @@ sub main ($$) {
         return $app->send_last_json_chunk (200, 'Saved', $parsed1);
       });
     })->$CatchThenDiscard ($app, $tr);
-  } # /tr/{url}/info.json
+  } # /r/{url}/info.json
 
-  if ($path->[0] eq 'tr' and @$path == 3 and $path->[2] eq 'acl') {
-    # /tr/{url}/acl
+  if ($path->[0] eq 'r' and @$path == 3 and $path->[2] eq 'acl') {
+    # /r/{url}/acl
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
     return $class->session ($app)->then (sub {
       my $account = $_[0];
@@ -258,10 +258,10 @@ sub main ($$) {
         tr => $tr,
       });
     });
-  } elsif ($path->[0] eq 'tr' and @$path == 3 and
+  } elsif ($path->[0] eq 'r' and @$path == 3 and
            $path->[2] =~ /\Aacl\.(json|ndjson)\z/) {
-    # /tr/{url}/acl.json
-    # /tr/{url}/acl.ndjson
+    # /r/{url}/acl.json
+    # /r/{url}/acl.ndjson
     $app->start_json_stream if $1 eq 'ndjson';
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
     if ($app->http->request_method eq 'POST') {
@@ -524,8 +524,8 @@ sub main ($$) {
     } # GET
   } # acl
 
-  if ($path->[0] eq 'tr' and @$path == 3 and $path->[2] eq 'start') {
-    # /tr/{url}/start
+  if ($path->[0] eq 'r' and @$path == 3 and $path->[2] eq 'start') {
+    # /r/{url}/start
     my $tr = $class->create_text_repo ($app, $path->[1], undef, undef);
     return $class->check_read ($app, $tr, html => 1)->then (sub {
       return $app->temma ('tr.start.html.tm', {
@@ -535,8 +535,8 @@ sub main ($$) {
     });
   } # start
 
-  if (@$path == 4 and $path->[0] eq 'tr' and $path->[3] eq '') {
-    # /tr/{url}/{branch}/
+  if (@$path == 4 and $path->[0] eq 'r' and $path->[3] eq '') {
+    # /r/{url}/{branch}/
     my $tr = $class->create_text_repo ($app, $path->[1], $path->[2], undef);
     return $class->check_read ($app, $tr, html => 1)->then (sub {
       return $app->temma ('tr.branch.html.tm', {
@@ -544,10 +544,10 @@ sub main ($$) {
         tr => $tr,
       });
     });
-  } elsif (@$path == 4 and $path->[0] eq 'tr' and
+  } elsif (@$path == 4 and $path->[0] eq 'r' and
            $path->[3] =~ /\Ainfo\.(json|ndjson)\z/) {
-    # /tr/{url}/{branch}/info.json
-    # /tr/{url}/{branch}/info.ndjson
+    # /r/{url}/{branch}/info.json
+    # /r/{url}/{branch}/info.ndjson
     my $tr = $class->create_text_repo ($app, $path->[1], $path->[2], undef);
     $app->start_json_stream if $1 eq 'ndjson';
     $app->send_progress_json_chunk ('Checking the repository permission...');
@@ -598,10 +598,10 @@ sub main ($$) {
         return $app->send_last_json_chunk (200, 'OK', {text_sets => $text_sets});
       });
     })->$CatchThenDiscard ($app, $tr);
-  } # /tr/{url}/{branch}/info.json
+  } # /r/{url}/{branch}/info.json
 
-  if ($path->[0] eq 'tr' and @$path >= 4) {
-    # /tr/{url}/{branch}/{path}
+  if ($path->[0] eq 'r' and @$path >= 4) {
+    # /r/{url}/{branch}/{path}
     my $tr = $class->create_text_repo
         ($app, $path->[1], $path->[2], $path->[3]);
 
@@ -1416,7 +1416,7 @@ sub main ($$) {
               updated => $time,
             }], duplicate => 'ignore');
           })->then (sub {
-            return $app->send_redirect ('/tr/about:siteadmin/acl');
+            return $app->send_redirect ('/r/about:siteadmin/acl');
           });
         });
       } else {

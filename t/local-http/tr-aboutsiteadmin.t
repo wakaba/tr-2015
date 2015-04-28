@@ -12,8 +12,8 @@ test {
     return Promise->resolve->then (sub {
       my @p;
       for my $t (
-        {path => q</tr/about:siteadmin/acl>, status => 403},
-        {path => q</tr/about:siteadmin/info.json>, mime => 'application/json'},
+        {path => q</r/about:siteadmin/acl>, status => 403},
+        {path => q</r/about:siteadmin/info.json>, mime => 'application/json'},
       ) {
         push @p, GET ($c, $t->{path})->then (sub {
           my $res = $_[0];
@@ -23,7 +23,7 @@ test {
         });
       }
       for my $t (
-        {path => q</tr/about:siteadmin/>},
+        {path => q</r/about:siteadmin/>},
       ) {
         push @p, GET ($c, $t->{path})->then (sub {
           my $res = $_[0];
@@ -47,8 +47,8 @@ test {
     return Promise->resolve->then (sub {
       my @p;
       for my $t (
-        {path => q</tr/about:siteadmin/acl>, status => 403},
-        {path => q</tr/about:siteadmin/info.json>, mime => 'application/json'},
+        {path => q</r/about:siteadmin/acl>, status => 403},
+        {path => q</r/about:siteadmin/info.json>, mime => 'application/json'},
       ) {
         push @p, GET ($c, $t->{path})->then (sub {
           my $res = $_[0];
@@ -58,7 +58,7 @@ test {
         });
       }
       for my $t (
-        {path => q</tr/about:siteadmin/>},
+        {path => q</r/about:siteadmin/>},
       ) {
         push @p, GET ($c, $t->{path})->then (sub {
           my $res = $_[0];
@@ -81,7 +81,7 @@ test {
     my $account = $_[0];
     my @p;
     for my $t (
-      {path => q</tr/about:siteadmin/acl>},
+      {path => q</r/about:siteadmin/acl>},
     ) {
       push @p, GET ($c, $t->{path}, account => $account)->then (sub {
         my $res = $_[0];
@@ -92,8 +92,8 @@ test {
       });
     }
     for my $t (
-      {path => q</tr/about:siteadmin/>},
-      {path => q</tr/about:siteadmin/info.json>, mime => 'application/json'},
+      {path => q</r/about:siteadmin/>},
+      {path => q</r/about:siteadmin/info.json>, mime => 'application/json'},
     ) {
       push @p, GET ($c, $t->{path}, account => $account)->then (sub {
         my $res = $_[0];

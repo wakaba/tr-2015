@@ -9,7 +9,7 @@ my $wait = web_server;
 
 test {
   my $c = shift;
-  return GET ($c, q</tr>)->then (sub {
+  return GET ($c, q</r>)->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 200;
@@ -17,25 +17,25 @@ test {
     done $c;
     undef $c;
   });
-} wait => $wait, n => 1, name => '/tr GET non user';
+} wait => $wait, n => 1, name => '/r GET non user';
 
 test {
   my $c = shift;
-  return GET ($c, q</tr/>)->then (sub {
+  return GET ($c, q</r/>)->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 302;
       my $host = $c->received_data->{host};
-      is $res->header ('Location'), qq<http://$host/tr>;
+      is $res->header ('Location'), qq<http://$host/r>;
     } $c;
     done $c;
     undef $c;
   });
-} wait => $wait, n => 2, name => '/tr/ GET';
+} wait => $wait, n => 2, name => '/r/ GET';
 
 test {
   my $c = shift;
-  return GET ($c, q</tr.json>)->then (sub {
+  return GET ($c, q</r.json>)->then (sub {
     my $res = $_[0];
     test {
       is $res->code, 200;
@@ -47,14 +47,14 @@ test {
     done $c;
     undef $c;
   });
-} wait => $wait, n => 4, name => '/tr.json GET non user';
+} wait => $wait, n => 4, name => '/r.json GET non user';
 
 test {
   my $c = shift;
   my $host = $c->received_data->{host};
   login ($c)->then (sub {
     my $user = $_[0];
-    return GET ($c, q</tr.json>)->then (sub {
+    return GET ($c, q</r.json>)->then (sub {
       my $res = $_[0];
       test {
         is $res->code, 200;
@@ -67,11 +67,11 @@ test {
       undef $c;
     });
   });
-} wait => $wait, n => 4, name => '/tr.json GET with session';
+} wait => $wait, n => 4, name => '/r.json GET with session';
 
-# XXX /tr.json GET has data
-# XXX /tr.ndjson
-# XXX /tr.* POST
+# XXX /r.json GET has data
+# XXX /r.ndjson
+# XXX /r.* POST
 
 run_tests;
 stop_servers;

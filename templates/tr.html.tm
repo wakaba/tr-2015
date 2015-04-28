@@ -46,7 +46,7 @@
             <dd>
               <form action=javascript: onsubmit="
                 var url = this.elements.url.value;
-                location.href = '/tr/' + encodeURIComponent (url) + '/';
+                location.href = 'r/' + encodeURIComponent (url) + '/';
                 return false;
               ">
                 <table class=config>
@@ -82,7 +82,7 @@
       showProgress ({init: true}, status);
       var fd = new FormData;
       fd.append ('operation', 'github');
-      server ('POST', '/tr.ndjson', fd, function (res) {
+      server ('POST', 'r.ndjson', fd, function (res) {
         loadRepos ();
         status.hidden = true;
         button.disabled = false;
@@ -98,7 +98,7 @@
     function loadRepos () {
       var status = document.querySelector ('.repos .status');
       showProgress ({init: true, message: 'Loading...'}, status);
-      server ('GET', '/tr.ndjson', null, function (res) {
+      server ('GET', 'r.ndjson', null, function (res) {
         updateReposData (res.data);
         updateReposTable ();
         status.hidden = true;
@@ -146,7 +146,7 @@
         var tr = document.createElement ('tr');
         tr.innerHTML = template.innerHTML;
         tr.setAttribute ('data-url', repo.url);
-        tr.querySelector ('a').href = '/tr/' + encodeURIComponent (repo.url) + '/';
+        tr.querySelector ('a').href = 'r/' + encodeURIComponent (repo.url) + '/';
         tr.querySelector ('.label').textContent = repo.label || repo.url;
         var desc = tr.querySelector ('.desc');
         desc.textContent = repo.desc || '';
@@ -178,9 +178,9 @@
       showProgress ({init: true}, status);
       var fd = new FormData;
       fd.append ('operation', 'join');
-      server ('POST', '/tr/' + encodeURIComponent (url) + '/acl.ndjson', fd, function (res) {
+      server ('POST', 'r/' + encodeURIComponent (url) + '/acl.ndjson', fd, function (res) {
         var page = res.data.is_owner ? 'start' : '';
-        location.href = '/tr/' + encodeURIComponent (url) + '/' + page;
+        location.href = 'r/' + encodeURIComponent (url) + '/' + page;
       }, function (json) {
         showError (json, status);
       }, function (json) {

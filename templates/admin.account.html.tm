@@ -9,7 +9,7 @@
 <section>
   <h1>サイト管理権限</h1>
 
-  <p><a href="/tr/about:siteadmin/acl">サイト管理権限の管理</a>
+  <p><a href="/r/about:siteadmin/acl">サイト管理権限の管理</a>
 
   <form action=/admin/account method=post>
     <button type=submit>サイト管理権限を取得</button>

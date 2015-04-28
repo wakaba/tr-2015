@@ -855,7 +855,7 @@ function syncTextComments (commentsEl, textComments) {
         status.hidden = false;
         status.querySelector ('.message').textContent = 'Searching...';
         var xhr = new XMLHttpRequest;
-        xhr.open ('GET', '/search.json?q=' + encodeURIComponent (q), true);
+        xhr.open ('GET', '../../../../search.json?q=' + encodeURIComponent (q), true);
         xhr.onreadystatechange = function () {
           if (xhr.readyState === 4) {
             if (xhr.status === 200) {
@@ -889,7 +889,7 @@ function syncTextComments (commentsEl, textComments) {
                 }
                 var repoName = item.repo_url.split (/\//);
                 repoName = repoName[repoName.length-1];
-                var repoPage = '/tr/' + encodeURIComponent (item.repo_url) + '/' + encodeURIComponent (item.repo_branch) + '/' + encodeURIComponent (item.repo_path) + '/';
+                var repoPage = '../../../../r/' + encodeURIComponent (item.repo_url) + '/' + encodeURIComponent (item.repo_branch) + '/' + encodeURIComponent (item.repo_path) + '/';
                 li.querySelector ('.source .repo').textContent = repoName;
                 li.querySelector ('.source .repo').href = repoPage + '?text_id=' + encodeURIComponent (item.text_id);
                 li.querySelector ('.source .license').textContent = item.repo_license || 'Unknown'; // XXX human-readable abbrev

@@ -9,8 +9,8 @@
 <section>
 
   <header class=textset itemscope itemtype=data>
-    <hgroup> 
-      <h1 title=Repository><a pl:href="'/tr/'.(percent_encode_c $tr->url).'/'"><code itemprop=url><t:text value="$tr->url"></code></a></h1>
+    <hgroup> <!-- XXX base -->
+      <h1 title=Repository><a pl:href="'r/'.(percent_encode_c $tr->url).'/'"><code itemprop=url><t:text value="$tr->url"></code></a></h1>
     </hgroup>
   </header>
 
