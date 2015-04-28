@@ -70,18 +70,27 @@
       </table>
 
       <div>
-        <select>
-          <option value>(Choose a language)
-          <option value=ja>Japanese
-          <option value=en>English
-          <option value=fr>French
-          <option value=ja-latn>Japanese (Latin)
-          <option value=i-default>i-default
-        </select>
+        <p><select id=add-lang-select form />
         <button type=button onclick="
-          var langKey = parentNode.querySelector ('select').value;
+          var langKey = document.querySelector ('#add-lang-select').value;
           if (langKey) {
-            var langRow = document.querySelector ('table.langs tr[data-lang=&#x22;'+langKey+'&#x22;]'); // XXX CSS escape
+            var langRow = document.querySelector ('table.langs tr[data-lang=&#x22;'+langKey+'&#x22;]');
+            if (langRow) return;
+            addLang ({key: langKey, id: langKey,
+                      label: langKey, label_short: langKey,
+                      label_raw: '', label_short_raw:''});
+            document.trModified = true;
+          }
+        ">Add</button>
+
+        <p><!-- See also: TR::Langs -->
+        <input id=add-lang-input required pattern="[A-Za-z0-9][A-Za-z0-9-]{0,63}" title="64文字以内の小文字・数字と (先頭以外では) -" list=add-lang-datalist form>
+        <datalist id=add-lang-datalist />
+        <button type=button onclick="
+          var langKey = document.querySelector ('#add-lang-input');
+          if (langKey.validity.valid) {
+            var langKey = langKey.value.toLowerCase ();
+            var langRow = document.querySelector ('table.langs tr[data-lang=&#x22;'+langKey+'&#x22;]');
             if (langRow) return;
             addLang ({key: langKey, id: langKey,
                       label: langKey, label_short: langKey,
@@ -97,6 +106,19 @@
 
     <script src=/js/core.js charset=utf-8 />
     <script>
+      server ('GET', '/data/langs.json', null, function (res) {
+        var select = document.querySelector ('#add-lang-select');
+        var datalist = document.querySelector ('#add-lang-datalist');
+        for (var langTag in res.data.langs) {
+          var lang = res.data.langs[langTag];
+          var option = document.createElement ('option');
+          option.label = langTag + ': ' + lang.label;
+          option.value = langTag;
+          select.appendChild (option);
+          datalist.appendChild (option.cloneNode (true));
+        }
+      }, function () { }, function () { });
+
       function addLang (lang) {
         var table = document.querySelector ('table.langs');
         var trTemplate = table.querySelector ('.lang-template');

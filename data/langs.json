@@ -1,0 +1,528 @@
+{
+   "langs" : {
+      "af" : {
+         "label" : "Afrikaans",
+         "label_short" : "af"
+      },
+      "ar" : {
+         "label" : "العربية",
+         "label_short" : "ar"
+      },
+      "ar-ae" : {
+         "label" : "العربية (الإمارات العربية المتحدة)‏",
+         "label_short" : "ar-AE"
+      },
+      "ar-bh" : {
+         "label" : "العربية (البحرين)‏",
+         "label_short" : "ar-BH"
+      },
+      "ar-dz" : {
+         "label" : "العربية (الجزائر)‏",
+         "label_short" : "ar-DZ"
+      },
+      "ar-eg" : {
+         "label" : "العربية (مصر)‏",
+         "label_short" : "ar-EG"
+      },
+      "ar-iq" : {
+         "label" : "العربية (العراق)‏",
+         "label_short" : "ar-IQ"
+      },
+      "ar-jo" : {
+         "label" : "العربية (الأردن)‏",
+         "label_short" : "ar-JO"
+      },
+      "ar-kw" : {
+         "label" : "العربية (الكويت)‏",
+         "label_short" : "ar-KW"
+      },
+      "ar-lb" : {
+         "label" : "العربية (لبنان)‏",
+         "label_short" : "ar-LB"
+      },
+      "ar-ly" : {
+         "label" : "العربية (ليبيا)‏",
+         "label_short" : "ar-LY"
+      },
+      "ar-ma" : {
+         "label" : "العربية (المغرب)‏",
+         "label_short" : "ar-MA"
+      },
+      "ar-om" : {
+         "label" : "العربية (عُمان)‏",
+         "label_short" : "ar-OM"
+      },
+      "ar-qa" : {
+         "label" : "العربية (قطر)‏",
+         "label_short" : "ar-QA"
+      },
+      "ar-sa" : {
+         "label" : "العربية (المملكة العربية السعودية)‏",
+         "label_short" : "ar-SA"
+      },
+      "ar-sd" : {
+         "label" : "العربية (السودان)‏",
+         "label_short" : "ar-SD"
+      },
+      "ar-sy" : {
+         "label" : "العربية (سوريا)‏",
+         "label_short" : "ar-SY"
+      },
+      "ar-tn" : {
+         "label" : "العربية (تونس)‏",
+         "label_short" : "ar-TN"
+      },
+      "ar-ye" : {
+         "label" : "العربية (اليمن)‏",
+         "label_short" : "ar-YE"
+      },
+      "be" : {
+         "label" : "беларуская",
+         "label_short" : "be"
+      },
+      "bg" : {
+         "label" : "български",
+         "label_short" : "bg"
+      },
+      "bn" : {
+         "label" : "বাংলা",
+         "label_short" : "bn"
+      },
+      "bn-in" : {
+         "label" : "বাংলা (ভারত)‏",
+         "label_short" : "bn-IN"
+      },
+      "ca" : {
+         "label" : "català",
+         "label_short" : "ca"
+      },
+      "cs" : {
+         "label" : "čeština",
+         "label_short" : "cs"
+      },
+      "da" : {
+         "label" : "dansk",
+         "label_short" : "da"
+      },
+      "de" : {
+         "label" : "Deutsch",
+         "label_short" : "de"
+      },
+      "de-at" : {
+         "label" : "Deutsch (Österreich)‏",
+         "label_short" : "de-AT"
+      },
+      "de-ch" : {
+         "label" : "Deutsch (Schweiz)‏",
+         "label_short" : "de-CH"
+      },
+      "de-lu" : {
+         "label" : "Deutsch (Luxemburg)‏",
+         "label_short" : "de-LU"
+      },
+      "el" : {
+         "label" : "Ελληνικά",
+         "label_short" : "el"
+      },
+      "en" : {
+         "label" : "English",
+         "label_short" : "en"
+      },
+      "en-au" : {
+         "label" : "English (Australia)‏",
+         "label_short" : "en-AU"
+      },
+      "en-ca" : {
+         "label" : "English (Canada)‏",
+         "label_short" : "en-CA"
+      },
+      "en-gb" : {
+         "label" : "English (UK)‏",
+         "label_short" : "en-GB"
+      },
+      "en-ie" : {
+         "label" : "English (Ireland)‏",
+         "label_short" : "en-IE"
+      },
+      "en-in" : {
+         "label" : "English (India)‏",
+         "label_short" : "en-IN"
+      },
+      "en-nz" : {
+         "label" : "English (New Zealand)‏",
+         "label_short" : "en-NZ"
+      },
+      "en-ph" : {
+         "label" : "English (Philippines)‏",
+         "label_short" : "en-PH"
+      },
+      "en-za" : {
+         "label" : "English (South Africa)‏",
+         "label_short" : "en-ZA"
+      },
+      "eo" : {
+         "label" : "esperanto",
+         "label_short" : "eo"
+      },
+      "es" : {
+         "label" : "español",
+         "label_short" : "es"
+      },
+      "es-419" : {
+         "label" : "español (Latinoamérica)‏",
+         "label_short" : "es-419"
+      },
+      "es-ar" : {
+         "label" : "español (Argentina)‏",
+         "label_short" : "es-AR"
+      },
+      "es-bo" : {
+         "label" : "español (Bolivia)‏",
+         "label_short" : "es-BO"
+      },
+      "es-cl" : {
+         "label" : "español (Chile)‏",
+         "label_short" : "es-CL"
+      },
+      "es-co" : {
+         "label" : "español (Colombia)‏",
+         "label_short" : "es-CO"
+      },
+      "es-cr" : {
+         "label" : "español (Costa Rica)‏",
+         "label_short" : "es-CR"
+      },
+      "es-do" : {
+         "label" : "español (República Dominicana)‏",
+         "label_short" : "es-DO"
+      },
+      "es-ec" : {
+         "label" : "español (Ecuador)‏",
+         "label_short" : "es-EC"
+      },
+      "es-gt" : {
+         "label" : "español (Guatemala)‏",
+         "label_short" : "es-GT"
+      },
+      "es-hn" : {
+         "label" : "español (Honduras)‏",
+         "label_short" : "es-HN"
+      },
+      "es-mx" : {
+         "label" : "español (México)‏",
+         "label_short" : "es-MX"
+      },
+      "es-ni" : {
+         "label" : "español (Nicaragua)‏",
+         "label_short" : "es-NI"
+      },
+      "es-pa" : {
+         "label" : "español (Panamá)‏",
+         "label_short" : "es-PA"
+      },
+      "es-pe" : {
+         "label" : "español (Perú)‏",
+         "label_short" : "es-PE"
+      },
+      "es-pr" : {
+         "label" : "español (Puerto Rico)‏",
+         "label_short" : "es-PR"
+      },
+      "es-py" : {
+         "label" : "español (Paraguay)‏",
+         "label_short" : "es-PY"
+      },
+      "es-sv" : {
+         "label" : "español (El Salvador)‏",
+         "label_short" : "es-SV"
+      },
+      "es-us" : {
+         "label" : "español (EE. UU.)‏",
+         "label_short" : "es-US"
+      },
+      "es-uy" : {
+         "label" : "español (Uruguay)‏",
+         "label_short" : "es-UY"
+      },
+      "es-ve" : {
+         "label" : "español (Venezuela)‏",
+         "label_short" : "es-VE"
+      },
+      "et" : {
+         "label" : "eesti",
+         "label_short" : "et"
+      },
+      "eu" : {
+         "label" : "euskara",
+         "label_short" : "eu"
+      },
+      "fa" : {
+         "label" : "فارسی",
+         "label_short" : "fa"
+      },
+      "fi" : {
+         "label" : "suomi",
+         "label_short" : "fi"
+      },
+      "fo" : {
+         "label" : "føroyskt",
+         "label_short" : "fo"
+      },
+      "fr" : {
+         "label" : "français",
+         "label_short" : "fr"
+      },
+      "fr-be" : {
+         "label" : "français (Belgique)‏",
+         "label_short" : "fr-BE"
+      },
+      "fr-ca" : {
+         "label" : "français (Canada)‏",
+         "label_short" : "fr-CA"
+      },
+      "fr-ch" : {
+         "label" : "français (Suisse)‏",
+         "label_short" : "fr-CH"
+      },
+      "fr-lu" : {
+         "label" : "français (Luxembourg)‏",
+         "label_short" : "fr-LU"
+      },
+      "fy-nl" : {
+         "label" : "West-Frysk (Nederlân)‏",
+         "label_short" : "fy-NL"
+      },
+      "ga-ie" : {
+         "label" : "Gaeilge (Éire)‏",
+         "label_short" : "ga-IE"
+      },
+      "gd" : {
+         "label" : "Gàidhlig",
+         "label_short" : "gd"
+      },
+      "gl" : {
+         "label" : "galego",
+         "label_short" : "gl"
+      },
+      "gu" : {
+         "label" : "ગુજરાતી",
+         "label_short" : "gu"
+      },
+      "he" : {
+         "label" : "עברית",
+         "label_short" : "he"
+      },
+      "hi" : {
+         "label" : "हिन्दी",
+         "label_short" : "hi"
+      },
+      "hr" : {
+         "label" : "hrvatski",
+         "label_short" : "hr"
+      },
+      "hu" : {
+         "label" : "magyar",
+         "label_short" : "hu"
+      },
+      "hy-am" : {
+         "label" : "հայերեն (Հայաստան)‏",
+         "label_short" : "hy-AM"
+      },
+      "id" : {
+         "label" : "Bahasa Indonesia",
+         "label_short" : "id"
+      },
+      "is" : {
+         "label" : "íslenska",
+         "label_short" : "is"
+      },
+      "it" : {
+         "label" : "italiano",
+         "label_short" : "it"
+      },
+      "it-ch" : {
+         "label" : "italiano (Svizzera)‏",
+         "label_short" : "it-CH"
+      },
+      "ja" : {
+         "label" : "日本語",
+         "label_short" : "ja"
+      },
+      "ja-child" : {
+         "label" : "にほんご (こどもむけ)‏",
+         "label_short" : "ja-child"
+      },
+      "ja-jp-kansai" : {
+         "label" : "日本語 (関西弁)‏",
+         "label_short" : "ja-JP-kansai"
+      },
+      "ja-latn" : {
+         "label" : "Nihongo (Rōmaji)‏",
+         "label_short" : "ja-Latn"
+      },
+      "kn" : {
+         "label" : "ಕನ್ನಡ",
+         "label_short" : "kn"
+      },
+      "ko" : {
+         "label" : "한국어",
+         "label_short" : "ko"
+      },
+      "lt" : {
+         "label" : "lietuvių",
+         "label_short" : "lt"
+      },
+      "lv" : {
+         "label" : "latviešu",
+         "label_short" : "lv"
+      },
+      "mk" : {
+         "label" : "македонски",
+         "label_short" : "mk"
+      },
+      "ml" : {
+         "label" : "മലയാളം",
+         "label_short" : "ml"
+      },
+      "mn-mn" : {
+         "label" : "mn-mn",
+         "label_short" : "mn-MN"
+      },
+      "mr" : {
+         "label" : "मराठी",
+         "label_short" : "mr"
+      },
+      "ms" : {
+         "label" : "Bahasa Melayu",
+         "label_short" : "ms"
+      },
+      "mt" : {
+         "label" : "Malti",
+         "label_short" : "mt"
+      },
+      "nb" : {
+         "label" : "norsk bokmål",
+         "label_short" : "nb"
+      },
+      "nl" : {
+         "label" : "Nederlands",
+         "label_short" : "nl"
+      },
+      "nl-be" : {
+         "label" : "Nederlands (België)‏",
+         "label_short" : "nl-BE"
+      },
+      "nn" : {
+         "label" : "nynorsk",
+         "label_short" : "nn"
+      },
+      "pa-in" : {
+         "label" : "pa-in",
+         "label_short" : "pa-IN"
+      },
+      "pl" : {
+         "label" : "polski",
+         "label_short" : "pl"
+      },
+      "pt" : {
+         "label" : "português",
+         "label_short" : "pt"
+      },
+      "pt-br" : {
+         "label" : "português (Brasil)‏",
+         "label_short" : "pt-BR"
+      },
+      "rm" : {
+         "label" : "rumantsch",
+         "label_short" : "rm"
+      },
+      "ro" : {
+         "label" : "română",
+         "label_short" : "ro"
+      },
+      "ru" : {
+         "label" : "русский",
+         "label_short" : "ru"
+      },
+      "sk" : {
+         "label" : "slovenčina",
+         "label_short" : "sk"
+      },
+      "sl" : {
+         "label" : "slovenščina",
+         "label_short" : "sl"
+      },
+      "sq" : {
+         "label" : "shqip",
+         "label_short" : "sq"
+      },
+      "sr" : {
+         "label" : "српски",
+         "label_short" : "sr"
+      },
+      "sv" : {
+         "label" : "svenska",
+         "label_short" : "sv"
+      },
+      "sv-fi" : {
+         "label" : "svenska (Finland)‏",
+         "label_short" : "sv-FI"
+      },
+      "ta" : {
+         "label" : "தமிழ்",
+         "label_short" : "ta"
+      },
+      "te" : {
+         "label" : "తెలుగు",
+         "label_short" : "te"
+      },
+      "th" : {
+         "label" : "ไทย",
+         "label_short" : "th"
+      },
+      "tr" : {
+         "label" : "Türkçe",
+         "label_short" : "tr"
+      },
+      "uk" : {
+         "label" : "українська",
+         "label_short" : "uk"
+      },
+      "ur" : {
+         "label" : "اردو",
+         "label_short" : "ur"
+      },
+      "vi" : {
+         "label" : "Tiếng Việt",
+         "label_short" : "vi"
+      },
+      "xh" : {
+         "label" : "xh",
+         "label_short" : "xh"
+      },
+      "zh-cn" : {
+         "label" : "中文 (中国大陸)‏",
+         "label_short" : "zh-CN"
+      },
+      "zh-hans" : {
+         "label" : "中文 (简体中文)‏",
+         "label_short" : "zh-Hans"
+      },
+      "zh-hant" : {
+         "label" : "繁體中文",
+         "label_short" : "zh-Hant"
+      },
+      "zh-hk" : {
+         "label" : "中文 (香港)‏",
+         "label_short" : "zh-HK"
+      },
+      "zh-sg" : {
+         "label" : "中文 (新加坡)‏",
+         "label_short" : "zh-SG"
+      },
+      "zh-tw" : {
+         "label" : "中文 (台灣)‏",
+         "label_short" : "zh-TW"
+      }
+   }
+}

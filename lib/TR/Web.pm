@@ -1432,8 +1432,8 @@ sub main ($$) {
       jpg => 'image/jpeg',
       gif => 'image/gif',
       png => 'image/png',
-      json => 'application/json',
-    }->{$1});
+      json => 'application/json; charset=utf-8',
+    }->{$1} // 'application/octet-stream');
   }
 
   if (@$path == 1 and $path->[0] eq 'robots.txt') {
