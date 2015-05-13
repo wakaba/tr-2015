@@ -127,6 +127,21 @@
 
     <p>サイト管理者は<a href=/admin/repository-rules>リポジトリー規則の編集</a>を行えます。
     リポジトリー規則に合致する Git リポジトリーをそのサイトで編集できるようになります。
+
+    <dl>
+
+    <dt><code>file-public</code>
+    <dd>Git repositories in a local file system.  Administrators of
+    the site can join the repository as owners.  Repositories are
+    marked as <i>public</i> such that anyone can read the repository.
+
+    <dt><code>file-private</code>
+    <dd>Git repositories in a local file system.  Administrators of
+    the site can join the repository as owners.  Repositories are
+    marked as <i>private</i> such that only members of the repository
+    can read the repository.
+
+    </dl>
   </section>
 </section>
 

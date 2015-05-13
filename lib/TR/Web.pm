@@ -5,6 +5,7 @@ use Path::Tiny;
 use Wanage::URL;
 use Encode;
 use Promise;
+use Promised::File;
 use JSON::Functions::XS qw(json_bytes2perl perl2json_bytes json_chars2perl perl2json_chars perl2json_chars_for_record);
 use Wanage::HTTP;
 use Web::URL::Canonicalize;
@@ -374,7 +375,8 @@ sub main ($$) {
                 })->then (sub {
                   return {is_owner => 1, is_public => 0};
                 });
-              } elsif ($repo_type eq 'file-public') {
+              } elsif ($repo_type eq 'file-public' or
+                       $repo_type eq 'file-private') {
                 my $url = $tr->mapped_url;
                 if ($url =~ s{^file:///}{/}) {
                   #
@@ -384,10 +386,18 @@ sub main ($$) {
                   undef $url;
                 }
                 if (defined $url) {
-                  use Promised::File; # XXX
                   Promised::File->new_from_path ($url)->is_directory->then (sub {
                     if ($_[0]) {
-                      return {is_owner => 1, is_public => 1};
+                      return $app->db->select ('repo_access', {
+                        repo_url => 'about:siteadmin',
+                        account_id => Dongry::Type->serialize ('text', $account->{account_id}),
+                      }, fields => ['data'], limit => 1)->then (sub {
+                        my $row = $_[0]->first_as_row;
+                        return $app->throw_error (403, reason_phrase => 'Bad privilege')
+                            if not defined $row or not $row->get ('data')->{repo};
+                        return {is_owner => 1,
+                                is_public => $repo_type eq 'file-public'};
+                      });
                     } else {
                       return {status => 404, message => "Repository not found: <$url>"};
                     }
@@ -395,8 +405,6 @@ sub main ($$) {
                 } else {
                   Promise->resolve ({status => 404, message => 'Repository not found'});
                 }
-              } elsif ($repo_type eq 'file-private') {
-                Promise->resolve ({is_owner => 0, is_public => 0});
               } else { # $repo_type
                 Promise->reject ("Can't get ownership of a repository with type |$repo_type|");
               }

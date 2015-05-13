@@ -26,6 +26,7 @@ push @EXPORT, grep { not /^\$/ } @Test::More::EXPORT;
 push @EXPORT, @Test::Differences::EXPORT;
 push @EXPORT, @Test::X1::EXPORT;
 push @EXPORT, @JSON::PS::EXPORT;
+push @EXPORT, qw(percent_encode_c);
 
 sub import ($;@) {
   my $from_class = shift;
@@ -251,6 +252,11 @@ sub web_server (;$) {
       mapped_prefix => $temp_repos_path->child ('pub') . '/',
       repository_type => 'file-public',
     },
+    {
+      prefix => q<file:///private/>,
+      mapped_prefix => $temp_repos_path->child ('private') . '/',
+      repository_type => 'file-private',
+    },
   ]};
   Promise->all ([
     $MySQLServer->start,
@@ -371,6 +377,7 @@ sub login ($;%) {
         url => qq<http://$host/-add-session>,
         anyevent => 1,
         max_redirect => 0,
+        timeout => 30,
         cb => sub {
           $ok->($_[1]);
         };
@@ -386,7 +393,13 @@ sub login ($;%) {
       return POST ($c, q</admin/account>,
         basic_auth => ['admin', $c->received_data->{admin_token}],
         account => $user,
-      )->then (sub { return $user });
+      )->then (sub {
+        my $res = $_[0];
+        unless ($res->code == 302) {
+          is $res->code, 302, '/admin/account';
+        }
+        return $user;
+      });
     } else {
       return $user;
     }
