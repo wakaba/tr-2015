@@ -108,7 +108,7 @@ test {
     my $path = $c->received_data->{repos_path}->child ('pub/' . $repo_name);
     my $url = qq<file:///pub/$repo_name>;
     return git_repo ($path, files => {
-      'texts.json' => (perl2json_bytes {
+      'texts/config.json' => (perl2json_bytes {
         export => [
           {
             lang => 'en',
@@ -197,7 +197,7 @@ test {
     my $path = $c->received_data->{repos_path}->child ('pub/' . $repo_name);
     my $url = qq<file:///pub/$repo_name>;
     return git_repo ($path, files => {
-      'texts.json' => (perl2json_bytes {
+      'texts/config.json' => (perl2json_bytes {
         export => [
           {
             lang => 'en',
@@ -249,7 +249,7 @@ test {
     my $path = $c->received_data->{repos_path}->child ('pub/' . $repo_name);
     my $url = qq<file:///pub/$repo_name>;
     return git_repo ($path, files => {
-      'texts.json' => (perl2json_bytes {
+      'texts/config.json' => (perl2json_bytes {
         export => [
           {
             lang => 'en',
@@ -302,7 +302,7 @@ test {
     my $path = $c->received_data->{repos_path}->child ('pub/' . $repo_name);
     my $url = qq<file:///pub/$repo_name>;
     return git_repo ($path, files => {
-      'texts.json' => (perl2json_bytes {
+      'texts/config.json' => (perl2json_bytes {
         export => [
           {
             lang => 'en',
@@ -355,7 +355,7 @@ test {
     my $path = $c->received_data->{repos_path}->child ('pub/' . $repo_name);
     my $url = qq<file:///pub/$repo_name>;
     return git_repo ($path, files => {
-      'texts.json' => (perl2json_bytes {
+      'texts/config.json' => (perl2json_bytes {
         export => [
           {
             lang => 'en',

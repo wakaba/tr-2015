@@ -28,7 +28,7 @@ sub get_texts_config ($) {
   my $texts_tree = $_[0]; # or undef
   my $config = {};
   if (defined $texts_tree) {
-    my $config_entry = $texts_tree->entry_bypath ('texts.json');
+    my $config_entry = $texts_tree->entry_bypath ('texts/config.json');
     if (entry_is_blob $config_entry) {
       $config = json_bytes2perl $config_entry->object->content;
       $config = {} if defined $config and not ref $config eq 'HASH';
