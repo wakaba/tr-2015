@@ -1183,10 +1183,17 @@ body > .preview {
   padding-top: 0.5em;
   background: white;
   color: black;
+  z-index: 1000;
 }
 
 body.has-preview > .preview {
   display: block;
+}
+
+.preview > iframe {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
 }
 
 .config-page body > section::after {

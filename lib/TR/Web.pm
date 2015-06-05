@@ -688,7 +688,11 @@ sub main ($$) {
         return $tr->get_tr_config;
       })->then (sub {
         my $config = $_[0];
-        my $json = {};
+        my $json = {
+          url => $tr->url,
+          branch => $tr->branch,
+          texts_path => '/' . ($tr->texts_dir // ''),
+        };
 
         $json->{avail_lang_keys} = $config->{avail_lang_keys};
         $json->{avail_lang_keys} = ['en'] unless @{$json->{avail_lang_keys}};
@@ -713,6 +717,11 @@ sub main ($$) {
         $json->{license} = $config->{license};
 
         $json->{scopes} = $scopes;
+
+        if (defined $config->{preview_url_template} and
+            $config->{preview_url_template} =~ m{^[Hh][Tt][Tt][Pp][Ss]?://}) {
+          $json->{preview_url_template} = $config->{preview_url_template};
+        }
 
         $app->send_last_json_chunk (200, 'OK', $json);
       })->$CatchThenDiscard ($app, $tr);

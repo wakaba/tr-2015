@@ -114,7 +114,7 @@ sub git_repo ($%) {
       });
     });
   })->then (sub {
-    my $cmd = Promised::Command->new (['git', 'push', 'origin', 'master']);
+    my $cmd = Promised::Command->new (['git', 'push', 'origin', 'master:' . ($args{branch} // 'master')]);
     $cmd->wd ($dir_name);
     return $cmd->run->then (sub {
       return $cmd->wait;
@@ -405,6 +405,35 @@ sub login ($;%) {
     }
   });
 } # login
+
+my $Admin;
+sub admin ($) {
+  if (defined $Admin) {
+    return Promise->resolve ($Admin);
+  } else {
+    # XXX racy
+    return login ($_[0], admin => 1)->then (sub {
+      return $Admin = $_[0];
+    });
+  }
+} # admin
+
+push @EXPORT, qw(grant_scopes);
+sub grant_scopes ($$$$) {
+  my ($c, $url, $account, $scopes) = @_;
+  return admin ($c)->then (sub {
+    my $admin = $_[0];
+    return POST ($c, ['r', $url, 'acl.json'], params => {
+      operation => 'join',
+    }, account => $admin)->then (sub {
+      return POST ($c, ['r', $url, 'acl.json'], params => {
+        operation => 'update_account_privilege',
+        account_id => $account->{account_id},
+        scope => $scopes,
+      }, account => $admin);
+    });
+  });
+} # grant_scopes
 
 push @EXPORT, qw(new_text_id);
 sub new_text_id () {

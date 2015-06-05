@@ -253,6 +253,7 @@
   <strong class=lang-label-short data-title="{lang_label} ({lang_key})">{lang_label_short}</strong>
   <button type=button class=toggle-edit>Edit</button>
   <button type=button class=search>Search</button>
+  <button type=button class=preview>Preview</button>
   <a href data-href="i/{text_id}/history.json?lang={lang_key}" target=history>History</a>
 </menu>
 <menu class=texts-comments-area-menu hidden>
@@ -665,6 +666,22 @@
           showSearchSidebar (cell.querySelector ('[name=body_0]').value);
           return false;
         };
+        langMenu.querySelector ('.preview').onclick = function () {
+          var msgid = cell.parentNode.previousSibling.querySelector ('.msgid').textContent;
+          var text = {text_id: textId, msgid: msgid, langs: {}};
+          text.langs[langKey] = {
+            body_0: cell.querySelector ('[name=body_0]').value,
+            body_1: cell.querySelector ('[name=body_1]').value,
+            body_2: cell.querySelector ('[name=body_2]').value,
+            body_3: cell.querySelector ('[name=body_3]').value,
+            body_4: cell.querySelector ('[name=body_4]').value,
+            body_5: cell.querySelector ('[name=body_5]').value,
+            forms: cell.querySelector ('[name=forms]').value,
+          };
+          // XXX args conversion
+          openPreview (text, langKey);
+          return false;
+        };
         Array.prototype.forEach.call (langMenu.querySelectorAll ('a[data-href]'), function (el) {
           el.href = el.getAttribute ('data-href').replace (/\{text_id\}/g, textId).replace (/\{lang_key\}/g, langKey);
         });
@@ -936,6 +953,37 @@ function syncTextComments (commentsEl, textComments) {
     function hidePreview () {
       document.body.classList.remove ('has-preview');
     } // hidePreview
+
+    function openPreview (text, langKey) {
+      info = document.trInfo;
+      if (!info.preview_url_template) return;
+
+      var args = {text: text, lang: langKey};
+      args.repo = {
+        url: info.url,
+        branch: info.branch,
+        texts_path: info.texts_path,
+      };
+
+      var url = info.preview_url_template.replace (/\{lang\}/g, langKey);
+      var iframe = document.querySelector ('.preview > iframe');
+      if (iframe.src !== url) {
+        iframe.src = url;
+        iframe.onload = function () {
+          iframe.contentWindow.postMessage (args, url);
+          this.onload = null;
+        };
+      } else {
+        iframe.contentWindow.postMessage (args, url);
+      }
+
+      showPreview ();
+    } // openPreview
+
+    document.trInfo = {};
+    server ('GET', 'info.ndjson', null, function (res) {
+      document.trInfo = res.data;
+    }, function () { }, function () { });
   </script>
 </section>
 
