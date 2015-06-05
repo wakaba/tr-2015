@@ -1,3 +1,12 @@
+  function resolveURL (url, base) {
+    try {
+      var url = "" + new URL (url, base || "about:blank");
+    } catch (e) {
+      url = null;
+    }
+    return url;
+  } // resolveURL
+
   function server (method, url, formdata, ondone, onerror, onprogress) {
     var xhr = new XMLHttpRequest;
     xhr.open (method, url, true);

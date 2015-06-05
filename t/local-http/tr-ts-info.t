@@ -234,6 +234,7 @@ test {
     return git_repo ($path, files => {
       'hoge/fuga/texts/config.json' => perl2json_bytes +{
         preview_url_template => q<http://hoge.{lang}.test/{lang}>,
+        location_base_url => q<http://hoge.{lang}.test/{lang}>,
       },
     }, branch => 'foo')->then (sub {
       return grant_scopes ($c, $url, $account, ['edit']);
@@ -245,13 +246,14 @@ test {
         is $res->code, 200;
         my $json = json_bytes2perl $res->content;
         is $json->{preview_url_template}, q{http://hoge.{lang}.test/{lang}};
+        is $json->{location_base_url}, q{http://hoge.{lang}.test/{lang}};
       } $c;
     })->then (sub {
       done $c;
       undef $c;
     });
   });
-} wait => $wait, n => 2, name => 'has preview_url_template';
+} wait => $wait, n => 3, name => 'has preview_url_template';
 
 test {
   my $c = shift;
@@ -294,6 +296,7 @@ test {
     return git_repo ($path, files => {
       'hoge/fuga/texts/config.json' => perl2json_bytes +{
         preview_url_template => q<javascript:http://hoge.{lang}.test/{lang}>,
+        location_base_url => q<javascript:http://hoge.{lang}.test/{lang}>,
       },
     }, branch => 'foo')->then (sub {
       return grant_scopes ($c, $url, $account, ['edit']);
@@ -305,13 +308,14 @@ test {
         is $res->code, 200;
         my $json = json_bytes2perl $res->content;
         is $json->{preview_url_template}, undef;
+        is $json->{location_base_url}, undef;
       } $c;
     })->then (sub {
       done $c;
       undef $c;
     });
   });
-} wait => $wait, n => 2, name => 'has bad preview_url_template';
+} wait => $wait, n => 3, name => 'has bad preview_url_template';
 
 # XXX scopes tests
 

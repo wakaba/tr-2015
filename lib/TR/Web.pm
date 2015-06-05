@@ -722,6 +722,10 @@ sub main ($$) {
             $config->{preview_url_template} =~ m{^[Hh][Tt][Tt][Pp][Ss]?://}) {
           $json->{preview_url_template} = $config->{preview_url_template};
         }
+        if (defined $config->{location_base_url} and
+            $config->{location_base_url} =~ m{^[Hh][Tt][Tt][Pp][Ss]?://}) {
+          $json->{location_base_url} = $config->{location_base_url};
+        }
 
         $app->send_last_json_chunk (200, 'OK', $json);
       })->$CatchThenDiscard ($app, $tr);

@@ -31,6 +31,16 @@
     最初の <code>/</code> も含めて全体で64文字以内でなければなりません。
     <p>テキスト集合を構成するファイル群は、テキスト集合ディレクトリー内の
     <code>texts</code> ディレクトリー以下に保存されます。
+
+    <p>A text set directory can have a JSON file named
+    as <dfn id=config.json><code>config.json</code></dfn>, which is
+    used to store various configuration options applied to the text
+    set.  The file contains a UTF-8 encoded JSON object with following
+    names:
+
+      <ul>
+      <li><a href=#config-location_base_url><code>location_base_url</code></a>
+      </ul>
   </section>
 
   <section id=acl>
@@ -108,6 +118,16 @@
     のみです。ディレクトリー名とファイル名の先頭文字は英数字か
     <code>_</code> でなければなりません。
   </section>
+</section>
+
+<section>
+  <h1>Text source annotations</h1>
+
+  <p>The <dfn id=config-location_base_url><code>location_base_url</code></dfn>
+  <a href=#config.json>text set configuration option</a> specifies the
+  base URL used to resolve URLs specified for source locations.  It
+  must be an absolute URL whose scheme is <code>http</code>
+  or <code>https</code>.
 </section>
 
 <section>

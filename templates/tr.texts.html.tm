@@ -406,8 +406,11 @@
           }
         });
         if (l.url) {
-          loc.href = l.url; // XXX resolve & validation
-          loc.target = 'location';
+          var url = resolveURL (l.url, document.trInfo ? document.trInfo.location_base_url : null); // XXX promise for document.trInfo
+          if (/^https?:\/\//.test (url)) {
+            loc.href = url;
+            loc.target = 'location';
+          }
         }
         locArea.appendChild (loc);
       });
