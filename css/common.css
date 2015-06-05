@@ -46,10 +46,20 @@ hr.resizer {
   box-sizing: border-box;
   margin: 0;
   border: none;
-  border-right: 3px double gray;
+  border: 3px double gray;
+  border-style: none double none none;
   padding: 0;
   cursor: ew-resize;
   background: white;
+}
+
+hr.resizer[data-vertical] {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0.3rem;
+  border-style: double none none none;
+  cursor: ns-resize;
 }
 
 html.resizing {
@@ -57,13 +67,17 @@ html.resizing {
 }
 
 .resizer-transparent {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
   z-index: 10000;
   cursor: ew-resize;
+}
+
+.resizer-transparent[data-vertical] {
+  cursor: ns-resize;
 }
 
 .contextmenu {
@@ -1151,6 +1165,28 @@ table.text-sets {
   text-align: right;
   color: green;
   font-size: 90%;
+}
+
+body > .preview {
+  display: none;
+  position: fixed;
+  min-height: 0;
+  height: 50%;
+  max-height: 90%;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  margin-right: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: 0.25rem;
+  padding-top: 0.5em;
+  background: white;
+  color: black;
+}
+
+body.has-preview > .preview {
+  display: block;
 }
 
 .config-page body > section::after {

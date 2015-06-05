@@ -809,6 +809,10 @@ function syncTextComments (commentsEl, textComments) {
 .has-sidebar body > footer {
   margin-left: %%WIDTH%%;
 }
+
+    .has-sidebar body > .preview {
+      margin-left: %%WIDTH%%;
+    }
   </script>
   <section id=sidebar-search>
     <header>
@@ -910,6 +914,30 @@ function syncTextComments (commentsEl, textComments) {
     </script>
   </section>
 </aside>
+
+<section class=preview>
+  <hr class=resizer data-vertical>
+  <script type=text/plain class=resize-css>
+    body.has-preview {
+      margin-bottom: %%HEIGHT%%;
+    }
+
+    body > .preview {
+      height: %%HEIGHT%%;
+    }
+  </script>
+  <iframe></iframe>
+
+  <script>
+    function showPreview () {
+      document.body.classList.add ('has-preview');
+    } // showPreview
+
+    function hidePreview () {
+      document.body.classList.remove ('has-preview');
+    } // hidePreview
+  </script>
+</section>
 
 <script>
   document.trDialogHandlers = {};
@@ -1257,6 +1285,16 @@ function syncTextComments (commentsEl, textComments) {
 <script>
   function resizer (root) {
     Array.prototype.forEach.call (root.querySelectorAll ('hr.resizer'), function (resizer) {
+      var pX = 'pageX';
+      var oL = 'offsetLeft';
+      var cW = 'clientWidth';
+      var pW = /%%WIDTH%%/g;
+      if (resizer.hasAttribute ('data-vertical')) {
+        pX = 'pageY';
+        oL = 'offsetTop';
+        cW = 'clientHeight';
+        pW = /%%HEIGHT%%/g;
+      }
       var resized = resizer.parentNode;
       resizer.trInstallTemplate = function () {
         var style = resized.trResizeCSS;
@@ -1265,7 +1303,8 @@ function syncTextComments (commentsEl, textComments) {
           if (cssTemplate) {
             style = resized.trResizeCSS = document.createElement ('style');
             style.trTemplate = cssTemplate.textContent.replace (/%%SELECTOR%%/g, resizer.getAttribute ('data-td-selector'));
-            style.textContent = style.trTemplate.replace (/%%WIDTH%%/g, '10rem');
+            var cuW = resized[cW] + 'px';
+            style.textContent = style.trTemplate.replace (pW, cuW);
             document.body.appendChild (style);
           }
         }
@@ -1278,6 +1317,8 @@ function syncTextComments (commentsEl, textComments) {
         document.trResizeStart = (new Date).valueOf ();
         document.trTransparent = document.createElement ('div');
         document.trTransparent.className = 'resizer-transparent';
+        if (resizer.hasAttribute ('data-vertical'))
+          document.trTransparent.setAttribute ('data-vertical', '');
         document.body.appendChild (document.trTransparent);
         resizer.classList.add ('resizing');
         document.documentElement.classList.add ('resizing');
@@ -1290,13 +1331,18 @@ function syncTextComments (commentsEl, textComments) {
       resizer.onselectstart = function () { return false };
       resizer.trResize = function (ev) {
         if (document.trResizeStart + 200 > (new Date).valueOf ()) return;
-        var resizedWidth = ev ? ev.pageX - resized.offsetLeft : 16;
+        if (resizer.hasAttribute ('data-vertical')) {
+          var resizedWidth = ev ? ev[pX] - document.body.scrollTop : document.documentElement.clientHeight;
+          resizedWidth = document.documentElement.clientHeight - resizedWidth;
+        } else {
+          var resizedWidth = ev ? ev[pX] - resized[oL] : 16;
+        }
         if (resizedWidth < 16) resizedWidth = 16;
         if (resized.trResizeCSS) {
-          resized.trResizeCSS.textContent = resized.trResizeCSS.trTemplate.replace (/%%WIDTH%%/g, resizedWidth + 'px');
+          resized.trResizeCSS.textContent = resized.trResizeCSS.trTemplate.replace (pW, resizedWidth + 'px');
         }
         if (resized.trResizeStyle !== "") {
-          resized.setAttribute ("style", resized.trResizeStyle.replace (/%%WIDTH%%/g, resizedWidth + 'px'));
+          resized.setAttribute ("style", resized.trResizeStyle.replace (pW, resizedWidth + 'px'));
         }
       };
     });
@@ -1315,6 +1361,7 @@ function syncTextComments (commentsEl, textComments) {
     });
   } // resizer
   resizer (document.body);
+  resizer (document.querySelector ('.preview'));
 </script>
 
 <script>

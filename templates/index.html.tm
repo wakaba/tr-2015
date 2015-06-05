@@ -10,7 +10,7 @@
   <h1>TR</h1>
 
   <ul>
-    <li><a href=/tr>Repositories</a>
+    <li><a href=/r>Repositories</a>
   </ul>
 
 </section>
