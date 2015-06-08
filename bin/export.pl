@@ -167,6 +167,8 @@ if (defined $export and ref $export eq 'ARRAY') {
         exit 1;
       };
       $file_name =~ s/\{lang\}/$meta->{lang}/g if defined $meta->{lang};
+      # XXX relative path should be allowed as long as it is in the
+      # repository...
       unless ($file_name =~ m{\A
               [A-Za-z0-9_][A-Za-z0-9_.\@+-]*
         (?> / [A-Za-z0-9_][A-Za-z0-9_.\@+-]* )*
@@ -177,7 +179,7 @@ if (defined $export and ref $export eq 'ARRAY') {
       
       my $repo_path = path ($repo_dir);
       my $file_path = (defined $texts_dir ? path ($texts_dir) : path ('.'))
-          ->child ($file_name);
+          ->child ('texts', $file_name);
       $path = $repo_path->child ($file_path);
       $modified_file_names->{$file_path} = 1;
     } # !use_full_path
