@@ -106,10 +106,10 @@
 </section>
 
 <section>
-  <h1>ファイル出力</h1>
+  <h1>Files</h1>
 
   <section>
-    <h1>制約</h1>
+    <h1>Constraints on file names</h1>
 
     <p>リポジトリー内のファイル名は、ディレクトリー名や区切りの
     <code>/</code> も含めて50文字以下でなければなりません。
@@ -117,6 +117,21 @@
     <code>.</code>、<code>@</code>、<code>+</code>、<code>-</code>
     のみです。ディレクトリー名とファイル名の先頭文字は英数字か
     <code>_</code> でなければなりません。
+  </section>
+
+  <section>
+    <h1>File formats</h1>
+
+    <p>Following file format can be used as input:
+      <ul>
+      <li><code>po</code> - PO (GNU Gettext)
+      </ul>
+
+    <p>Following file formats can be used as output:
+      <ul>
+      <li><code>po</code> - PO (GNU Gettext)
+      <li><code>json-tr</code> - TR's JSON format
+      </ul>
   </section>
 </section>
 

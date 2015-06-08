@@ -113,5 +113,49 @@ msgstr "abc xy\x{6000}\x00"}]}\E};
   });
 } wait => $wait, n => 4, name => 'non-empty - .po';
 
+test {
+  my $c = shift;
+  login ($c)->then (sub {
+    my $account = $_[0];
+    my $text_id = new_text_id;
+    my $repo_name = rand;
+    my $path = $c->received_data->{repos_path}->child ('pub/' . $repo_name);
+    my $url = qq<file:///pub/$repo_name>;
+    return git_repo ($path, files => {
+      'dummy' => '',
+    })->then (sub {
+      return grant_scopes ($c, $url, $account, ['edit', 'texts']);
+    })->then (sub {
+      return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'meta.json'], params => {
+        msgid => "\x{6001}\x00ho ge",
+      }, account => $account);
+    })->then (sub {
+      return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
+        lang => 'en',
+        body_0 => "abc xy\x{6000}\x00",
+      }, account => $account);
+    })->then (sub {
+      return GET ($c, ['r', $url, 'master', '/', 'export'], params => {
+        lang => 'en',
+        format => 'json-tr',
+      }, account => $account);
+    })->then (sub {
+      my $res = $_[0];
+      test {
+        is $res->code, 200;
+        is $res->header ('Content-Type'), q{application/json; charset=utf-8};
+        is $res->header ('Content-Disposition'), q{attachment; filename="texts.json"};
+        my $json = json_bytes2perl $res->content;
+        my $text_id = [keys %{$json->{texts}}]->[0];
+        is $json->{texts}->{$text_id}->{msgid}, "\x{6001}\x00ho ge";
+        is $json->{texts}->{$text_id}->{langs}->{en}->{body_0}, "abc xy\x{6000}\x00";
+      } $c;
+    })->then (sub {
+      done $c;
+      undef $c;
+    });
+  });
+} wait => $wait, n => 5, name => 'non-empty - json-tr';
+
 run_tests;
 stop_servers;

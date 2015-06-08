@@ -1,6 +1,7 @@
 use strict;
 use warnings;
 use Path::Tiny;
+use Encode;
 use JSON::Functions::XS qw(json_bytes2perl perl2json_bytes);
 use Git::Raw::Repository;
 use Git::Raw::Tree;
@@ -72,9 +73,12 @@ if (defined $export and ref $export eq 'ARRAY') {
       get_dump $repo_dir, $git_tree->id, $texts_dir, $rule->{query};
     };
 
-    if (($rule->{format} // '') eq 'po') {
+    my $meta = {};
+    my $output;
+    my $format = $rule->{format} // '';
+    if ($format eq 'po') {
       my $json = $data->{$rule->{query} // ''};
-      my $lang = $rule->{lang} // die "|lang| not specified"; # XXX validation?
+      $meta->{lang} = my $lang = $rule->{lang} // die "|lang| not specified"; # XXX validation?
 
       # XXX
       my $arg_format = $rule->{arg_format} // '';
@@ -129,63 +133,73 @@ if (defined $export and ref $export eq 'ARRAY') {
               $es->add_entry ($e);
             }
 
-      my $file_name;
-      my $path;
-      my $meta = {
-        mime_type => 'text/x-po; charset=utf-8',
-        file_name => "$lang.po",
-      };
-      my $meta_path;
-      if ($global_opts->{use_full_path}) {
-        $file_name = $path = path ($rule->{full_path});
-        $meta_path = path ($rule->{meta_full_path});
-      } else {
-        $file_name = $rule->{fileTemplate} // do {
-          print_status {error => 1, status => 409, message => '|fileTemplate| is not specified in an export rule'};
-          exit 1;
-        };
-        $file_name =~ s/\{lang\}/$lang/g;
-        unless ($file_name =~ m{\A
-                [A-Za-z0-9_][A-Za-z0-9_.\@+-]*
-          (?> / [A-Za-z0-9_][A-Za-z0-9_.\@+-]* )*
-        \z}x and 50 > length $file_name) {
-          print_status {error => 1, status => 409, message => "Exported file name |$file_name| is not allowed"};
-          exit 1;
-        }
-
-        my $repo_path = path ($repo_dir);
-        my $file_path = (defined $texts_dir ? path ($texts_dir) : path ('.'))
-            ->child ($file_name);
-        $path = $repo_path->child ($file_path);
-        $modified_file_names->{$file_path} = 1;
-      } # !use_full_path
-      if (defined $meta_path) {
-        eval {
-          $meta_path->parent->mkpath;
-          $meta_path->spew (perl2json_bytes $meta);
-        };
-        if ($@) {
-          print_status {error => 1, status => 409, message => "Can't export to |$file_name|", diag => $@};
-          exit 1;
-        }
-      }
-      {
-        eval {
-          $path->parent->mkpath;
-          $path->spew_utf8 ($es->stringify);
-        };
-        if ($@) {
-          print_status {error => 1, status => 409, message => "Can't export to |$file_name|", diag => $@};
-          exit 1;
-        }
-      }
+      $meta->{mime_type} = 'text/x-po; charset=utf-8';
+      $meta->{file_name} = "$meta->{lang}.po";
+      $output = encode 'utf-8', $es->stringify;
 
       # XXX "PO-Revision-Date should be max(last_modified)
+      # XXX fallbacks
+
+    } elsif ($format eq 'json-tr') {
+      my $json = $data->{$rule->{query} // ''};
+      $meta->{mime_type} = 'application/json; charset=utf-8';
+      $meta->{file_name} = 'texts.json';
+      $output = perl2json_bytes $json;
+
+      # XXX language filter
+      # XXX fallbacks
 
     } else {
       print_status {error => 1, status => 400,
                     message => "Export format |$rule->{format}| is not supported"};
       exit 1;
+    }
+
+    my $file_name;
+    my $path;
+    my $meta_path;
+    if ($global_opts->{use_full_path}) {
+      $file_name = $path = path ($rule->{full_path});
+      $meta_path = path ($rule->{meta_full_path});
+    } else {
+      $file_name = $rule->{fileTemplate} // do {
+        print_status {error => 1, status => 409, message => '|fileTemplate| is not specified in an export rule'};
+        exit 1;
+      };
+      $file_name =~ s/\{lang\}/$meta->{lang}/g if defined $meta->{lang};
+      unless ($file_name =~ m{\A
+              [A-Za-z0-9_][A-Za-z0-9_.\@+-]*
+        (?> / [A-Za-z0-9_][A-Za-z0-9_.\@+-]* )*
+      \z}x and 50 > length $file_name) {
+        print_status {error => 1, status => 409, message => "Exported file name |$file_name| is not allowed"};
+        exit 1;
+      }
+      
+      my $repo_path = path ($repo_dir);
+      my $file_path = (defined $texts_dir ? path ($texts_dir) : path ('.'))
+          ->child ($file_name);
+      $path = $repo_path->child ($file_path);
+      $modified_file_names->{$file_path} = 1;
+    } # !use_full_path
+    if (defined $meta_path) {
+      eval {
+        $meta_path->parent->mkpath;
+        $meta_path->spew (perl2json_bytes $meta);
+      };
+      if ($@) {
+        print_status {error => 1, status => 409, message => "Can't export to |$file_name|", diag => $@};
+        exit 1;
+      }
+    }
+    {
+      eval {
+        $path->parent->mkpath;
+        $path->spew ($output);
+      };
+      if ($@) {
+        print_status {error => 1, status => 409, message => "Can't export to |$file_name|", diag => $@};
+        exit 1;
+      }
     }
   } # $rule
 }

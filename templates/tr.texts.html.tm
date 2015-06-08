@@ -1305,6 +1305,7 @@ function syncTextComments (commentsEl, textComments) {
           <td>
             <select id=export-format name=format>
               <option value=po>PO (GNU Gettext)
+              <option value=json-tr>JSON (TR)
             </select>
         <tr>
           <th><label for=export-arg_format>Argument format</label>
