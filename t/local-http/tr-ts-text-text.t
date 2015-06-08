@@ -22,14 +22,8 @@ test {
     return git_repo ($path, files => {
       'dummy' => '',
     })->then (sub {
-      return POST ($c, ['r', $url, 'acl.json'], params => {
-        operation => 'join',
-      }, account => $account);
+      return grant_scopes ($c, $url, $account, ['edit']);
     })->then (sub {
-      my $res = $_[0];
-      test {
-        is $res->code, 200;
-      } $c, name => 'get access';
       return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
         lang => 'en',
         body_0 => 'abc',
@@ -52,7 +46,7 @@ test {
       undef $c;
     });
   });
-} wait => $wait, n => 3, name => 'texts.json POST new text, default lang';
+} wait => $wait, n => 2, name => 'texts.json POST new text, default lang';
 
 test {
   my $c = shift;
@@ -67,14 +61,8 @@ test {
         avail_lang_keys => ['es', 'it'],
       },
     })->then (sub {
-      return POST ($c, ['r', $url, 'acl.json'], params => {
-        operation => 'join',
-      }, account => $account);
+      return grant_scopes ($c, $url, $account, ['edit']);
     })->then (sub {
-      my $res = $_[0];
-      test {
-        is $res->code, 200;
-      } $c, name => 'get access';
       return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
         lang => 'it',
         body_0 => 'abc',
@@ -97,7 +85,7 @@ test {
       undef $c;
     });
   });
-} wait => $wait, n => 3, name => 'texts.json POST new text, non-default lang';
+} wait => $wait, n => 2, name => 'texts.json POST new text, non-default lang';
 
 test {
   my $c = shift;
@@ -118,14 +106,8 @@ test {
         ],
       }),
     })->then (sub {
-      return POST ($c, ['r', $url, 'acl.json'], params => {
-        operation => 'join',
-      }, account => $account);
+      return grant_scopes ($c, $url, $account, ['edit', 'texts']);
     })->then (sub {
-      my $res = $_[0];
-      test {
-        is $res->code, 200;
-      } $c, name => 'get access';
       return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'meta.json'], params => {
         msgid => 'hoge.foo',
       }, account => $account);
@@ -186,7 +168,7 @@ test {
       undef $c;
     });
   });
-} wait => $wait, n => 8, name => 'texts.json POST with export';
+} wait => $wait, n => 7, name => 'texts.json POST with export';
 
 test {
   my $c = shift;
@@ -207,13 +189,7 @@ test {
       }),
     })->then (sub {
       my $rev = $_[0];
-      return POST ($c, ['r', $url, 'acl.json'], params => {
-        operation => 'join',
-      }, account => $account)->then (sub {
-        my $res = $_[0];
-        test {
-          is $res->code, 200;
-        } $c, name => 'get access';
+      return grant_scopes ($c, $url, $account, ['edit'])->then (sub {
         return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
           lang => 'en',
           body_0 => 'abc',
@@ -238,7 +214,7 @@ test {
       undef $c;
     });
   });
-} wait => $wait, n => 5, name => 'texts.json POST with export broken (no fileTemplate)';
+} wait => $wait, n => 4, name => 'texts.json POST with export broken (no fileTemplate)';
 
 test {
   my $c = shift;
@@ -260,13 +236,7 @@ test {
       }),
     })->then (sub {
       my $rev = $_[0];
-      return POST ($c, ['r', $url, 'acl.json'], params => {
-        operation => 'join',
-      }, account => $account)->then (sub {
-        my $res = $_[0];
-        test {
-          is $res->code, 200;
-        } $c, name => 'get access';
+      return grant_scopes ($c, $url, $account, ['edit'])->then (sub {
         return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
           lang => 'en',
           body_0 => 'abc',
@@ -291,7 +261,7 @@ test {
       undef $c;
     });
   });
-} wait => $wait, n => 5, name => 'texts.json POST with export broken (bad file name)';
+} wait => $wait, n => 4, name => 'texts.json POST with export broken (bad file name)';
 
 test {
   my $c = shift;
@@ -313,13 +283,7 @@ test {
       }),
     })->then (sub {
       my $rev = $_[0];
-      return POST ($c, ['r', $url, 'acl.json'], params => {
-        operation => 'join',
-      }, account => $account)->then (sub {
-        my $res = $_[0];
-        test {
-          is $res->code, 200;
-        } $c, name => 'get access';
+      return grant_scopes ($c, $url, $account, ['edit'])->then (sub {
         return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
           lang => 'en',
           body_0 => 'abc',
@@ -344,7 +308,7 @@ test {
       undef $c;
     });
   });
-} wait => $wait, n => 5, name => 'texts.json POST with export broken (unknown export format)';
+} wait => $wait, n => 4, name => 'texts.json POST with export broken (unknown export format)';
 
 test {
   my $c = shift;
@@ -371,13 +335,7 @@ test {
       }),
     })->then (sub {
       my $rev = $_[0];
-      return POST ($c, ['r', $url, 'acl.json'], params => {
-        operation => 'join',
-      }, account => $account)->then (sub {
-        my $res = $_[0];
-        test {
-          is $res->code, 200;
-        } $c, name => 'get access';
+      return grant_scopes ($c, $url, $account, ['edit'])->then (sub {
         return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.json'], params => {
           lang => 'en',
           body_0 => 'abc',
@@ -402,7 +360,7 @@ test {
       undef $c;
     });
   });
-} wait => $wait, n => 5, name => 'texts.json POST with export broken (directory error)';
+} wait => $wait, n => 4, name => 'texts.json POST with export broken (directory error)';
 
 test {
   my $c = shift;
@@ -418,13 +376,7 @@ test {
       },
     })->then (sub {
       my $rev = $_[0];
-      return POST ($c, ['r', $url, 'acl.json'], params => {
-        operation => 'join',
-      }, account => $account)->then (sub {
-        my $res = $_[0];
-        test {
-          is $res->code, 200;
-        } $c, name => 'get access';
+      return grant_scopes ($c, $url, $account, ['edit'])->then (sub {
         return POST ($c, ['r', $url, 'master', '/', 'i', $text_id, 'text.ndjson'], params => {
           lang => 'fr',
           body_0 => 'abc',
@@ -449,7 +401,7 @@ test {
       undef $c;
     });
   });
-} wait => $wait, n => 5, name => 'texts.json POST non-avail lang';
+} wait => $wait, n => 4, name => 'texts.json POST non-avail lang';
 
 run_tests;
 stop_servers;
