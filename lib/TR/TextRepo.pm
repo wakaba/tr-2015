@@ -272,7 +272,6 @@ sub get_branches ($;$) {
     timeout => 2,
   )->then (sub {
     my $result = $_[0];
-warn "then";
     my $parsed = {branches => {}};
     for (split /\x0A/, decode 'utf-8', $result->{stdout}) {
       if (/^(\* |  )(\S+)\s+(\S+) (.*)$/) {
@@ -649,6 +648,8 @@ sub run_import ($%) {
 
 sub run_export ($%) {
   my ($self, %args) = @_;
+  $args{writable} //= 1;
+  $args{replace_error_status} //= 1;
   my $json_path = $self->{temp_path}->child ('export-'.rand.'.json');
   my $json_file = Promised::File->new_from_path ($json_path);
   my $onerror = delete $args{onerror};
@@ -659,7 +660,7 @@ sub run_export ($%) {
     my $cmd = Promised::Command->new ([
       $root_path->child ('perl'),
       $root_path->child ('bin/export.pl'),
-      $self->repo_path,
+      ($args{writable} ? $self->repo_path : $self->mirror_repo_path),
       $self->{texts_dir} // '',
       $json_path,
     ]);
@@ -670,6 +671,7 @@ sub run_export ($%) {
         if (defined $json and ref $json eq 'HASH') {
           # XXX error log?
           if (defined $json->{error} and defined $json->{status}) {
+            $json->{error} = 409 if $args{replace_error_status};
             $onerror->($json);
           }
           # XXX progress

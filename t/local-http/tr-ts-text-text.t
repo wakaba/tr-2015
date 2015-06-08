@@ -293,7 +293,7 @@ test {
         test {
           is $res->code, 409;
           my $json = json_bytes2perl $res->content;
-          is $json->{status}, 409;
+          is $json->{status}, 400;
           is $json->{message}, 'Export format |PO| is not supported';
         } $c, name => 'Not edited';
         return git_rev ($path);

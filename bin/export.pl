@@ -36,19 +36,27 @@ sub get_dump ($$$$) {
 
 my ($repo_dir, $texts_dir, $json_dir) = @ARGV;
 die unless defined $json_dir;
-my $json = json_bytes2perl path ($json_dir)->slurp;
+my $global_opts = json_bytes2perl path ($json_dir)->slurp;
 undef $texts_dir unless length $texts_dir;
 # $repo_dir and $texts_dir must be safe values
 
 my $git_repo = Git::Raw::Repository->open ($repo_dir);
-my $git_index = $git_repo->index;
-my $git_tree = $git_index->write_tree;
+my $git_tree;
+if ($global_opts->{writable}) {
+  my $git_index = $git_repo->index;
+  $git_tree = $git_index->write_tree;
+} else {
+  require Git::Raw::Branch;
+  my $git_commit = Git::Raw::Branch->lookup
+      ($git_repo, $global_opts->{branch}, 1);
+  $git_tree = $git_commit->target->tree;
+}
 my $texts_tree = get_texts_tree $git_tree, $texts_dir; # or undef
 my $config = get_texts_config $texts_tree;
 
 my $modified_file_names = {};
 my $data = {};
-my $export = $config->{export};
+my $export = $global_opts->{export_rules} || $config->{export};
 if (defined $export and ref $export eq 'ARRAY') {
   for my $rule (@$export) {
     next unless ref $rule eq 'HASH';
@@ -121,23 +129,30 @@ if (defined $export and ref $export eq 'ARRAY') {
               $es->add_entry ($e);
             }
 
-      my $file_name = $rule->{fileTemplate} // do {
-        print_status {error => 1, status => 409, message => '|fileTemplate| is not specified in an export rule'};
-        exit 1;
-      };
-      $file_name =~ s/\{lang\}/$lang/g;
-      unless ($file_name =~ m{\A
-              [A-Za-z0-9_][A-Za-z0-9_.\@+-]*
-        (?> / [A-Za-z0-9_][A-Za-z0-9_.\@+-]* )*
-      \z}x and 50 > length $file_name) {
-        print_status {error => 1, status => 409, message => "Exported file name |$file_name| is not allowed"};
-        exit 1;
-      }
+      my $file_name;
+      my $path;
+      if ($global_opts->{use_full_path}) {
+        $file_name = $path = path ($rule->{full_path});
+      } else {
+        $file_name = $rule->{fileTemplate} // do {
+          print_status {error => 1, status => 409, message => '|fileTemplate| is not specified in an export rule'};
+          exit 1;
+        };
+        $file_name =~ s/\{lang\}/$lang/g;
+        unless ($file_name =~ m{\A
+                [A-Za-z0-9_][A-Za-z0-9_.\@+-]*
+          (?> / [A-Za-z0-9_][A-Za-z0-9_.\@+-]* )*
+        \z}x and 50 > length $file_name) {
+          print_status {error => 1, status => 409, message => "Exported file name |$file_name| is not allowed"};
+          exit 1;
+        }
 
-      my $repo_path = path ($repo_dir);
-      my $file_path = (defined $texts_dir ? path ($texts_dir) : path ('.'))
-          ->child ($file_name);
-      my $path = $repo_path->child ($file_path);
+        my $repo_path = path ($repo_dir);
+        my $file_path = (defined $texts_dir ? path ($texts_dir) : path ('.'))
+            ->child ($file_name);
+        $path = $repo_path->child ($file_path);
+        $modified_file_names->{$file_path} = 1;
+      } # !use_full_path
       eval {
         $path->parent->mkpath;
         $path->spew_utf8 ($es->stringify);
@@ -146,18 +161,18 @@ if (defined $export and ref $export eq 'ARRAY') {
         print_status {error => 1, status => 409, message => "Can't export to |$file_name|", diag => $@};
         exit 1;
       }
-      $modified_file_names->{$file_path} = 1;
 
       # XXX "PO-Revision-Date should be max(last_modified)
 
     } else {
-      print_status {error => 1, status => 409, message => "Export format |$rule->{format}| is not supported"};
+      print_status {error => 1, status => 400,
+                    message => "Export format |$rule->{format}| is not supported"};
       exit 1;
     }
   } # $rule
 }
 
-
+if ($global_opts->{writable}) {
   my @add = keys %$modified_file_names;
   while (@add) {
     my @x = splice @add, 0, 30, ();
@@ -171,3 +186,4 @@ if (defined $export and ref $export eq 'ARRAY') {
     });
     $cv->recv;
   }
+}

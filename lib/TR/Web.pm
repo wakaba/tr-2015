@@ -762,84 +762,48 @@ sub main ($$) {
       return $class->check_read ($app, $tr, access_token => 1)->then (sub {
         return $tr->prepare_mirror ($_[0], $app);
       })->then (sub {
-        my $format = $app->text_param ('format') // '';
-        my $arg_format = $app->text_param ('arg_format') // '';
-        if ($format eq 'po') { # XXX and pot
-          my $lang = $app->text_param ('lang')
-              or return $app->send_error (400, reason_phrase => '|lang| not specified');
-          $arg_format ||= 'printf'; #$arg_format normalization
-          $arg_format = 'printf' if $arg_format eq 'auto';
-          require TR::Query;
-          my $q = TR::Query->parse_query (
-            query => $app->text_param ('q'),
-            text_ids => $app->text_param_list ('text_id'),
-            msgids => $app->text_param_list ('msgid'),
-            tag_ors => $app->text_param_list ('tag_or'),
-            tags => $app->text_param_list ('tag'),
-            tag_minuses => $app->text_param_list ('tag_minus'),
-          );
-          return $tr->get_data_as_jsonalizable
-              ($q, [$lang], config => $app->config)->then (sub {
-            my $json = $_[0];
-            unless ($json->{langs}->{$lang}) {
-              return $app->throw_error (400, reason_phrase => 'Bad |lang|');
-            }
-
-            require Popopo::Entry;
-            require Popopo::EntrySet;
-            my $es = Popopo::EntrySet->new;
-            my $header = $es->get_or_create_header;
-            # XXX $header
-            for my $text_id (keys %{$json->{texts} or {}}) {
-              my $text = $json->{texts}->{$text_id};
-              my $msgid = $text->{msgid};
-              next unless defined $msgid; # XXX fallback option?
-              my $str = $text->{langs}->{$lang}->{body_0} // '';
-              my $args = {};
-              my $i = 0;
-              for my $arg_name (@{$text->{args} or []}) {
-                $i++;
-                $args->{$arg_name} = {index => $i, name => $arg_name};
-              }
-              # XXX $app->text_param ('preserve_html')
-              # XXX $app->text_param ('no_fallback')
-              my @str;
-              for (split /(\{[^{}]+\})/, $str, -1) {
-                if (/\A\{([^{}]+)\}\z/) {
-                  my $arg = $args->{$1};
-                  if ($arg) {
-                    if ($arg_format eq 'braced') {
-                      push @str, '{' . $arg->{name} . '}';
-                    } elsif ($arg_format eq 'printf') {
-                      push @str, '%'.$arg->{index}.'$s'; # XXX
-                    } elsif ($arg_format eq 'percentn') {
-                      push @str, '%' . $arg->{index};
-                    }
-                  } else {
-                    push @str, $_;
-                  }
-                } else {
-                  if ($arg_format eq 'printf' or $arg_format eq 'percentn') {
-                    s/%/%%/g;
-                  }
-                  push @str, $_;
-                }
-              }
-              $str = join '', @str;
-              my $e = Popopo::Entry->new
-                  (msgid => $msgid,
-                   msgstrs => [$str]);
-              # XXX more props
-              $es->add_entry ($e);
-            }
+        require TR::Query;
+        my $q = TR::Query->parse_query (
+          query => $app->text_param ('q'),
+          text_ids => $app->text_param_list ('text_id'),
+          msgids => $app->text_param_list ('msgid'),
+          tag_ors => $app->text_param_list ('tag_or'),
+          tags => $app->text_param_list ('tag'),
+          tag_minuses => $app->text_param_list ('tag_minus'),
+        );
+        require File::Temp;
+        my $temp = File::Temp->new;
+        return $tr->run_export (
+          export_rules => [
+            {
+              query => $q->stringify,
+              format => $app->text_param ('format'),
+              arg_format => $app->text_param ('arg_format'),
+              lang => $app->text_param ('lang'),
+              full_path => ''.$temp,
+            },
+          ],
+          branch => $tr->branch,
+          use_full_path => 1,
+          writable => 0,
+          replace_error_status => 0,
+          onerror => sub {
+            $app->send_error ($_[0]->{status}, reason_phrase => $_[0]->{message});
+          },
+        )->then (sub {
+          my $file = Promised::File->new_from_path ($temp);
+          return $file->is_file->then (sub {
+            die "$temp not found" unless $_[0];
+            # XXX
             $app->http->set_response_header ('Content-Type' => 'text/x-po; charset=utf-8');
-            $app->http->set_response_disposition (filename => "$lang.po");
-            $app->http->send_response_body_as_text ($es->stringify);
+            $app->http->set_response_disposition (filename => "en.po"); # XXX
+            return $file->read_byte_string;
+          })->then (sub {
+            $app->http->send_response_body_as_ref (\($_[0]));
             $app->http->close_response_body;
+            undef $temp;
           });
-        } else {
-          return $app->send_error (400, reason_phrase => 'Unknown format');
-        }
+        });
       })->$CatchThenDiscard ($app, $tr);
 
     } elsif (@$path == 5 and $path->[4] eq 'start') {
