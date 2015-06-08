@@ -131,8 +131,14 @@ if (defined $export and ref $export eq 'ARRAY') {
 
       my $file_name;
       my $path;
+      my $meta = {
+        mime_type => 'text/x-po; charset=utf-8',
+        file_name => "$lang.po",
+      };
+      my $meta_path;
       if ($global_opts->{use_full_path}) {
         $file_name = $path = path ($rule->{full_path});
+        $meta_path = path ($rule->{meta_full_path});
       } else {
         $file_name = $rule->{fileTemplate} // do {
           print_status {error => 1, status => 409, message => '|fileTemplate| is not specified in an export rule'};
@@ -153,13 +159,25 @@ if (defined $export and ref $export eq 'ARRAY') {
         $path = $repo_path->child ($file_path);
         $modified_file_names->{$file_path} = 1;
       } # !use_full_path
-      eval {
-        $path->parent->mkpath;
-        $path->spew_utf8 ($es->stringify);
-      };
-      if ($@) {
-        print_status {error => 1, status => 409, message => "Can't export to |$file_name|", diag => $@};
-        exit 1;
+      if (defined $meta_path) {
+        eval {
+          $meta_path->parent->mkpath;
+          $meta_path->spew (perl2json_bytes $meta);
+        };
+        if ($@) {
+          print_status {error => 1, status => 409, message => "Can't export to |$file_name|", diag => $@};
+          exit 1;
+        }
+      }
+      {
+        eval {
+          $path->parent->mkpath;
+          $path->spew_utf8 ($es->stringify);
+        };
+        if ($@) {
+          print_status {error => 1, status => 409, message => "Can't export to |$file_name|", diag => $@};
+          exit 1;
+        }
       }
 
       # XXX "PO-Revision-Date should be max(last_modified)

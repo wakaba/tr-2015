@@ -772,7 +772,8 @@ sub main ($$) {
           tag_minuses => $app->text_param_list ('tag_minus'),
         );
         require File::Temp;
-        my $temp = File::Temp->new;
+        my $temp1 = File::Temp->new;
+        my $temp2 = File::Temp->new;
         return $tr->run_export (
           export_rules => [
             {
@@ -780,7 +781,8 @@ sub main ($$) {
               format => $app->text_param ('format'),
               arg_format => $app->text_param ('arg_format'),
               lang => $app->text_param ('lang'),
-              full_path => ''.$temp,
+              full_path => ''.$temp1,
+              meta_full_path => ''.$temp2,
             },
           ],
           branch => $tr->branch,
@@ -791,17 +793,19 @@ sub main ($$) {
             $app->send_error ($_[0]->{status}, reason_phrase => $_[0]->{message});
           },
         )->then (sub {
-          my $file = Promised::File->new_from_path ($temp);
-          return $file->is_file->then (sub {
-            die "$temp not found" unless $_[0];
-            # XXX
-            $app->http->set_response_header ('Content-Type' => 'text/x-po; charset=utf-8');
-            $app->http->set_response_disposition (filename => "en.po"); # XXX
-            return $file->read_byte_string;
-          })->then (sub {
-            $app->http->send_response_body_as_ref (\($_[0]));
+          my $file1 = Promised::File->new_from_path ($temp1);
+          my $file2 = Promised::File->new_from_path ($temp2);
+          return Promise->all ([
+            $file1->read_byte_string,
+            $file2->read_byte_string,
+          ])->then (sub {
+            my $meta = json_bytes2perl $_[0]->[1];
+            $app->http->set_response_header ('Content-Type' => $meta->{mime_type});
+            $app->http->set_response_disposition (filename => $meta->{file_name});
+            $app->http->send_response_body_as_ref (\($_[0]->[0]));
             $app->http->close_response_body;
-            undef $temp;
+            undef $temp1;
+            undef $temp2;
           });
         });
       })->$CatchThenDiscard ($app, $tr);
