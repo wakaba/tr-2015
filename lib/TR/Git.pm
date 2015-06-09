@@ -49,7 +49,7 @@ sub git_clone ($;%) {
     undef $cmd;
     if (not $result->is_success) {
       die "$result\n$stderr";
-    } elsif ($result->exit_code == 1) {
+    } elsif ($result->exit_code == 128) {
       if ($stderr =~ /^fatal: Remote branch .+ not found in upstream /ms) {
         die {result => $result, stdout => $stdout, stderr => $stderr,
              bad_branch => 1};

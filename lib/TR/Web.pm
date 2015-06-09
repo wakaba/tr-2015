@@ -730,6 +730,108 @@ sub main ($$) {
         $app->send_last_json_chunk (200, 'OK', $json);
       })->$CatchThenDiscard ($app, $tr);
 
+    } elsif (@$path == 5 and $path->[4] =~ /\Aedit\.(json|ndjson)\z/) {
+      # .../edit.json
+      # .../edit.ndjson
+      $app->start_json_stream if $1 eq 'ndjson';
+      $app->requires_request_method ({POST => 1});
+      $app->requires_same_origin_or_referer_origin;
+      $app->requires_valid_content_length;
+      unless (($app->http->request_mime_type->value // '') eq 'application/json') {
+        return $app->send_error
+            (415, reason_phrase => 'Request body is not a JSON array');
+      }
+      my $json = json_bytes2perl ${$app->http->request_body_as_ref};
+      unless (defined $json and ref $json eq 'ARRAY') {
+        return $app->send_error
+            (400, reason_phrase => 'Request body is not a JSON array');
+      }
+      return $class->edit_text_set (
+        $app, $tr, undef,
+        sub {
+          my $token = $_[0];
+          return $tr->get_tr_config->then (sub {
+            my $config = $_[0];
+            my $n = -1;
+            my $run_action = sub {
+              my $action = shift @$json;
+              $n++;
+              unless (defined $action and ref $action eq 'HASH') {
+                return $app->throw_error
+                    (400, reason_phrase => "Action #$n is not a JSON object");
+              }
+              my $act = $action->{action} // '';
+              if ($act eq 'text') {
+                my $lang = $action->{lang} // '';
+                unless (grep { $_ eq $lang } @{$config->{avail_lang_keys}}) {
+                  return $app->throw_error
+                      (409, reason_phrase => "Action #$n: Language |$lang| is not valid for this repository");
+                }
+
+                unless ($token->{scopes}->{edit}) { # XXX or edit/$lang
+                  return $app->throw_error
+                      (403, reason_phrase => "Action #$n: No |edit/$lang| permission");
+                }
+
+                my $text_id = $action->{text_id} // '';
+                return $app->throw_error
+                    (400, reason_phrase => "Action #$n: Bad |text_id|")
+                    unless is_text_id $text_id;
+
+                # XXX file from index should be used instead...
+                my $path = $tr->text_id_and_suffix_to_relative_path
+                    ($text_id, $lang . '.txt');
+                return $tr->mirror_repo->show_blob_by_path ($tr->branch, $path)->then (sub {
+                  my $te = TR::TextEntry->new_from_source_text ($_[0] // '');
+                  my $modified;
+                  for (qw(body_0 body_1 body_2 body_3 body_4 body_5 forms)) {
+                    my $v = $action->{$_};
+                    next unless defined $v;
+                    my $current = $te->get ($_);
+                    if (not defined $current or not $current eq $v) {
+                      $te->set ($_ => $v);
+                      $modified = 1;
+                    }
+                  }
+                  if ($modified) {
+                    $te->set (last_modified => time);
+                    return $tr->write_file_by_text_id_and_suffix
+                        ($text_id, $lang . '.txt' => $te->as_source_text);
+                  }
+                });
+
+              } else { # $act
+                return $app->throw_error
+                    (418, reason_phrase => "Action #$n: Unknown action |$act|");
+              }
+            }; # $run_action
+            my $run_next; $run_next = sub {
+              return Promise->resolve unless @$json;
+              return Promise->resolve ($run_action->())->then (sub {
+                return $run_next->();
+              });
+            };
+            return Promise->resolve->then (sub { return $run_next->() })->then (sub {
+              undef $run_next;
+            }, sub {
+              undef $run_next;
+              die $_[0];
+            });
+          })->then (sub {
+            $app->send_progress_json_chunk ('Running export rules...');
+            return $tr->run_export (onerror => sub {
+              $app->send_last_json_chunk
+                  ($_[0]->{status}, $_[0]->{message}, {
+                    status => $_[0]->{status},
+                    message => $_[0]->{message},
+                  });
+            });
+          });
+        },
+        scope => 'read',
+        default_commit_message => 'Modified a text',
+      );
+
     } elsif (@$path == 5 and $path->[4] eq 'XXXupdate-index') {
       # .../XXXupdate-index
       # XXX request method
@@ -869,6 +971,7 @@ sub main ($$) {
       return $app->throw_error (404, reason_phrase => 'Bad text ID')
           unless is_text_id $text_id;
 
+      # XXX
       if (@$path == 7 and $path->[6] =~ /\Atext\.(json|ndjson)\z/) {
         # .../i/{text_id}/text.json
         # .../i/{text_id}/text.ndjson
@@ -1628,6 +1731,7 @@ sub get_push_token ($$$$) {
   my ($class, $app, $tr, $scope) = @_;
   my $account_id;
   my $name;
+  my $scopes;
   return $class->session ($app)->then (sub {
     my $session = $_[0];
     $name = $session->{name};
@@ -1642,10 +1746,10 @@ sub get_push_token ($$$$) {
     my $row = $_[0]->first_as_row;
     my $ok = 0;
     if (defined $row) {
-      my $scopes = $row->get ('data');
+      $scopes = $row->get ('data');
       if ($scopes->{$scope}) {
         $ok = 1;
-      } elsif ($scope =~ m{^edit/} and $scopes->{edit}) {
+      } elsif ($scope =~ m{^edit/} and $scopes->{edit}) { # XXX
         $ok = 1;
       }
     }
@@ -1679,7 +1783,8 @@ sub get_push_token ($$$$) {
   })->then (sub {
     my $json = $_[0];
     my $token = {access_token => $json->{access_token},
-                 name => $name, account_id => $account_id};
+                 name => $name, account_id => $account_id,
+                 scopes => $scopes};
     return $app->throw_error (403, reason_phrase => 'The repository owner has no GitHub access token')
         unless defined $token->{access_token};
 
@@ -1697,7 +1802,7 @@ sub get_push_token ($$$$) {
 
 sub edit_text_set ($$$$$%) {
   my ($class, $app, $tr, $type, $code, %args) = @_;
-  $app->start_json_stream if $type eq 'ndjson';
+  $app->start_json_stream if defined $type and $type eq 'ndjson';
   $app->send_progress_json_chunk ('Checking the repository permission...', [1,6]);
   my $return;
   my $keys;

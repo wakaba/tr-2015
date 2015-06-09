@@ -351,6 +351,9 @@ sub POST ($$;%) {
     my ($ok, $ng) = @_;
     my $cookies = $args{cookies} || {};
     $cookies->{sk} //= $args{account}->{sk}; # or undef
+    $args{header_fields}->{'Content-Type'} = 'application/json'
+        if defined $args{json} and
+           not exists $args{header_fields}->{'Content-Type'};
     http_post
         url => qq<http://$host$path>,
         basic_auth => $args{basic_auth},
@@ -358,6 +361,7 @@ sub POST ($$;%) {
         params => $args{params},
         files => $args{files},
         cookies => $cookies,
+        (defined $args{json} ? (content => perl2json_bytes $args{json}) : ()),
         timeout => 30,
         anyevent => 1,
         max_redirect => 0,
@@ -439,5 +443,37 @@ push @EXPORT, qw(new_text_id);
 sub new_text_id () {
   return sha1_hex (time () . $$ . rand ());
 } # new_text_id
+
+push @EXPORT, qw(is_resolved_with);
+sub is_resolved_with ($$$;$) {
+  my ($c, $promise, $expected, $name) = @_;
+  return $promise->then (sub {
+    my $actual = $_[0];
+    test {
+      Test::More::is $actual, $expected, 'Resolved';
+    } $c, name => $name;
+  }, sub {
+    my $error = $_[0];
+    test {
+      Test::More::is $error, undef, 'Rejected';
+    } $c, name => $name;
+  });
+} # is_resolved_with
+
+push @EXPORT, qw(is_resolved_with_not);
+sub is_resolved_with_not ($$$;$) {
+  my ($c, $promise, $expected, $name) = @_;
+  return $promise->then (sub {
+    my $actual = $_[0];
+    test {
+      Test::More::isnt $actual, $expected, 'Resolved';
+    } $c, name => $name;
+  }, sub {
+    my $error = $_[0];
+    test {
+      Test::More::is $error, undef, 'Rejected';
+    } $c, name => $name;
+  });
+} # is_resolved_with_not
 
 1;
