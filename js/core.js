@@ -45,7 +45,12 @@
         }
       }
     };
-    xhr.send (formdata);
+    if (formdata === null || formdata instanceof FormData) {
+      xhr.send (formdata);
+    } else {
+      xhr.setRequestHeader ('Content-Type', 'application/json');
+      xhr.send (JSON.stringify (formdata));
+    }
   } // server
 
   function showProgress (json, status) {

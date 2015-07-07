@@ -1,6 +1,6 @@
 <html t:params="$tr $app $query">
 <t:call x="use Wanage::URL">
-<title>XXX</title>
+<title>Texts - XXX - TR</title>
 <link rel=stylesheet href=/css/common.css>
 <body onbeforeunload=" if (isEditMode ()) return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
 
@@ -54,6 +54,7 @@
       <a href="XXX" rel=help title="Filter syntax" target=help>Advanced</a>
     <!-- XXX langs -->
   </form>
+  <p class=status hidden><progress></progress> <span class=message></span>
 </header>
 
 <div class="banner if-readonly" hidden>
@@ -211,7 +212,9 @@
               <span onclick="parentNode.parentNode.parentNode.setAttribute('data-selected-form', getAttribute ('data-form'))" tabindex=0 data-form=5>5</span>
             </menu>
     </div>
-    <form data-action="i/{text_id}/text.ndjson" method=post class=edit>
+    <form method=post class=edit>
+      <input type=hidden name=action value=text>
+      <input type=hidden name=text_id value={text_id}>
       <input type=hidden name=lang value={lang_key} class=lang-key>
             <p data-form=0><textarea name=body_0></textarea>
             <p data-form=1><textarea name=body_1></textarea>
@@ -244,10 +247,6 @@
       <progress></progress>
   </template>
   <tbody>
-  <tbody class=status hidden>
-    <tr>
-      <td data-colspan-delta=1>
-        <progress></progress> <span class=message></span>
 </table>
 <menu class=texts-lang-area-menu hidden>
   <strong class=lang-label-short data-title="{lang_label} ({lang_key})">{lang_label_short}</strong>
@@ -264,7 +263,7 @@
 
   <form action=add.ndjson method=post onsubmit="
     var form = this;
-    var status = document.querySelector ('#texts tbody.status');
+    var status = document.querySelector ('header.textset .status');
     var saveButton = form.querySelector ('button[type=submit]');
     saveButton.disabled = true;
     showProgress ({init: true}, status);
@@ -320,6 +319,26 @@
   function isEditMode () {
     return !!document.querySelector ('.dialog:not([hidden]):not(#config-langs), .toggle-edit.active, .edit-mode');
   } // isEditMode
+
+  function scheduleEdit (area, form, status) {
+    var action = {};
+    for (var n in form.elements) {
+      var input = form.elements[n];
+      action[input.name] = input.value;
+    }
+
+    var globalStatus = document.querySelector ('header.textset .status');
+    showProgress ({init: true}, globalStatus);
+    server ('POST', 'edit.ndjson', [action], function (res) {
+      globalStatus.hidden = true;
+    }, function (json) {
+      toggleLangOrCommentsAreaEdit (area, true);
+      showError (json, status);
+      scrollToLangOrCommentsArea (area);
+    }, function (json) {
+      showProgress (json, globalStatus);
+    });
+  } // scheduleEdit
 
   function setCurrentLangs (langKeys, langs) {
     var mainTable = document.getElementById ('texts');
@@ -513,6 +532,9 @@
         area.className = 'lang-area';
         area.setAttribute ('data-lang', langKey);
 
+        Array.prototype.forEach.call (area.querySelectorAll ('input[name=text_id]'), function (input) {
+          input.value = text.textId;
+        });
         Array.prototype.forEach.call (area.querySelectorAll ('input.lang-key'), function (input) {
           input.value = langKey;
         });
@@ -526,29 +548,10 @@
         };
         area.querySelector ('form.edit').onsubmit = function () {
           toggleLangOrCommentsAreaEdit (area, false);
-          Array.prototype.forEach.call (area.querySelectorAll ('[type=submit]'), function (el) {
-            el.disabled = true;
-          });
 
-          var formStatus = area.querySelector ('.status');
-          showProgress ({init: true}, formStatus);
+          scheduleEdit (area, this, area.querySelector ('.status'));
+          syncLangAreaView (area);
 
-          var form = area.querySelector ('form');
-          server ('POST', form.action, new FormData (form), function (res) {
-            syncLangAreaView (area);
-            formStatus.hidden = true;
-            Array.prototype.forEach.call (area.querySelectorAll ('[type=submit]'), function (el) {
-              el.disabled = false;
-            });
-          }, function (json) {
-            toggleLangOrCommentsAreaEdit (area, true);
-            showError (json, formStatus);
-            Array.prototype.forEach.call (area.querySelectorAll ('[type=submit]'), function (el) {
-              el.disabled = false;
-            });
-          }, function (json) {
-            showProgress (json, formStatus);
-          });
           return false;
         };
 
@@ -708,7 +711,7 @@ function updateTable () {
   var mainTableData = mainTable.tBodies[0];
   mainTableData.hidden = true;
   mainTableData.textContent = '';
-  var mainTableStatus = mainTable.querySelector ('tbody.status');
+  var mainTableStatus = document.querySelector ('header.textset .status');
   showProgress ({message: "Loading...", init: true}, mainTableStatus);
 
   var item = document.querySelector ('[itemtype=data]');
