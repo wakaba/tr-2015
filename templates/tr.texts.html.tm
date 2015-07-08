@@ -2,7 +2,12 @@
 <t:call x="use Wanage::URL">
 <title>Texts - XXX - TR</title>
 <link rel=stylesheet href=/css/common.css>
-<body onbeforeunload=" if (isEditMode ()) return document.body.getAttribute ('data-beforeunload') " data-beforeunload="他のページへ移動します">
+<body onbeforeunload="
+  if (isEditMode ()) {
+    runEditActions ();
+    return document.body.getAttribute ('data-beforeunload');
+  }
+" data-beforeunload="他のページへ移動します">
 
 <t:include path=_header.html.tm />
 
@@ -317,28 +322,67 @@
   } // escapeQueryValue
 
   function isEditMode () {
-    return !!document.querySelector ('.dialog:not([hidden]):not(#config-langs), .toggle-edit.active, .edit-mode');
+    return document.trEditScheduled || !!document.querySelector ('.dialog:not([hidden]):not(#config-langs), .toggle-edit.active, .edit-mode');
   } // isEditMode
 
   function scheduleEdit (area, form, status) {
+    document.trEditScheduled = true;
     var action = {};
     for (var n in form.elements) {
       var input = form.elements[n];
       action[input.name] = input.value;
     }
+    document.trEditActions = document.trEditActions || [];
+    document.trEditActions.push (action);
+    document.trOnEdited = document.trOnEdited || [];
+
+    var globalStatus = document.querySelector ('header.textset .status');
+    showProgress ({secondary: true, init: true, hideProgress: true, message: 'Save changes', onmessageclick: runEditActions}, globalStatus);
+    
+    clearTimeout (document.trEditTimer);
+    document.trEditTimer = setTimeout (function () {
+      runEditActions ();
+    }, 30000);
+  } // scheduleEdit
+
+  function runEditActions () {
+    if (!document.trEditActions ||
+        !document.trEditActions.length) return;
+
+    document.trEditScheduled = true;
+    document.trEditRunning = document.trEditRunning || 0;
+    document.trEditRunning++;
+    var actions = document.trEditActions;
+    document.trEditActions = [];
+    var onedited = document.trOnEdited;
+    document.trOnEdited = [];
 
     var globalStatus = document.querySelector ('header.textset .status');
     showProgress ({init: true}, globalStatus);
-    server ('POST', 'edit.ndjson', [action], function (res) {
+    server ('POST', 'edit.ndjson', actions, function (res) {
       globalStatus.hidden = true;
+      document.trEditRunning--;
+      if (!document.trEditActions.length) document.trEditScheduled = false;
+      onedited.forEach (function (c) { c (true) });
     }, function (json) {
       toggleLangOrCommentsAreaEdit (area, true);
       showError (json, status);
       scrollToLangOrCommentsArea (area);
+      document.trEditRunning--;
+      if (!document.trEditActions.length) document.trEditScheduled = false;
+      onedited.forEach (function (c) { c (false) });
     }, function (json) {
       showProgress (json, globalStatus);
     });
-  } // scheduleEdit
+  } // runEditActions
+
+  function runAfterCurrentEdit (code) {
+    if (document.trEditRunning) {
+      document.trOnEdited.push (code);
+    } else {
+      code ();
+    }
+  } // runAfterCurrentEdit
 
   function setCurrentLangs (langKeys, langs) {
     var mainTable = document.getElementById ('texts');
@@ -706,23 +750,26 @@
     });
   }) ();
 
-function updateTable () {
-  var mainTable = document.getElementById ('texts');
-  var mainTableData = mainTable.tBodies[0];
-  mainTableData.hidden = true;
-  mainTableData.textContent = '';
-  var mainTableStatus = document.querySelector ('header.textset .status');
-  showProgress ({message: "Loading...", init: true}, mainTableStatus);
+  function updateTable () {
+    var mainTable = document.getElementById ('texts');
+    var mainTableData = mainTable.tBodies[0];
+    mainTableData.hidden = true;
+    mainTableData.textContent = '';
+    var mainTableStatus = document.querySelector ('header.textset .status');
+    showProgress ({message: "Loading...", init: true}, mainTableStatus);
 
-  var item = document.querySelector ('[itemtype=data]');
-  var url = item.querySelector ('[itemprop=data-url]').href;
-  var langQuery = item.querySelector ('[itemprop=lang-params]').content;
-  if (langQuery) langQuery = '&' + langQuery;
-  url += langQuery;
-  var form = item.querySelector ('form');
-  var query = form.elements.q.value;
-  server ('POST', url, new FormData (form), function (res) {
-    var json = res.data;
+    var item = document.querySelector ('[itemtype=data]');
+    var url = item.querySelector ('[itemprop=data-url]').href;
+    var langQuery = item.querySelector ('[itemprop=lang-params]').content;
+    if (langQuery) langQuery = '&' + langQuery;
+    url += langQuery;
+    var form = item.querySelector ('form');
+    var query = form.elements.q.value;
+    var formData = new FormData (form);
+
+    runAfterCurrentEdit (function () {
+      server ('POST', url, formData, function (res) {
+        var json = res.data;
         var scopes = [];
         for (var scope in json.scopes) {
           scopes.push (scope);
@@ -736,13 +783,15 @@ function updateTable () {
         mainTableData.hidden = false;
         mainTableStatus.hidden = true;
         history.replaceState (null, null, './?q=' + encodeURIComponent (query) + langQuery);
-  }, function (json) {
-    showError (json, mainTableStatus);
-  }, function (json) {
-    showProgress (json, mainTableStatus);
-  });
-  return false;
-} // updateTable
+      }, function (json) {
+        showError (json, mainTableStatus);
+      }, function (json) {
+        showProgress (json, mainTableStatus);
+      });
+    });
+    return false;
+  } // updateTable
+
 document.querySelector ('[itemtype=data] form').onsubmit = function () {
   if (isEditMode ()) {
     if (!confirm ('保存していない編集を破棄します')) return false;

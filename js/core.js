@@ -54,9 +54,16 @@
   } // server
 
   function showProgress (json, status) {
+    if (json.secondary && !status.hidden) return;
     if (json.message) {
       var statusMessage = status.querySelector ('.message');
-      statusMessage.textContent = json.message;
+      if (json.onmessageclick) {
+        statusMessage.innerHTML = '<a href=javascript:></a>';
+        statusMessage.firstChild.onclick = json.onmessageclick;
+        statusMessage.firstChild.textContent = json.message;
+      } else {
+        statusMessage.textContent = json.message;
+      }
     } else if (json.init) {
       var statusMessage = status.querySelector ('.message');
       statusMessage.textContent = json.message || 'Processing...';
@@ -69,7 +76,11 @@
       var statusBar = status.querySelector ('progress');
       statusBar.removeAttribute ('value');
       statusBar.removeAttribute ('max');
-      statusBar.hidden = false;
+      if (json.hideProgress) {
+        statusBar.hidden = true;
+      } else {
+        statusBar.hidden = false;
+      }
     }
     status.hidden = false;
     status.setAttribute ('data-type', 'progress');
